@@ -1,6 +1,6 @@
 import { SITE } from "@/lib/site";
 import { CtaButton } from "./cta-button";
-import { DemoFrame } from "./demo-frame";
+import { DemoVideo } from "./demo-video";
 
 export function Hero() {
   return (
@@ -32,7 +32,7 @@ export function Hero() {
       </div>
 
       <div className="mt-20">
-        <DemoFrame />
+        <DemoVideo />
       </div>
     </section>
   );
