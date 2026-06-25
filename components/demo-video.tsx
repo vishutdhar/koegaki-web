@@ -23,13 +23,13 @@ export function DemoVideo() {
     <div className="relative mx-auto w-full max-w-3xl">
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-8 -z-10 rounded-[2.5rem] bg-ember-soft blur-3xl"
+        className="pointer-events-none absolute -inset-4 -z-10 rounded-[2rem] bg-ember-soft opacity-60 blur-3xl"
       />
-      {/* glass elevation: layered shadow + a light-catching top rim */}
-      <div className="relative overflow-hidden rounded-xl shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9),0_8px_24px_-12px_rgba(0,0,0,0.7)] ring-1 ring-white/[0.08]">
+      {/* glass elevation: layered drop shadow + inner top highlight (lit from above) */}
+      <div className="relative overflow-hidden rounded-xl shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9),0_8px_24px_-12px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.06] transition-transform duration-300 ease-out hover:-translate-y-1">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
         />
         {reducedMotion ? (
           <img

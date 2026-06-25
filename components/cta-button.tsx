@@ -16,11 +16,11 @@ export function CtaButton({
   external?: boolean;
 }) {
   const base =
-    "group inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-medium transition-all duration-200 ease-out will-change-transform hover:-translate-y-0.5 active:translate-y-0";
+    "group inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-medium transition-all duration-200 ease-out hover:-translate-y-0.5 active:translate-y-0";
   const styles =
     variant === "primary"
       ? "bg-ember text-base shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_8px_24px_-8px_rgba(232,100,60,0.6)] hover:bg-[#f0784f] hover:shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_12px_32px_-8px_rgba(232,100,60,0.75)]"
-      : "border border-hairline bg-surface/40 text-ink hover:border-ink/25 hover:bg-surface";
+      : "border border-white/10 bg-white/[0.03] text-ink shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] hover:border-white/20 hover:bg-white/[0.06]";
   return (
     <a
       href={href}

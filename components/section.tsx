@@ -16,7 +16,7 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section id={id} className={`mx-auto w-full max-w-5xl px-6 py-24 sm:py-28 ${className}`}>
+    <section id={id} className={`mx-auto w-full max-w-5xl px-6 py-24 sm:py-32 ${className}`}>
       {eyebrow && (
         <p className="mb-5 font-mono text-xs uppercase tracking-[0.2em] text-ember">{eyebrow}</p>
       )}

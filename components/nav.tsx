@@ -21,7 +21,7 @@ export function Nav() {
               FAQ
             </a>
           </div>
-          <CtaButton href={SITE.downloadUrl} external>
+          <CtaButton href={SITE.downloadUrl} variant="secondary" external>
             Download
           </CtaButton>
         </div>
