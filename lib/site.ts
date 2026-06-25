@@ -26,6 +26,9 @@ export const SITE = {
 
   requirements: "macOS 14+ · Apple Silicon recommended",
 
+  /** Public support address (the app's published support email). */
+  contactEmail: "vishutdhar1993@gmail.com",
+
   /** Speech model, stated plainly (no unsourced benchmark claims in product copy). */
   engine: "Parakeet TDT 0.6B v3 · on-device (Apple Neural Engine)",
 } as const;

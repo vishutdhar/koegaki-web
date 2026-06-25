@@ -33,7 +33,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-base text-ink">{children}</body>
+      <body className="min-h-full flex flex-col bg-base text-ink">
+        {/* No-JS / crawler safety: scroll-reveal elements must never stay hidden. */}
+        <noscript>
+          <style>{`.reveal{opacity:1 !important;transform:none !important}`}</style>
+        </noscript>
+        <Background />
+        {children}
+      </body>
     </html>
   );
 }
