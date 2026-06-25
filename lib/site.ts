@@ -11,7 +11,7 @@ export const SITE = {
   url: "https://koegaki.com",
   tagline: "The fastest private dictation for Mac.",
   description:
-    "Koegaki turns your voice into text anywhere on your Mac — instantly, and fully on-device. Your voice never leaves your machine.",
+    "Koegaki turns your voice into text anywhere on your Mac, instantly and fully on-device. Your voice never leaves your machine.",
 
   priceUSD: 29,
   trialDays: 30,

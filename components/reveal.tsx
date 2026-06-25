@@ -1,10 +1,11 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 
 /**
  * Scroll-reveal: fades + rises its children when they enter the viewport (once).
- * Respects reduced motion (shows immediately). `delay` staggers siblings.
+ * Respects reduced motion (shows immediately, no transition). `delay` staggers siblings.
  */
 export function Reveal({
   children,
@@ -16,19 +17,17 @@ export function Reveal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(false);
+  const [inView, setInView] = useState(false);
+  const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
+    if (reduced) return;
     const el = ref.current;
     if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(true);
-      return;
-    }
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setShown(true);
+          setInView(true);
           io.disconnect();
         }
       },
@@ -36,7 +35,9 @@ export function Reveal({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [reduced]);
+
+  const shown = reduced || inView;
 
   return (
     <div

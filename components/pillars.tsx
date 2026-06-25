@@ -16,7 +16,7 @@ const PILLARS = [
   {
     icon: IconCursor,
     title: "Effortless",
-    body: "Hold a key, talk, release. Your words land wherever the cursor is — any app, any text field. Nothing to set up.",
+    body: "Hold a key, talk, release. Your words land wherever the cursor is: any app, any text field. Nothing to set up.",
   },
 ];
 

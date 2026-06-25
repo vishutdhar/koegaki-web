@@ -5,7 +5,7 @@ import { CtaButton } from "./cta-button";
 import { IconCheck } from "./icons";
 
 const INCLUDED = [
-  "Every feature — no tiers, no add-ons",
+  "Every feature. No tiers, no add-ons",
   "Unlimited on-device dictation",
   "Custom vocabulary & shortcuts",
   "Free updates",

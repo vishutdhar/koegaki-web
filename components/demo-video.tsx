@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 
 /**
  * Hero demo: an autoplay/muted/looping video of Koegaki dictating (rendered with
@@ -9,15 +10,7 @@ import { useEffect, useState } from "react";
  * poster attr, so a static frame shows before the video plays (no blank box / no CLS).
  */
 export function DemoVideo() {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
+  const reducedMotion = usePrefersReducedMotion();
 
   return (
     <div className="relative mx-auto w-full max-w-3xl">
@@ -32,11 +25,12 @@ export function DemoVideo() {
           className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
         />
         {reducedMotion ? (
-          <img
+          <Image
             src="/demo-poster.png"
             alt="Koegaki dictating: an editor with text appearing and the Listening waveform."
             width={1280}
             height={800}
+            priority
             className="block w-full"
           />
         ) : (

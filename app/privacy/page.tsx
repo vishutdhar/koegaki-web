@@ -19,7 +19,7 @@ export default function PrivacyPage() {
             Your voice never leaves your Mac.
           </h1>
           <p className="mt-4 text-muted">
-            {SITE.name} is built so that privacy isn&apos;t a policy you have to trust — it&apos;s
+            {SITE.name} is built so that privacy isn&apos;t a policy you have to trust. It&apos;s
             how the app works.
           </p>
 
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
               <p className="mt-2.5 text-sm leading-relaxed text-muted">
                 koegaki.com uses privacy-friendly, cookieless analytics to count visits. It does
                 not track you across sites or build a profile. Purchases are handled by our
-                payment provider, which processes your payment details — we never see your card.
+                payment provider, which processes your payment details. We never see your card.
               </p>
             </section>
 
