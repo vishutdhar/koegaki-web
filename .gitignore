@@ -43,4 +43,3 @@ build/
 .vercel
 .env*.local
 .playwright-mcp/
-*.png
