@@ -25,7 +25,12 @@ export function DemoVideo() {
         aria-hidden
         className="pointer-events-none absolute -inset-8 -z-10 rounded-[2.5rem] bg-ember-soft blur-3xl"
       />
-      <div className="overflow-hidden rounded-xl border border-hairline shadow-2xl">
+      {/* glass elevation: layered shadow + a light-catching top rim */}
+      <div className="relative overflow-hidden rounded-xl shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9),0_8px_24px_-12px_rgba(0,0,0,0.7)] ring-1 ring-white/[0.08]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+        />
         {reducedMotion ? (
           <img
             src="/demo-poster.png"
