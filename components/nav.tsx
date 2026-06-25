@@ -3,7 +3,7 @@ import { CtaButton } from "./cta-button";
 
 export function Nav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-hairline bg-base/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-hairline bg-canvas/80 backdrop-blur-md">
       <nav className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-6">
         <a href="#top" className="flex items-center gap-2.5">
           <span className="font-display text-2xl leading-none text-ink">{SITE.mark}</span>

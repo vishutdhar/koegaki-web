@@ -30,7 +30,7 @@ export function Pillars() {
       </Reveal>
       <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-3">
         {PILLARS.map(({ icon: Icon, title, body }, i) => (
-          <Reveal key={title} delay={i * 90} className="bg-base">
+          <Reveal key={title} delay={i * 90} className="bg-canvas">
             <div className="h-full bg-surface/40 p-7">
               <Icon className="h-6 w-6 text-ember" />
               <h3 className="mt-5 font-display text-lg font-medium tracking-tight">{title}</h3>

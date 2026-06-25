@@ -4,7 +4,9 @@
    text + a hint of warmth in the charcoal keep this away from the cold
    "black + neon accent" default. */
 @theme {
-  --color-base: #0b0b0d;
+  /* Named `canvas`, not `base`: a `base` color token collides with Tailwind's built-in
+     `text-base` font-size utility and would paint text in the background color. */
+  --color-canvas: #0b0b0d;
   --color-surface: #141416;
   --color-card: #1a1a1f;
   --color-hairline: rgba(245, 239, 230, 0.08);
@@ -25,7 +27,7 @@ html {
 }
 
 body {
-  background: var(--color-base);
+  background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
