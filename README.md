@@ -38,6 +38,7 @@ conventions from older versions (see `AGENTS.md`).
 ## Conventions
 
 - No AI-assistant references in commits, comments, or docs.
-- Every change ships through a PR (`quick-pr`); Codex reviews; `main` is push-protected.
+- Every change ships through a PR (`quick-pr`) with automated review; `main` is
+  push-protected.
 - The Mac app itself lives in the private `Koegaki` repo; its release procedure is
   `docs/RELEASE-1.0-runbook.md` there.
