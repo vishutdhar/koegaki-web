@@ -2,7 +2,7 @@ import { SITE } from "@/lib/site";
 import { Section } from "./section";
 import { Reveal } from "./reveal";
 
-const FAQS = [
+export const FAQS = [
   {
     q: "Is my voice really private?",
     a: "Yes. The speech model runs entirely on your Mac. No audio and no transcript is ever sent anywhere. There is no account and no server.",
@@ -13,7 +13,7 @@ const FAQS = [
   },
   {
     q: "Does it need the internet?",
-    a: "Only once. The speech model downloads on first launch, then Koegaki works fully offline forever after.",
+    a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
   },
   {
     q: "How does the free trial work?",
