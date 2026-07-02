@@ -33,16 +33,22 @@ const faqPage = {
   })),
 };
 
+// The payloads are static, developer-authored constants (no user input reaches them), and
+// escaping `<` prevents any future string from ever closing the script tag early.
+function asJsonLd(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export function StructuredData() {
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplication) }}
+        dangerouslySetInnerHTML={{ __html: asJsonLd(softwareApplication) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
+        dangerouslySetInnerHTML={{ __html: asJsonLd(faqPage) }}
       />
     </>
   );
