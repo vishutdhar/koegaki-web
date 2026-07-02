@@ -1,4 +1,5 @@
 import { Nav } from "@/components/nav";
+import { StructuredData } from "@/components/structured-data";
 import { Hero } from "@/components/hero";
 import { Pillars } from "@/components/pillars";
 import { HowItWorks } from "@/components/how-it-works";
@@ -20,6 +21,7 @@ function Divider() {
 export default function Home() {
   return (
     <>
+      <StructuredData />
       <Nav />
       <main className="flex-1">
         <Hero />
