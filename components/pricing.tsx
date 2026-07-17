@@ -7,8 +7,8 @@ import { IconCheck } from "./icons";
 const INCLUDED = [
   "Every feature. No tiers, no add-ons",
   "Unlimited on-device dictation",
-  "Custom vocabulary & shortcuts",
-  "Free updates",
+  "Word replacements & shortcuts",
+  "Free 1.x updates",
   "Use on your Macs",
 ];
 

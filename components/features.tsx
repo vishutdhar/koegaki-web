@@ -16,8 +16,8 @@ const SMALL = [
   },
   {
     icon: IconBook,
-    title: "Custom vocabulary",
-    body: "Teach it names, jargon, and spellings so they come out right.",
+    title: "Word replacements",
+    body: "Say a short word, Koegaki types the full phrase. Names, emails, jargon.",
   },
   {
     icon: IconMenuBar,

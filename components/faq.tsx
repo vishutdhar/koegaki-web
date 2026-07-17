@@ -21,7 +21,7 @@ export const FAQS = [
   },
   {
     q: "Do I get updates?",
-    a: "Yes, updates are included with your license.",
+    a: "Yes, every 1.x update is included with your license. If a paid major upgrade ever exists, your version keeps working as is.",
   },
   {
     q: "Is there a Windows version?",
