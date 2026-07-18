@@ -13,7 +13,7 @@ export const SITE = {
   description:
     "Koegaki turns your voice into text anywhere on your Mac, instantly and fully on-device. Your voice never leaves your machine.",
 
-  priceUSD: 29,
+  priceUSD: 30,
   trialDays: 30,
 
   /** Lemon Squeezy hosted checkout link (public). Set NEXT_PUBLIC_CHECKOUT_URL in Vercel. */

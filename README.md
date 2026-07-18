@@ -1,7 +1,7 @@
 # koegaki-web
 
 The public site for [Koegaki](https://koegaki.com) — local, private voice-to-text for Mac,
-sold direct for $29 with a 30-day trial. Next.js 16 (App Router) + Tailwind v4, deployed on
+sold direct for $30 with a 30-day trial. Next.js 16 (App Router) + Tailwind v4, deployed on
 Vercel. Pushes to `main` auto-deploy to production via the Git integration.
 
 ## How money and downloads flow
