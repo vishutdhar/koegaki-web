@@ -37,11 +37,15 @@ export default function PrivacyPage() {
 
             <section>
               <h2 className="font-display text-lg font-medium tracking-tight">
-                The one time it uses the network
+                When it uses the network
               </h2>
               <p className="mt-2.5 text-sm leading-relaxed text-muted">
-                On first launch, {SITE.name} downloads its speech model so everything can then
-                run offline. After that, dictation needs no internet connection at all.
+                On first launch, {SITE.name} downloads its speech model so dictation can then
+                run offline. Dictation itself needs no internet connection at all. Beyond that,
+                the app talks to the network for exactly two things: verifying your license key
+                (at activation, then a quiet daily check while licensed) and checking
+                koegaki.com for app updates. Both carry version and license metadata only.
+                Neither ever includes audio or transcripts.
               </p>
             </section>
 
