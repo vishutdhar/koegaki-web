@@ -8,7 +8,7 @@ const INCLUDED = [
   "Every feature. No tiers, no add-ons",
   "Unlimited on-device dictation",
   "Word replacements & shortcuts",
-  "Free 1.x updates",
+  "Free updates for life",
   "Use on your Macs",
 ];
 
