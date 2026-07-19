@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>KoegakiMac</title>
+        <item>
+            <title>1.0.1</title>
+            <pubDate>Sat, 18 Jul 2026 19:38:33 -0400</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.0.1.dmg" length="6396343" type="application/octet-stream" sparkle:edSignature="UGq6ueoo16tWF24mRKizk1h4bSFbuogbCZlVA5TllutJkNNDUecShAmJD0K9Ooe6WFLxJSfMVnjyyvPOxfFABQ=="/>
+        </item>
+    </channel>
+</rss>
