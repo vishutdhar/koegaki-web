@@ -21,7 +21,7 @@ export const FAQS = [
   },
   {
     q: "Do I get updates?",
-    a: "Yes, every 1.x update is included with your license. If a paid major upgrade ever exists, your version keeps working as is.",
+    a: "Yes. Every update is included with your license, for life. Buy once and the app keeps getting better.",
   },
   {
     q: "Is there a Windows version?",
