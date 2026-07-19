@@ -28,9 +28,16 @@ export function Pillars() {
           Dictation that feels like the Mac built it in.
         </h2>
       </Reveal>
-      <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-3">
+      {/* Hairlines are borders ON the cells (not a light container showing through
+          1px gaps): a cell hidden by the scroll reveal takes its lines with it, so
+          fast scrolling can never expose a grey skeleton behind unrevealed cards. */}
+      <div className="mt-14 grid overflow-hidden rounded-xl border border-hairline sm:grid-cols-3">
         {PILLARS.map(({ icon: Icon, title, body }, i) => (
-          <Reveal key={title} delay={i * 90} className="bg-canvas">
+          <Reveal
+            key={title}
+            delay={i * 90}
+            className={i > 0 ? "border-t border-hairline sm:border-l sm:border-t-0" : ""}
+          >
             <div className="h-full bg-surface/40 p-7">
               <Icon className="h-6 w-6 text-ember" />
               <h3 className="mt-5 font-display text-lg font-medium tracking-tight">{title}</h3>

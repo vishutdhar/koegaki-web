@@ -31,7 +31,10 @@ export function Reveal({
           io.disconnect();
         }
       },
-      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" },
+      // Pre-fire ~15% of a viewport BELOW the fold (positive bottom margin) so the
+      // animation is already running by the time content scrolls into view — fast
+      // mobile scrolling in either direction never catches a still-hidden block.
+      { threshold: 0.01, rootMargin: "0px 0px 15% 0px" },
     );
     io.observe(el);
     return () => io.disconnect();
