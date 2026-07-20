@@ -20,6 +20,9 @@ export function Footer() {
           <a href="/privacy" className="transition-colors hover:text-ink">
             Privacy
           </a>
+          <a href="https://freedom-terminal.com" className="transition-colors hover:text-ink" target="_blank" rel="noopener">
+            Freedom Terminal
+          </a>
         </div>
       </div>
     </footer>
