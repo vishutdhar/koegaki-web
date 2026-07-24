@@ -3,12 +3,12 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.1.0</title>
-            <pubDate>Mon, 20 Jul 2026 20:31:12 -0400</pubDate>
-            <sparkle:version>13</sparkle:version>
-            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <title>1.2</title>
+            <pubDate>Fri, 24 Jul 2026 19:37:29 -0400</pubDate>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.1.0.dmg" length="6377539" type="application/octet-stream" sparkle:edSignature="ZAcXm8URGE4Uro5GJlUrHQ+4DRRWm/nkT25I1LtCt0g6ly2nn8/pKBaWD4c+mW5D8QgkbqVBt8B8URwUInasDg=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.dmg" length="7815168" type="application/octet-stream" sparkle:edSignature="YHnb7etyLXQ+URQPYWsndukWPcg056PSlzNh5KeYp0FuEN4REDOaPCidgQVlOMVEyDx/kE6QtH8V2R7oeyR+BA=="/>
         </item>
     </channel>
 </rss>
