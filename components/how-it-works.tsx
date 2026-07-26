@@ -6,7 +6,7 @@ const STEPS = [
   {
     n: "01",
     title: "Hold your shortcut",
-    body: "A modifier combo, or any key you pick. It works system-wide, in every app.",
+    body: "A shortcut you choose. It works system wide, wherever you can type.",
   },
   {
     n: "02",

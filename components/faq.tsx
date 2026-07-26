@@ -29,7 +29,7 @@ export const FAQS = [
   },
   {
     q: "Windows says it protected my PC. Is that a problem?",
-    a: "No, and you should expect it. The Windows installer is not yet signed with a certificate, so Windows shows a blue warning the first time you run it. Choose More info, then Run anyway. The warning is about the missing certificate, not about anything found in the app. Signing is on the list.",
+    a: "No, and you should expect it. The Windows installer is not yet signed with a certificate, so Windows warns the first time you run it. Usually you choose More info, then Run anyway. On a PC with Smart App Control switched on there is no Run anyway, and the installer is refused outright; that setting can only be turned off by resetting it in Windows Security, so if you would rather not, write to us and wait for the signed build. The warning is about the missing certificate, not about anything found in the app. Signing is on the list.",
   },
 ];
 

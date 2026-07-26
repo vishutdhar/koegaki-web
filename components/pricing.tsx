@@ -11,7 +11,7 @@ const INCLUDED = [
   "Mac and Windows, one licence",
   "Word replacements & shortcuts",
   "Free updates for life",
-  "Use on every computer you own",
+  "Use on up to 10 of your own computers",
 ];
 
 export function Pricing() {

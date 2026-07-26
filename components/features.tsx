@@ -6,13 +6,13 @@ import { IconChip, IconApps, IconKey, IconBook, IconMenuBar } from "./icons";
 const SMALL = [
   {
     icon: IconApps,
-    title: "Works in every app",
+    title: "Works where you type",
     body: "Mail, Slack, your editor, the browser. If you can type there, you can dictate there.",
   },
   {
     icon: IconKey,
     title: "Your shortcut",
-    body: "A modifier combo, or any key you pick. Push-to-talk or toggle.",
+    body: "A shortcut you choose. Hold to talk, or toggle it on.",
   },
   {
     icon: IconBook,
