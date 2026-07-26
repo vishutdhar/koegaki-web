@@ -1,5 +1,5 @@
 import { SITE } from "@/lib/site";
-import { CtaButton } from "./cta-button";
+import { DownloadCta } from "./download-cta";
 
 export function Nav() {
   return (
@@ -21,9 +21,7 @@ export function Nav() {
               FAQ
             </a>
           </div>
-          <CtaButton href={SITE.downloadUrl} variant="secondary" external>
-            Download
-          </CtaButton>
+          <DownloadCta variant="secondary">Download</DownloadCta>
         </div>
       </nav>
     </header>

@@ -1,0 +1,11 @@
+{
+  "version": "1.2.0",
+  "notes": "Multilingual dictation, automatic recovery if the app stops unexpectedly, and settings and history that survive an interrupted write.",
+  "pub_date": "2026-07-26T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3IxbHNsTGNxTkdwUFVnRzlIdGFQc0NEU2ZhWHRnRVNVNE95ZUlVWG5IenJOVnhnYjN4dDJTbWNDcTVnSk1DZmpyUGY2TXFWRDFMSzNZZjhvNVMvc2cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDg4MTY2CWZpbGU6S29lZ2FraV8xLjIuMF94NjQtc2V0dXAuZXhlCjA0cTI4eGVlRXpkRTdneWJ1eDRJUVp2L0FTSUZqeVdmaklRNXQ4QWxCWmRyeXhINzFHb3FJdGR2bm1nTGE3N3g2NlFzUEhhamdGeWdoS2V6eXBlbUFRPT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2-setup.exe"
+    }
+  }
+}

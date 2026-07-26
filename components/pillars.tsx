@@ -6,7 +6,7 @@ const PILLARS = [
   {
     icon: IconShield,
     title: "Private by design",
-    body: "The speech model runs entirely on your Mac. No account, no cloud, no audio or text ever leaves your machine.",
+    body: "The speech model runs entirely on your own machine. No account, no cloud, no audio or text ever leaves your machine.",
   },
   {
     icon: IconBolt,
@@ -25,7 +25,7 @@ export function Pillars() {
     <Section id="why" eyebrow="Why Koegaki">
       <Reveal>
         <h2 className="max-w-2xl font-display text-3xl font-semibold leading-tight tracking-[-0.02em] sm:text-4xl">
-          Dictation that feels like the Mac built it in.
+          Dictation that feels built into the system.
         </h2>
       </Reveal>
       {/* Hairlines are borders ON the cells (not a light container showing through

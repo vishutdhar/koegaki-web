@@ -13,7 +13,7 @@ const softwareApplication = {
   description: SITE.description,
   url: SITE.url,
   image: `${SITE.url}/og.png`,
-  operatingSystem: "macOS 14.0 or later",
+  operatingSystem: "macOS 14.0 or later, Windows 10, Windows 11",
   applicationCategory: "UtilitiesApplication",
   offers: {
     "@type": "Offer",
@@ -46,10 +46,7 @@ export function StructuredData() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: asJsonLd(softwareApplication) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: asJsonLd(faqPage) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: asJsonLd(faqPage) }} />
     </>
   );
 }

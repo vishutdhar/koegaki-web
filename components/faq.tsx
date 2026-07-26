@@ -5,11 +5,11 @@ import { Reveal } from "./reveal";
 export const FAQS = [
   {
     q: "Is my voice really private?",
-    a: "Yes. The speech model runs entirely on your Mac. No audio and no transcript is ever sent anywhere. There is no account and no server.",
+    a: "Yes. The speech model runs entirely on your own machine. No audio and no transcript is ever sent anywhere. There is no account and no server.",
   },
   {
     q: "What do I need to run it?",
-    a: `${SITE.requirements}. It runs best on Apple Silicon, where the model uses the Neural Engine.`,
+    a: `Mac: ${SITE.requirements}, where the model uses the Neural Engine. Windows: ${SITE.windowsRequirements}. One licence covers both.`,
   },
   {
     q: "Does it need the internet?",
@@ -25,7 +25,11 @@ export const FAQS = [
   },
   {
     q: "Is there a Windows version?",
-    a: "A Windows app is in the works. Your license is built to carry across platforms.",
+    a: "Yes. Koegaki runs on Mac and Windows, and one license covers both. The Windows build does the same thing the same way: your voice is transcribed on your own machine and never sent anywhere.",
+  },
+  {
+    q: "Windows says it protected my PC. Is that a problem?",
+    a: "No, and you should expect it. The Windows installer is not yet signed with a certificate, so Windows shows a blue warning the first time you run it. Choose More info, then Run anyway. The warning is about the missing certificate, not about anything found in the app. Signing is on the list.",
   },
 ];
 

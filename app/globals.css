@@ -94,6 +94,23 @@ body {
   transform: none;
 }
 
+/*
+  Platform-specific copy. Both variants are in the markup so the page is correct
+  before any script runs and correct for crawlers; the pre-paint script in the
+  layout stamps data-os="win" and this hides the half that does not apply.
+  Default (no attribute) shows the Mac variant.
+
+  Both rules only ever ADD display:none. Nothing here restores a display value,
+  because the visible element keeps whatever Tailwind gave it (the CTA is
+  inline-flex, and reverting would collapse it to a plain inline anchor).
+*/
+html:not([data-os="win"]) .os-win {
+  display: none;
+}
+[data-os="win"] .os-mac {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

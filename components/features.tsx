@@ -12,7 +12,7 @@ const SMALL = [
   {
     icon: IconKey,
     title: "Your shortcut",
-    body: "Globe, a modifier combo, or any key. Push-to-talk or toggle.",
+    body: "A modifier combo, or any key you pick. Push-to-talk or toggle.",
   },
   {
     icon: IconBook,
@@ -21,8 +21,8 @@ const SMALL = [
   },
   {
     icon: IconMenuBar,
-    title: "Lives in the menu bar",
-    body: "Always a keystroke away, never in your way. No Dock clutter.",
+    title: "Out of your way",
+    body: "Waits in the menu bar on Mac and the tray on Windows. Always a keystroke away.",
   },
 ];
 
@@ -45,13 +45,17 @@ export function Features() {
             />
             <IconChip className="h-6 w-6 text-ember" />
             <h3 className="mt-5 max-w-md font-display text-2xl font-medium tracking-tight">
-              The whole model runs on your Mac.
+              The whole model runs on your own machine.
             </h3>
             <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
-              Koegaki transcribes with {SITE.engine}. There is no server to send your voice to,
-              because there is no server. Your words are yours.
+              Koegaki transcribes with <span className="os-mac">{SITE.engine}</span>
+              <span className="os-win">{SITE.windowsEngine}</span>. There is no server to send your
+              voice to, because there is no server. Your words are yours.
             </p>
-            <p className="mt-5 font-mono text-xs text-faint">{SITE.engine}</p>
+            <p className="mt-5 font-mono text-xs text-faint">
+              <span className="os-mac">{SITE.engine}</span>
+              <span className="os-win">{SITE.windowsEngine}</span>
+            </p>
           </div>
         </Reveal>
 

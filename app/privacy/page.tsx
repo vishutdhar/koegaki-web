@@ -5,7 +5,7 @@ import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Privacy",
-  description: `How ${SITE.name} handles your data: it doesn't. Voice and transcripts never leave your Mac.`,
+  description: `How ${SITE.name} handles your data: it doesn't. Voice and transcripts never leave your computer.`,
 };
 
 export default function PrivacyPage() {
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
         <article className="mx-auto w-full max-w-2xl px-6 py-24 sm:py-28">
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-ember">Privacy</p>
           <h1 className="mt-5 font-display text-4xl font-semibold tracking-[-0.02em]">
-            Your voice never leaves your Mac.
+            Your voice never leaves your computer.
           </h1>
           <p className="mt-4 text-muted">
             {SITE.name} is built so that privacy isn&apos;t a policy you have to trust. It&apos;s

@@ -9,9 +9,9 @@ export const SITE = {
   mark: "声",
   domain: "koegaki.com",
   url: "https://koegaki.com",
-  tagline: "The fastest private dictation for Mac.",
+  tagline: "The fastest private dictation for Mac and Windows.",
   description:
-    "Koegaki turns your voice into text anywhere on your Mac, instantly and fully on-device. Your voice never leaves your machine.",
+    "Koegaki turns your voice into text anywhere on your Mac or PC, instantly and fully on-device. Your voice never leaves your machine.",
 
   priceUSD: 30,
   trialDays: 30,
@@ -26,11 +26,28 @@ export const SITE = {
 
   requirements: "macOS 14+ · Apple Silicon recommended",
 
+  /**
+   * The Windows build. The fallback is the real public blob URL rather than a
+   * placeholder, so an unset env var can never silently break the download the
+   * way a missing NEXT_PUBLIC_* would. The blob host is already public in
+   * appcast.xml, so nothing is exposed by committing it.
+   */
+  windowsDownloadUrl:
+    process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??
+    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2-setup.exe",
+
+  windowsRequirements: "Windows 10 & 11 · 64-bit",
+
   /** Public support address (the app's published support email). */
   contactEmail: "support@freedom-terminal.com",
 
-  /** Speech model, stated plainly (no unsourced benchmark claims in product copy). */
+  /**
+   * Speech model, stated plainly (no unsourced benchmark claims in product copy).
+   * Both platforms run the same model; only the compute differs, and each string
+   * is verified against what that build actually does rather than assumed.
+   */
   engine: "Parakeet TDT 0.6B v3 · on-device (Apple Neural Engine)",
+  windowsEngine: "Parakeet TDT 0.6B v3 · on-device (CPU)",
 } as const;
 
 export type Site = typeof SITE;

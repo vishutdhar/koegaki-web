@@ -9,11 +9,14 @@ export function CtaButton({
   variant = "primary",
   children,
   external = false,
+  className = "",
 }: {
   href: string;
   variant?: "primary" | "secondary";
   children: ReactNode;
   external?: boolean;
+  /** Used to tag the Mac and Windows variants so CSS can show the right one. */
+  className?: string;
 }) {
   const base =
     "group inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-medium transition-all duration-200 ease-out hover:-translate-y-0.5 active:translate-y-0";
@@ -24,7 +27,7 @@ export function CtaButton({
   return (
     <a
       href={href}
-      className={`${base} ${styles}`}
+      className={`${base} ${styles} ${className}`.trim()}
       {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
     >
       {children}
