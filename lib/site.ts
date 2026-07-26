@@ -19,19 +19,20 @@ export const SITE = {
   /** Lemon Squeezy hosted checkout link (public). Set NEXT_PUBLIC_CHECKOUT_URL in Vercel. */
   checkoutUrl:
     process.env.NEXT_PUBLIC_CHECKOUT_URL ?? "https://koegaki.lemonsqueezy.com/buy/PLACEHOLDER",
-  /** Direct download of the notarized .dmg (public). Set NEXT_PUBLIC_DOWNLOAD_URL in Vercel. */
+  /**
+   * Direct downloads (public). Both fall back to the real blob URL the site
+   * already serves rather than to a placeholder, so an unset env var degrades
+   * to a working older build instead of a dead link. The previous macOS
+   * fallback pointed at releases on a PRIVATE repo, which would have 404'd for
+   * every visitor the moment NEXT_PUBLIC_DOWNLOAD_URL went missing. The blob
+   * host is already public in appcast.xml, so committing it exposes nothing.
+   */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
-    "https://github.com/vishutdhar/Koegaki/releases/latest/download/Koegaki.dmg",
+    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.dmg",
 
   requirements: "macOS 14+ · Apple Silicon recommended",
 
-  /**
-   * The Windows build. The fallback is the real public blob URL rather than a
-   * placeholder, so an unset env var can never silently break the download the
-   * way a missing NEXT_PUBLIC_* would. The blob host is already public in
-   * appcast.xml, so nothing is exposed by committing it.
-   */
   windowsDownloadUrl:
     process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??
     "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2-setup.exe",
