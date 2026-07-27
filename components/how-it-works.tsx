@@ -6,7 +6,7 @@ const STEPS = [
   {
     n: "01",
     title: "Hold your shortcut",
-    body: "Globe, a modifier combo, or any key you pick. It works system-wide via Accessibility.",
+    body: "A shortcut you choose. It works system wide, wherever you can type.",
   },
   {
     n: "02",
@@ -36,15 +36,27 @@ export function HowItWorks() {
               <div className="mt-3 h-px w-full bg-hairline" />
               <h3 className="mt-5 font-display text-xl font-medium tracking-tight">{title}</h3>
               <p className="mt-2.5 text-sm leading-relaxed text-muted">{body}</p>
+              {/*
+                Each platform's real default: Globe or a modifier chord on Mac,
+                Ctrl+Alt+D on Windows. Showing Mac glyphs to a Windows visitor
+                would name keys their keyboard does not have.
+              */}
               {i === 0 && (
-                <div className="mt-4 flex items-center gap-1.5">
-                  <KeyCap>🌐</KeyCap>
-                  <span className="text-faint">or</span>
-                  <KeyCap>⌃</KeyCap>
-                  <KeyCap>⌥</KeyCap>
-                  <KeyCap>⌘</KeyCap>
-                  <KeyCap>D</KeyCap>
-                </div>
+                <>
+                  <div className="os-mac mt-4 flex items-center gap-1.5">
+                    <KeyCap>🌐</KeyCap>
+                    <span className="text-faint">or</span>
+                    <KeyCap>⌃</KeyCap>
+                    <KeyCap>⌥</KeyCap>
+                    <KeyCap>⌘</KeyCap>
+                    <KeyCap>D</KeyCap>
+                  </div>
+                  <div className="os-win mt-4 flex items-center gap-1.5">
+                    <KeyCap>Ctrl</KeyCap>
+                    <KeyCap>Alt</KeyCap>
+                    <KeyCap>D</KeyCap>
+                  </div>
+                </>
               )}
             </div>
           </Reveal>

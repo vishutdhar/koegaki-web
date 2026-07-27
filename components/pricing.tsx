@@ -2,14 +2,16 @@ import { SITE } from "@/lib/site";
 import { Section } from "./section";
 import { Reveal } from "./reveal";
 import { CtaButton } from "./cta-button";
+import { DownloadCta, PlatformNote } from "./download-cta";
 import { IconCheck } from "./icons";
 
 const INCLUDED = [
   "Every feature. No tiers, no add-ons",
   "Unlimited on-device dictation",
+  "Mac and Windows, one licence",
   "Word replacements & shortcuts",
   "Free updates for life",
-  "Use on your Macs",
+  "Use on up to 10 of your own computers",
 ];
 
 export function Pricing() {
@@ -38,7 +40,7 @@ export function Pricing() {
             <span className="text-muted">one-time</span>
           </div>
           <p className="mt-1.5 font-mono text-xs text-faint">
-            {SITE.trialDays}-day free trial · Mac now · Windows coming
+            {SITE.trialDays}-day free trial · Mac and Windows
           </p>
 
           <ul className="mt-7 space-y-3">
@@ -51,13 +53,12 @@ export function Pricing() {
           </ul>
 
           <div className="mt-8 flex flex-col gap-3">
-            <CtaButton href={SITE.downloadUrl} external>
-              Start {SITE.trialDays}-day free trial
-            </CtaButton>
+            <DownloadCta>Start {SITE.trialDays}-day free trial</DownloadCta>
             <CtaButton href={SITE.checkoutUrl} variant="secondary" external>
               Buy now <span className="text-ink">${SITE.priceUSD}</span>
             </CtaButton>
           </div>
+          <PlatformNote className="mt-5 text-center" />
         </div>
       </Reveal>
     </Section>

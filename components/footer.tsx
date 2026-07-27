@@ -7,12 +7,25 @@ export function Footer() {
         <div className="flex items-center gap-2.5">
           <span className="font-display text-xl text-ink">{SITE.mark}</span>
           <span className="text-sm text-muted">
-            {SITE.name}. Local, private dictation for Mac.
+            {SITE.name}. Local, private dictation for Mac and Windows.
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-6 text-sm text-muted">
-          <a href={SITE.downloadUrl} className="transition-colors hover:text-ink" target="_blank" rel="noopener noreferrer">
-            Download
+          <a
+            href={SITE.downloadUrl}
+            className="transition-colors hover:text-ink"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Mac
+          </a>
+          <a
+            href={SITE.windowsDownloadUrl}
+            className="transition-colors hover:text-ink"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Windows
           </a>
           <a href={`mailto:${SITE.contactEmail}`} className="transition-colors hover:text-ink">
             Contact
@@ -20,7 +33,12 @@ export function Footer() {
           <a href="/privacy" className="transition-colors hover:text-ink">
             Privacy
           </a>
-          <a href="https://freedom-terminal.com" className="transition-colors hover:text-ink" target="_blank" rel="noopener">
+          <a
+            href="https://freedom-terminal.com"
+            className="transition-colors hover:text-ink"
+            target="_blank"
+            rel="noopener"
+          >
             Freedom Terminal
           </a>
         </div>

@@ -1,6 +1,7 @@
 import { SITE } from "@/lib/site";
 import { Reveal } from "./reveal";
 import { CtaButton } from "./cta-button";
+import { DownloadCta, PlatformNote } from "./download-cta";
 
 export function CtaBand() {
   return (
@@ -15,16 +16,15 @@ export function CtaBand() {
             Stop typing what you could say.
           </p>
           <p className="mx-auto mt-4 max-w-md text-muted">
-            Try Koegaki free for {SITE.trialDays} days. Private, instant, on your Mac.
+            Try Koegaki free for {SITE.trialDays} days. Private, instant, on your own machine.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <CtaButton href={SITE.downloadUrl} external>
-              Start {SITE.trialDays}-day free trial
-            </CtaButton>
+            <DownloadCta>Start {SITE.trialDays}-day free trial</DownloadCta>
             <CtaButton href={SITE.checkoutUrl} variant="secondary" external>
               Buy <span className="text-ink">${SITE.priceUSD}</span>
             </CtaButton>
           </div>
+          <PlatformNote className="mt-6" />
         </div>
       </Reveal>
     </section>
