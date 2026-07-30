@@ -3,12 +3,18 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.2</title>
-            <pubDate>Fri, 24 Jul 2026 19:37:29 -0400</pubDate>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
+            <title>1.2.1</title>
+            <pubDate>Wed, 29 Jul 2026 21:58:05 -0400</pubDate>
+            <sparkle:version>15</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.dmg" length="7815168" type="application/octet-stream" sparkle:edSignature="YHnb7etyLXQ+URQPYWsndukWPcg056PSlzNh5KeYp0FuEN4REDOaPCidgQVlOMVEyDx/kE6QtH8V2R7oeyR+BA=="/>
+            <description><![CDATA[<h2>Koegaki 1.2.1</h2>
+<ul>
+    <li>When you change your settings, Koegaki now keeps the previous copy as a backup. If the saved copy is ever damaged, Koegaki goes back to that backup instead of resetting to defaults.</li>
+    <li>From this version on, Koegaki remembers your launch at login choice and turns it back on if an update switches it off.</li>
+</ul>
+]]></description>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.1.dmg" length="7834110" type="application/octet-stream" sparkle:edSignature="vta3XKzxNmxJpTY3ziFslEPtcyr8AM27YwvTsnT2Sghe7YnzXpx6l6iYuq5cx8TIu1tOG6/qifHRffn0uckVDQ=="/>
         </item>
     </channel>
 </rss>
