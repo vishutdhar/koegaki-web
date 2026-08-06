@@ -1,11 +1,11 @@
 {
-  "version": "1.2.0",
-  "notes": "Multilingual dictation, automatic recovery if the app stops unexpectedly, and settings and history that survive an interrupted write.",
-  "pub_date": "2026-07-26T00:00:00Z",
+  "version": "1.2.1",
+  "notes": "Launch at startup now follows what you set in Windows Startup apps instead of turning itself back on, and the installer carries its publisher details.",
+  "pub_date": "2026-08-06T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3RpN0pXdGtzbXdnbml1a3JxaWpiZzdFaVBQZ1BjOFRWZk1PV0I2d0xORHc5RUdOelpuMmM0SGQrTnhwZ1BWWGhtT2xuOUN6Tk1sWmlNcEYwY0ZlZkFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MTgzMTg2CWZpbGU6S29lZ2FraV8xLjIuMF94NjQtc2V0dXAuZXhlCmVzOVJDTFZwMkpRYmFaM3Jna2xhNW9ydEZQLzcwZHBWYXU0YU44dTNEbDhEMFJFVktQNlQyQlBBWmxTRDZHWnpiSHpJeHNDSFlqcGQ4cmZVTlpCTkNnPT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2dicEgrWE5ZZjRFTGlNbHd5Q1RESkNOUWNibWNqTlZkaUw0MDcrejJqaWZqeWZWZElBOUlUeDJ3MkY5VXBBSzhFeUZXWExaY0hrZnpXMDQ2NTI2a3dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MDE3OTk5CWZpbGU6S29lZ2FraV8xLjIuMV94NjQtc2V0dXAuZXhlCnBqSnRPTzRCTE5VS21kREtnNmZUMlc1a0xqUStxYXQ2UTNtRmtxdERDSHkrcEtUMGdsL2t2VW1iRm5TK0Q4WmNBZG9DMk03Q2Nhamg5L0x5cVNyaERnPT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.1-setup.exe"
     }
   }
 }
