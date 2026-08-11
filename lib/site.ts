@@ -25,10 +25,11 @@ export const SITE = {
    * instead of a dead link. The previous macOS fallback pointed at releases
    * on a PRIVATE repo, which would have 404'd for every visitor the moment
    * NEXT_PUBLIC_DOWNLOAD_URL went missing. The Windows fallback uses the
-   * publisher-domain /downloads path (a byte-for-byte proxy of the blob, see
-   * next.config.ts) because package managers check that installer URLs live
-   * on a domain attributable to the publisher. The blob host is already
-   * public in appcast.xml, so committing either exposes nothing.
+   * publisher-domain /downloads path (a temporary REDIRECT to the blob, see
+   * next.config.ts, deliberately not a proxy: proxying poisoned the edge
+   * cache on Range requests) because package managers check that installer
+   * URLs live on a domain attributable to the publisher. The blob host is
+   * already public in appcast.xml, so committing either exposes nothing.
    */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
