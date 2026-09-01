@@ -3,17 +3,19 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.2.2</title>
-            <pubDate>Sat, 15 Aug 2026 11:25:53 -0400</pubDate>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
+            <title>1.2.3</title>
+            <pubDate>Tue, 01 Sep 2026 06:45:59 -0400</pubDate>
+            <sparkle:version>17</sparkle:version>
+            <sparkle:shortVersionString>1.2.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.2.2</h2>
+            <description><![CDATA[<h2>Koegaki 1.2.3</h2>
 <ul>
-    <li>The built in updater is upgraded to its latest version, which carries two security hardening fixes on the update path.</li>
+    <li>The microphone connection heals itself. If your input device resets, disconnects, or the macOS audio system drops it mid-session (as recent macOS 27 builds sometimes do), Koegaki now notices and reconnects on its own instead of failing until you toggle inputs or relaunch.</li>
+    <li>Capture problems now say which microphone they are about, and a repeated one tells you the way out.</li>
+    <li>A small log on your Mac records microphone trouble so problems can be diagnosed after the fact. It never leaves your machine.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.2.dmg" length="7917649" type="application/octet-stream" sparkle:edSignature="IDlmFr1j35TEJVzhDU4gy/XXXrQepxwrBG04bzjdGi5LEIlNw9/aIIrgx/4GsDe1COo/++tV/km8koTEHtDTBQ=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.3.dmg" length="7948823" type="application/octet-stream" sparkle:edSignature="6syYPb/BjXj82BjXqHQnphFyt0eIGw+IcuucfPR7FPWHtdtozZpJqTvPDsTZo6NokilXillYNZ++WusgmWf0BQ=="/>
         </item>
     </channel>
 </rss>
