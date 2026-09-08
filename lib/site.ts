@@ -34,7 +34,7 @@ export const SITE = {
    */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
-    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.2.3.dmg",
+    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.3.0.dmg",
 
   requirements: "macOS 14+ · Apple Silicon recommended",
 
