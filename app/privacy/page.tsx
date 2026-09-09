@@ -45,7 +45,7 @@ export default function PrivacyPage() {
                 the app talks to the network to verify your license key (at activation, then a
                 quiet daily check while licensed), to check koegaki.com for new versions, and,
                 when an update installs, to download the new app package from our hosting
-                storage. The license and update checks carry only license and version
+                storage. The app also asks koegaki.com once a day whether a newer speech or cleanup model exists, a request that carries nothing but the request itself; a newer model is only ever downloaded when you choose to. The license and update checks carry only license and version
                 metadata; the update download is the app itself. None of this ever includes
                 audio or transcripts.
               </p>
