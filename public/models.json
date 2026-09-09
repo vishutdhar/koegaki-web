@@ -30,7 +30,7 @@
   "windows": {
     "speech-english": {
       "identity": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
-      "manifest": "windows/speech-english-1.json",
+      "manifest": "windows-speech-english-1.json",
       "label": "English speech model",
       "bytes": 487813909,
       "min_app": "1.4.1",
@@ -38,7 +38,7 @@
     },
     "speech-multilingual": {
       "identity": "sherpa-onnx-whisper-turbo",
-      "manifest": "windows/speech-multilingual-1.json",
+      "manifest": "windows-speech-multilingual-1.json",
       "label": "Multilingual speech model",
       "bytes": 563790207,
       "min_app": "1.4.1",
