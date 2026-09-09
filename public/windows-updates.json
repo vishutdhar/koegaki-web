@@ -1,11 +1,11 @@
 {
-  "version": "1.3.0",
-  "notes": "Pasted text now waits to actually be taken instead of racing a timer, the app backs off when it can see the clipboard changed hands mid dictation, and an undelivered dictation is kept with the session and explained instead of dropped.",
-  "pub_date": "2026-08-11T00:00:00Z",
+  "version": "1.4.0",
+  "notes": "New: Cleanup. Choose Clean in Settings and English dictations are tidied before they are inserted: filler words, stutters and false starts go, punctuation and capitalization are fixed. A small language model runs on your PC, downloaded once when you turn it on; nothing you say leaves your machine. Every cleanup is checked against your words, and anything that would change your meaning sends the raw transcription through instead. Off, the default, keeps instant insertion.",
+  "pub_date": "2026-09-09T18:52:57Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2g1a3Nya2ZpdXV0YUorckpMNGRaNVQrYWc1WFBFaHRjRC9hQ042YUJ0cEpsSk9tZEFTN3A3RVpWQXVwSmV2UG84WnFlMFltQm45Wldnd3QrQU5zbVE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDMyMTkxCWZpbGU6S29lZ2FraV8xLjMuMF94NjQtc2V0dXAuZXhlCjUyb3VTVkxJcHpURFJRbmRJZnExbGhsRHhQM1hvSUM3TEtzYXdzRW9iQUtQamRGT1BoeFd0SFNmd1hVTm9PaFNja3J0U0dWbG9mWmxETHk5cStEK0NnPT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.3.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2gvT3Fvd01WbFlNUjlUS2lOVHZvWGpPRVY1UFd4OC9ZbGxkOExCaWZtMmJGNjI4aDMrQUg5QmNjTVZMN0duSHFXejl3dkNaZEZsQkNTTEswWkwwSGdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4OTkwNjUzCWZpbGU6S29lZ2FraV8xLjQuMF94NjQtc2V0dXAuZXhlCldHVGY5Nm5aa09nZXBFOXNCck16eDFOTEZibjJFUy9Jd2ZWb1lUMWl1NGN3aUo5d3hmU1UxdDZpVTJOSDRndi9wc1I1SXFTUDRveE11TVVoOXV4VER3PT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.4.0-setup.exe"
     }
   }
 }
