@@ -34,13 +34,13 @@ export const SITE = {
    */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
-    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.3.0.dmg",
+    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.0.dmg",
 
   requirements: "macOS 14+ · Apple Silicon recommended",
 
   windowsDownloadUrl:
     process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??
-    "https://koegaki.com/downloads/Koegaki-1.4.0-setup.exe",
+    "https://koegaki.com/downloads/Koegaki-1.5.0-setup.exe",
 
   windowsRequirements: "Windows 10 & 11 · 64-bit",
 

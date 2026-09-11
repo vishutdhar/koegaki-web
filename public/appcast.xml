@@ -3,19 +3,19 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.3.0</title>
-            <pubDate>Tue, 08 Sep 2026 06:32:41 -0400</pubDate>
-            <sparkle:version>18</sparkle:version>
-            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+            <title>1.5.0</title>
+            <pubDate>Fri, 11 Sep 2026 09:29:45 -0400</pubDate>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.3.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.5.0</h2>
 <ul>
-    <li>New: Cleanup. Choose Clean in Settings and English dictations are tidied before they are inserted: filler words, stutters and false starts go, punctuation and capitalization are fixed. A small language model runs on your Mac (about 1.7 GB, downloaded once when you turn it on). Nothing you say leaves your machine.</li>
-    <li>Every cleanup is checked against your words before anything is inserted: a dropped negation, a changed number, an invented sentence or added formatting sends your raw transcription through instead.</li>
-    <li>Cleanup adds a short pause before each insertion, usually well under a second on recent Macs and up to a couple of seconds on older Macs or long utterances. If the model cannot keep up three times in a row, Koegaki pauses cleanup and tells you. Off restores instant insertion.</li>
+    <li>New: Koegaki keeps its cleanup model current. When it starts, and once a day after that, it checks koegaki.com for a newer cleanup model and, when one is published, offers it on Home. Nothing downloads until you choose Update. The check fetches one small list of models; nothing about you or your dictations is sent.</li>
+    <li>After an update downloads, Koegaki asks you to restart, and the new model takes over on the next launch. If it fails to load, Koegaki goes back to the cleanup model it shipped with.</li>
+    <li>Home now offers Cleanup once, after your first dictations, so you can try it or leave it off. Off stays the default.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.3.0.dmg" length="14697992" type="application/octet-stream" sparkle:edSignature="kN+8jMuMD8CMfJ1sVQ41s/c7qIC9YwiNt8VtO+BalYqLjGYi9+QQFsFaEuR6aA6OkAC6Ocq3KfnTHBegvSU0Ag=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.0.dmg" length="14864841" type="application/octet-stream" sparkle:edSignature="U9FI8PywU3WP+B/opdWIRugoG9FaaNyu3it09y8Al15WybwH4OHypTGl+4Yf+vDv+3r6rXAhcP/P7v+5gosFCg=="/>
         </item>
     </channel>
 </rss>
