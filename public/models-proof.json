@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "mac": {
+    "speech-english": {
+      "identity": "parakeet-tdt-0.6b-v3",
+      "vad": "silero-vad-unified-256ms-v6.2.1",
+      "manifest": "manifest-2.json",
+      "label": "English speech model",
+      "bytes": 484320196,
+      "min_app": "1.3.1",
+      "notes": ""
+    },
+    "speech-multilingual": {
+      "identity": "whisper-large-v3-turbo-626MB",
+      "manifest": "whisper-manifest-1.json",
+      "label": "Multilingual speech model",
+      "bytes": 631101511,
+      "min_app": "1.3.1",
+      "notes": ""
+    },
+    "cleanup": {
+      "identity": "cleanup-qwen3-1.7b-q6_k-2",
+      "manifest": "cleanup-manifest-2.json",
+      "label": "Cleanup model",
+      "bytes": 1673007552,
+      "min_app": "1.3.0",
+      "notes": "The same cleanup model under a new pathname, published to prove the update path."
+    }
+  },
+  "windows": {
+    "speech-english": {
+      "identity": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+      "manifest": "windows-speech-english-1.json",
+      "label": "English speech model",
+      "bytes": 487813909,
+      "min_app": "1.4.1",
+      "notes": ""
+    },
+    "speech-multilingual": {
+      "identity": "sherpa-onnx-whisper-turbo",
+      "manifest": "windows-speech-multilingual-1.json",
+      "label": "Multilingual speech model",
+      "bytes": 563790207,
+      "min_app": "1.4.1",
+      "notes": ""
+    },
+    "cleanup": {
+      "identity": "cleanup-qwen3-1.7b-q6_k-2",
+      "manifest": "cleanup-manifest-2.json",
+      "label": "Cleanup model",
+      "bytes": 1673007552,
+      "min_app": "1.4.0",
+      "notes": "The same cleanup model under a new pathname, published to prove the update path."
+    }
+  }
+}
