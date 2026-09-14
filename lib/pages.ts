@@ -185,7 +185,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes. Dictation makes no network requests. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of models and updates from our hosting storage, with Hugging Face as the fallback source for the speech model if our mirror is unavailable. None of these carry audio or text.",
+        a: "Yes. Dictation makes no network requests. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: on Mac from our mirror, falling back to Hugging Face; on Windows from GitHub releases. None of these carry audio or text.",
       },
       {
         q: "Is there a word limit?",
