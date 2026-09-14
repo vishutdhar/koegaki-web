@@ -38,7 +38,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Dictate into any Mac app",
         paragraphs: [
-          "Koegaki waits in the menu bar. Wherever the cursor is, in Mail, Slack, Notes, a browser, a code editor, hold your shortcut and speak. When you release the key, the text is inserted right where you were typing. There is no window to switch to and nothing to paste.",
+          "Koegaki waits in the menu bar. Wherever the cursor is, in Mail, Slack, Notes, a browser, a code editor, hold your shortcut and speak. When you release the key, the text is inserted right where you were typing. There is no window to switch to and, in almost every app, nothing to paste; if an app refuses the insertion, Koegaki leaves the text on the clipboard and tells you.",
           "You choose the shortcut. Hold it to talk, or switch to toggle mode and press it once to start and once to stop, for longer stretches where holding a key would get in the way.",
         ],
       },

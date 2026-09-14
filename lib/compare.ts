@@ -147,7 +147,7 @@ export const COMPARISONS: Comparison[] = [
         heading: "What Koegaki changes",
         paragraphs: [
           "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Releasing the key ends capture; Koegaki then transcribes and inserts what you said.",
-          "The same behaviour in every app. Koegaki inserts text wherever the cursor is, using one shortcut, in Mail, Slack, a terminal, a browser form.",
+          "The same behaviour across apps. Koegaki inserts text where the cursor is, using one shortcut, in Mail, Slack, a terminal, a browser form; the rare app that refuses insertion gets the text on the clipboard instead.",
           "Word replacements. Say a short word and Koegaki types the full phrase: an email address, a product name it might spell wrong, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
         ],
       },
