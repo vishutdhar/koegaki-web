@@ -185,7 +185,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes. Dictation makes no network requests. The app's only connections are the licence, version and model checks with koegaki.com and the downloads of models and updates from our hosting storage, and none of them carry audio or text.",
+        a: "Yes. Dictation makes no network requests. The app's only connections are licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of models and updates from our hosting storage. None of them carry audio or text.",
       },
       {
         q: "Is there a word limit?",

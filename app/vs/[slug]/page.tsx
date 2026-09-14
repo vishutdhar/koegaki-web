@@ -30,7 +30,7 @@ export async function generateMetadata({
       type: "website",
       images: ["/og.png"],
     },
-    twitter: { title: c.title, description: c.description },
+    twitter: { card: "summary_large_image", title: c.title, description: c.description, images: ["/og.png"] },
   };
 }
 

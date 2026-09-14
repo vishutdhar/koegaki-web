@@ -72,7 +72,7 @@ export const COMPARISONS: Comparison[] = [
       },
     ],
     faqs: [
-      { q: "Is Koegaki cheaper than Superwhisper?", a: `Koegaki is ${price} with every feature included. Superwhisper sells a subscription or a lifetime licence; check their pricing page for current amounts.` },
+      { q: "Is Koegaki cheaper than Superwhisper?", a: `Koegaki is ${price} with every feature included. Superwhisper has a free tier with some local models; its Parakeet models and other Pro features are a subscription or a lifetime licence, and current amounts are on its pricing page.` },
       { q: "Does Koegaki have AI modes like Superwhisper?", a: "Not modes. Koegaki transcribes what you say and inserts it. There is one optional cleanup pass, off by default, and when it is on it runs on your own machine; your text is never sent to a service." },
       { q: "Can I switch from Superwhisper to Koegaki?", a: `Yes. Install Koegaki, choose a shortcut, and dictate. The ${trial} needs no card and no account.` },
     ],
@@ -95,7 +95,7 @@ export const COMPARISONS: Comparison[] = [
       { label: "Account required", koegaki: koegakiCommon.account, other: "Yes; plans are per user." },
       { label: "AI rewriting", koegaki: "Optional, off by default, and local: a cleanup model that runs on your own machine. Nothing is sent anywhere.", other: "Yes, the transcript is cleaned up and reformatted by Wispr's models." },
       { label: "Custom vocabulary", koegaki: koegakiCommon.vocab, other: "Dictionary of terms it learns to recognise." },
-      { label: "Word limit", koegaki: "None. There is no server to meter you.", other: "Free tier is capped; paid tier is unlimited." },
+      { label: "Word limit", koegaki: "None. There is no server to meter you.", other: "Free tier is capped at a weekly word count on desktop; paid plans are unlimited." },
     ],
     sections: [
       {

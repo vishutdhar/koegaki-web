@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     type: "website",
     images: ["/og.png"],
   },
-  twitter: { title: page.title, description: page.description },
+  twitter: { card: "summary_large_image", title: page.title, description: page.description, images: ["/og.png"] },
 };
 
 export default function Page() {
