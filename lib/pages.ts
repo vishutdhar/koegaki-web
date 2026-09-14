@@ -52,7 +52,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What you need",
         paragraphs: [
-          `${SITE.requirements}. Koegaki uses the microphone you already have; a headset or the built-in mic both work. It runs on the Mac you have now with nothing else to install.`,
+          "An Apple Silicon Mac (M1 or later) running macOS 14 or later. Koegaki uses the microphone you already have; a headset or the built-in mic both work. There is nothing else to install.",
           "Word replacements let you say a short word and have Koegaki type the full phrase: your email address, a name it might misspell, a piece of jargon. They are set once and apply everywhere.",
         ],
       },
@@ -170,7 +170,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Mac and Windows, one licence",
         paragraphs: [
-          `Koegaki runs on ${SITE.requirements.toLowerCase()} and on ${SITE.windowsRequirements.toLowerCase()}. It costs ${price} once, covers both platforms, and includes every future update. Try it free for ${SITE.trialDays} days.`,
+          `Koegaki runs on Apple Silicon Macs with macOS 14 or later, and on ${SITE.windowsRequirements.toLowerCase()}. It costs ${price} once, covers both platforms, and includes every future update. Try it free for ${SITE.trialDays} days.`,
         ],
       },
     ],

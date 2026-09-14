@@ -89,7 +89,7 @@ export const COMPARISONS: Comparison[] = [
     asOf: "September 2026",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
-      { label: "Offline mode", koegaki: koegakiCommon.offline, other: "None at any tier." },
+      { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. A recording made offline is processed after you reconnect." },
       { label: "Price", koegaki: koegakiCommon.price, other: "Monthly subscription per user, with a free tier capped at a weekly word count on desktop and iPhone. Current prices are on wisprflow.ai." },
       { label: "Platforms", koegaki: koegakiCommon.platforms, other: "macOS, Windows, iOS and Android." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "Yes; plans are per user." },
@@ -113,7 +113,7 @@ export const COMPARISONS: Comparison[] = [
       },
     ],
     faqs: [
-      { q: "Does Wispr Flow have an offline mode?", a: "As of September 2026, no. Wispr Flow's recognition runs on its servers at every tier. Koegaki runs entirely on your computer." },
+      { q: "Does Wispr Flow have an offline mode?", a: "As of September 2026, Wispr Flow does not transcribe offline at any tier: recognition runs on its servers, and a recording made offline is processed once you reconnect. Koegaki transcribes entirely on your computer." },
       { q: "Is Koegaki a subscription?", a: `No. ${price}, ${trial}, updates included.` },
       { q: "Does Koegaki clean up my speech like Wispr Flow?", a: "By default it punctuates and inserts what you said. An optional cleanup model can tidy the text, and it runs on your computer; your words are never sent to a service." },
     ],
@@ -146,7 +146,7 @@ export const COMPARISONS: Comparison[] = [
       {
         heading: "What Koegaki changes",
         paragraphs: [
-          "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Releasing the key ends the dictation; nothing is transcribed until you press it again.",
+          "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Releasing the key ends capture; Koegaki then transcribes and inserts what you said.",
           "The same behaviour in every app. Koegaki inserts text wherever the cursor is, using one shortcut, in Mail, Slack, a terminal, a browser form.",
           "Word replacements. Say a short word and Koegaki types the full phrase: an email address, a product name it might spell wrong, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
         ],
@@ -188,7 +188,7 @@ export const COMPARISONS: Comparison[] = [
         heading: "What Koegaki changes",
         paragraphs: [
           "Your voice stays on your PC. Windows voice typing sends your speech to Microsoft's servers to be recognised. Koegaki runs the speech model locally, so it works on a plane, behind a corporate firewall, and on documents you are not allowed to send anywhere.",
-          "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open, and releasing the key ends the dictation.",
+          "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open; releasing the key ends capture, and Koegaki then transcribes and inserts what you said.",
           "Word replacements. Say a short word and Koegaki types the full phrase, everywhere, without teaching anything.",
         ],
       },
