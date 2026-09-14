@@ -33,17 +33,30 @@ export const FAQS = [
   },
 ];
 
-export function Faq() {
+export type FaqItem = { q: string; a: string };
+
+/**
+ * The visible FAQ. The home page renders the shared FAQS; a secondary page passes
+ * its own items, and whichever list renders here is the same list that feeds the
+ * FAQPage structured data for that page, so the two can never disagree.
+ */
+export function Faq({
+  items = FAQS,
+  title = "Questions, answered.",
+}: {
+  items?: readonly FaqItem[];
+  title?: string;
+}) {
   return (
     <Section id="faq" eyebrow="FAQ">
       <Reveal>
         <h2 className="max-w-2xl font-display text-3xl font-semibold leading-tight tracking-[-0.02em] sm:text-4xl">
-          Questions, answered.
+          {title}
         </h2>
       </Reveal>
       <Reveal delay={100} className="mt-12">
         <div className="mx-auto max-w-2xl">
-          {FAQS.map(({ q, a }) => (
+          {items.map(({ q, a }) => (
             <details key={q} className="group border-b border-hairline py-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-base font-medium tracking-tight">
                 {q}
