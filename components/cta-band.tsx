@@ -3,7 +3,7 @@ import { Reveal } from "./reveal";
 import { CtaButton } from "./cta-button";
 import { DownloadCta, PlatformNote } from "./download-cta";
 
-export function CtaBand() {
+export function CtaBand({ macRequirements }: { macRequirements?: string } = {}) {
   return (
     <section className="mx-auto w-full max-w-5xl px-6 py-24 sm:py-32">
       <Reveal>
@@ -24,7 +24,7 @@ export function CtaBand() {
               Buy <span className="text-ink">${SITE.priceUSD}</span>
             </CtaButton>
           </div>
-          <PlatformNote className="mt-6" />
+          <PlatformNote className="mt-6" macRequirements={macRequirements} />
         </div>
       </Reveal>
     </section>

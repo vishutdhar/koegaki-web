@@ -42,7 +42,7 @@ export const COMPARISONS: Comparison[] = [
     other: "Superwhisper",
     title: "Koegaki vs Superwhisper: private dictation, one price",
     description:
-      "Both can transcribe on your Mac. Koegaki is $30 once with every feature included; Superwhisper has a free tier, with its on-device Parakeet models in the paid tier.",
+      "Both can transcribe on your Mac. Koegaki is $30 once with every feature included; Superwhisper puts its on-device Parakeet models in its paid tier.",
     h1: "Koegaki vs Superwhisper",
     lede:
       "Both apps can transcribe on your own machine. The differences are what you pay, what is behind the paywall, and how much app you get.",
@@ -82,7 +82,7 @@ export const COMPARISONS: Comparison[] = [
     other: "Wispr Flow",
     title: "Koegaki vs Wispr Flow: on-device dictation instead of the cloud",
     description:
-      "Wispr Flow recognises your speech on its servers, with a free tier capped on desktop and paid plans above it. Koegaki does it on your Mac or PC, never uploads your voice, and costs $30 once.",
+      "Wispr Flow recognises your speech on its servers. Koegaki does it on your Mac or PC, never uploads your voice, works offline, and costs $30 once.",
     h1: "Koegaki vs Wispr Flow",
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
@@ -123,7 +123,7 @@ export const COMPARISONS: Comparison[] = [
     other: "macOS Dictation",
     title: "Koegaki vs macOS Dictation: push-to-talk in every app",
     description:
-      "macOS has dictation built in. Koegaki adds a hold-to-talk shortcut that works the same in every app, word replacements, and a model that always runs on your Mac.",
+      "macOS has dictation built in. Koegaki adds a hold-to-talk shortcut that works across apps, word replacements, and a model that always runs on your Mac.",
     h1: "Koegaki vs the dictation built into macOS",
     lede:
       "Your Mac can already take dictation. Here is what changes when you use Koegaki instead, and when the built-in one is enough.",
@@ -163,7 +163,7 @@ export const COMPARISONS: Comparison[] = [
     other: "Windows Voice Typing",
     title: "Koegaki vs Windows Voice Typing (Win+H): offline dictation",
     description:
-      "Windows voice typing needs the internet because recognition runs on Microsoft's servers. Koegaki recognises speech on your PC, works offline, and adds push-to-talk.",
+      "Windows voice typing needs the internet because recognition runs on Microsoft's servers. Koegaki recognises speech on your PC and works offline.",
     h1: "Koegaki vs Windows Voice Typing",
     lede:
       "Press Win+H and Windows will take dictation, as long as you are online. Koegaki does the same job on your own PC, with the network unplugged.",

@@ -1,4 +1,5 @@
 import { Nav } from "@/components/nav";
+import { SITE } from "@/lib/site";
 import { Footer } from "@/components/footer";
 import { Faq } from "@/components/faq";
 import { CtaBand } from "@/components/cta-band";
@@ -20,7 +21,7 @@ export function LandingPage({ page }: { page: LandingPageData }) {
         </div>
         <Prose sections={page.sections} />
         <Faq items={page.faqs} />
-        <CtaBand />
+        <CtaBand macRequirements={SITE.macRequirementsStrict} />
       </main>
       <Footer extended />
     </>

@@ -34,13 +34,20 @@ export function DownloadCta({
  * way to reach the other platform. A visitor on a Mac who wants the Windows
  * installer, or the reverse, must never hit a dead end.
  */
-export function PlatformNote({ className = "" }: { className?: string }) {
+export function PlatformNote({
+  className = "",
+  macRequirements = SITE.requirements,
+}: {
+  className?: string;
+  /** The Mac requirement line. Defaults to the shared string; a page whose copy states a stricter fact passes its own. */
+  macRequirements?: string;
+}) {
   const link =
     "underline decoration-hairline underline-offset-4 transition-colors hover:text-muted";
   return (
     <p className={`font-mono text-xs text-faint ${className}`.trim()}>
       <span className="os-mac">
-        {SITE.requirements} ·{" "}
+        {macRequirements} ·{" "}
         <a
           href={SITE.windowsDownloadUrl}
           className={link}

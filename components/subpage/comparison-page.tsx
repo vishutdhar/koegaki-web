@@ -1,4 +1,5 @@
 import { Nav } from "@/components/nav";
+import { SITE } from "@/lib/site";
 import { Footer } from "@/components/footer";
 import { Faq } from "@/components/faq";
 import { CtaBand } from "@/components/cta-band";
@@ -18,7 +19,7 @@ export function ComparisonPage({ c }: { c: Comparison }) {
         <CompareTable other={c.other} rows={c.rows} asOf={c.asOf} />
         <Prose sections={c.sections} />
         <Faq items={c.faqs} />
-        <CtaBand />
+        <CtaBand macRequirements={SITE.macRequirementsStrict} />
       </main>
       <Footer extended />
     </>

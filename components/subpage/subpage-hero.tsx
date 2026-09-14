@@ -35,7 +35,7 @@ export function SubpageHero({
             <span className="text-faint"> · one-time</span>
           </CtaButton>
         </div>
-        <PlatformNote className="mt-5" />
+        <PlatformNote className="mt-5" macRequirements={SITE.macRequirementsStrict} />
       </div>
     </section>
   );

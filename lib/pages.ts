@@ -86,7 +86,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
-    description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands where you were typing. Recognition runs on your PC, never in the cloud. ${price} one-time.`,
+    description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands where you were typing. Recognition runs on your PC, not the cloud. ${price} one-time.`,
     kicker: "Koegaki for Windows",
     h1: "Dictation software for Windows that never sends your voice anywhere.",
     lede: `Hold Ctrl+Alt+D, talk, release. Koegaki types what you said where you were typing, and every word is transcribed on your own PC. No account, no cloud, no subscription.`,
@@ -185,7 +185,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes. Dictation makes no network requests. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com and the files from our model mirror at koegaki-models.vishutdhar.workers.dev on both platforms, with two exceptions: the English speech and voice-detection models on Mac can fall back to Hugging Face, and the speech and voice-detection models on Windows come from GitHub releases. None of these carry audio or text.",
+        a: "Yes, once it is set up. Dictation itself makes no network requests. First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com and the files from our model mirror at koegaki-models.vishutdhar.workers.dev on both platforms, with two exceptions: the English speech and voice-detection models on Mac can fall back to Hugging Face, and the speech and voice-detection models on Windows come from GitHub releases. None of these carry audio or text.",
       },
       {
         q: "Is there a word limit?",
