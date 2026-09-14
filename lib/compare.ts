@@ -60,8 +60,8 @@ export const COMPARISONS: Comparison[] = [
       {
         heading: "What Koegaki does differently",
         paragraphs: [
-          "Koegaki has one job: turn what you say into text, on your machine, in whatever app you are using. Every model it runs is local. There is one price and it covers everything, on Mac and on Windows. That makes it a smaller app than Superwhisper, and that is the point.",
-          "If you want a dozen modes for different apps, Superwhisper offers that. Koegaki types what you said by default; an optional cleanup pass exists, it is off until you switch it on, and it runs on your machine. The words you say appear where your cursor is, with nothing between your microphone and your document.",
+          "Koegaki has one job: turn what you say into text, on your machine, where you were typing. Every model it runs is local. There is one price and it covers everything, on Mac and on Windows. That makes it a smaller app than Superwhisper, and that is the point.",
+          "If you want a dozen modes for different apps, Superwhisper offers that. Koegaki types what you said by default; an optional cleanup pass exists, it is off until you switch it on, and it runs on your machine. The words you say appear where your cursor was, with nothing between your microphone and your document.",
         ],
       },
       {
@@ -89,7 +89,7 @@ export const COMPARISONS: Comparison[] = [
     asOf: "September 2026",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
-      { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. A recording made offline is processed after you reconnect." },
+      { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. On desktop, a recording that failed to send can be retried from History after you reconnect." },
       { label: "Price", koegaki: koegakiCommon.price, other: "Monthly subscription per user, with a free tier capped at a weekly word count on desktop and iPhone. Current prices are on wisprflow.ai." },
       { label: "Platforms", koegaki: koegakiCommon.platforms, other: "macOS, Windows, iOS and Android." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "Yes; plans are per user." },
@@ -113,7 +113,7 @@ export const COMPARISONS: Comparison[] = [
       },
     ],
     faqs: [
-      { q: "Does Wispr Flow have an offline mode?", a: "As of September 2026, Wispr Flow does not transcribe offline at any tier: recognition runs on its servers, and a recording made offline is processed once you reconnect. Koegaki transcribes entirely on your computer." },
+      { q: "Does Wispr Flow have an offline mode?", a: "As of September 2026, Wispr Flow does not transcribe offline at any tier: recognition runs on its servers, and on desktop a recording that failed to send can be retried from History after you reconnect. Koegaki transcribes entirely on your computer." },
       { q: "Is Koegaki a subscription?", a: `No. ${price}, ${trial}, updates included.` },
       { q: "Does Koegaki clean up my speech like Wispr Flow?", a: "By default it punctuates and inserts what you said. An optional cleanup model can tidy the text, and it runs on your computer; your words are never sent to a service." },
     ],
@@ -188,8 +188,8 @@ export const COMPARISONS: Comparison[] = [
         heading: "What Koegaki changes",
         paragraphs: [
           "Your voice stays on your PC. Windows voice typing sends your speech to Microsoft's servers to be recognised. Koegaki runs the speech model locally, so it works on a plane, behind a corporate firewall, and on documents you are not allowed to send anywhere.",
-          "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open; releasing the key ends capture, and Koegaki then transcribes and inserts what you said.",
-          "Word replacements. Say a short word and Koegaki types the full phrase, everywhere, without teaching anything.",
+          "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open; releasing the key ends capture, and Koegaki then transcribes and inserts what you said. A program running as administrator is the exception: Windows does not let an ordinary app type into it, so Koegaki copies the text for you to paste.",
+          "Word replacements. Say a short word and Koegaki types the full phrase, without teaching anything.",
         ],
       },
     ],
