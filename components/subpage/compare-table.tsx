@@ -24,7 +24,12 @@ export function CompareTable({
 }) {
   return (
     <section className="mx-auto w-full max-w-5xl px-6 py-12 sm:py-16">
-      <div className="overflow-x-auto rounded-xl border border-hairline bg-surface/40">
+      <div
+        className="overflow-x-auto rounded-xl border border-hairline bg-surface/40"
+        role="region"
+        aria-label={`${SITE.name} compared with ${other}`}
+        tabIndex={0}
+      >
         <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-hairline">

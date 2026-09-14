@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ComparisonPage } from "@/components/subpage/comparison-page";
 import { COMPARISONS, comparison } from "@/lib/compare";
+import { SITE } from "@/lib/site";
 
 export const dynamicParams = false;
 
@@ -21,7 +22,15 @@ export async function generateMetadata({
     title: { absolute: c.title },
     description: c.description,
     alternates: { canonical: `/vs/${c.slug}` },
-    openGraph: { title: c.title, description: c.description, url: `/vs/${c.slug}` },
+    openGraph: {
+      title: c.title,
+      description: c.description,
+      url: `/vs/${c.slug}`,
+      siteName: SITE.name,
+      type: "website",
+      images: ["/og.png"],
+    },
+    twitter: { title: c.title, description: c.description },
   };
 }
 

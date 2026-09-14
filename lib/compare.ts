@@ -42,26 +42,26 @@ export const COMPARISONS: Comparison[] = [
     other: "Superwhisper",
     title: "Koegaki vs Superwhisper: private dictation, one price",
     description:
-      "Both can transcribe on your Mac. Koegaki is $30 once with every feature included; Superwhisper is a subscription or lifetime licence with its on-device models in the paid tier.",
+      "Both can transcribe on your Mac. Koegaki is $30 once with every feature included; Superwhisper has a free tier, with its on-device Parakeet models in the paid tier.",
     h1: "Koegaki vs Superwhisper",
     lede:
       "Both apps can transcribe on your own machine. The differences are what you pay, what is behind the paywall, and how much app you get.",
     asOf: "September 2026",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On your device with local models, or in the cloud with the cloud models it also offers." },
-      { label: "On-device models", koegaki: "Included. Parakeet TDT 0.6B v3 is the only model, and it is local.", other: "Parakeet on-device models are in the paid Pro tier." },
-      { label: "Price", koegaki: koegakiCommon.price, other: "Free tier without local models; Pro is a monthly or yearly subscription or a lifetime licence. Current prices are on superwhisper.com." },
+      { label: "On-device models", koegaki: "Included. An English model (Parakeet) and a multilingual model (Whisper), both local, at no extra cost.", other: "Some local models are free; the Parakeet models need the paid Pro tier." },
+      { label: "Price", koegaki: koegakiCommon.price, other: "Free tier with some local models; Pro (monthly, yearly or lifetime) for Parakeet and the rest. Current prices are on superwhisper.com." },
       { label: "Platforms", koegaki: koegakiCommon.platforms, other: "macOS, Windows and iOS." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "Configurable shortcut with push-to-talk and toggle." },
-      { label: "AI rewriting modes", koegaki: "None. Koegaki types what you said.", other: "Yes, modes that rewrite your text with local or cloud language models." },
+      { label: "AI rewriting modes", koegaki: "Optional, off by default, and local: a cleanup model that runs on your own machine. Nothing is sent anywhere.", other: "Yes, modes that rewrite your text with local or cloud language models." },
       { label: "Works offline", koegaki: koegakiCommon.offline, other: "Yes with local models." },
     ],
     sections: [
       {
         heading: "What Koegaki does differently",
         paragraphs: [
-          "Koegaki has one job: turn what you say into text, on your machine, in whatever app you are using. There is one speech model and it is local. There is one price and it covers everything, on Mac and on Windows. That makes it a smaller app than Superwhisper, and that is the point.",
-          "If you want dictation that then rewrites itself with an AI model, or a dozen modes for different apps, Superwhisper offers that. If you want the words you said to appear where your cursor is, with nothing between your microphone and your document, Koegaki is built for exactly that.",
+          "Koegaki has one job: turn what you say into text, on your machine, in whatever app you are using. Every model it runs is local. There is one price and it covers everything, on Mac and on Windows. That makes it a smaller app than Superwhisper, and that is the point.",
+          "If you want a dozen modes for different apps, Superwhisper offers that. Koegaki types what you said by default; an optional cleanup pass exists, it is off until you switch it on, and it runs on your machine. The words you say appear where your cursor is, with nothing between your microphone and your document.",
         ],
       },
       {
@@ -73,7 +73,7 @@ export const COMPARISONS: Comparison[] = [
     ],
     faqs: [
       { q: "Is Koegaki cheaper than Superwhisper?", a: `Koegaki is ${price} with every feature included. Superwhisper sells a subscription or a lifetime licence; check their pricing page for current amounts.` },
-      { q: "Does Koegaki have AI modes like Superwhisper?", a: "No. Koegaki transcribes what you say and inserts it. It does not send your text to a language model to rewrite it." },
+      { q: "Does Koegaki have AI modes like Superwhisper?", a: "Not modes. Koegaki transcribes what you say and inserts it. There is one optional cleanup pass, off by default, and when it is on it runs on your own machine; your text is never sent to a service." },
       { q: "Can I switch from Superwhisper to Koegaki?", a: `Yes. Install Koegaki, choose a shortcut, and dictate. The ${trial} needs no card and no account.` },
     ],
   },
@@ -82,7 +82,7 @@ export const COMPARISONS: Comparison[] = [
     other: "Wispr Flow",
     title: "Koegaki vs Wispr Flow: on-device dictation instead of the cloud",
     description:
-      "Wispr Flow recognises your speech on its servers and charges monthly. Koegaki does it on your Mac or PC, never uploads your voice, and costs $30 once.",
+      "Wispr Flow recognises your speech on its servers, with a capped free tier and paid plans above it. Koegaki does it on your Mac or PC, never uploads your voice, and costs $30 once.",
     h1: "Koegaki vs Wispr Flow",
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
@@ -93,7 +93,7 @@ export const COMPARISONS: Comparison[] = [
       { label: "Price", koegaki: koegakiCommon.price, other: "Monthly subscription per user, with a free tier capped at a weekly word count. Current prices are on wisprflow.ai." },
       { label: "Platforms", koegaki: koegakiCommon.platforms, other: "macOS, Windows, iOS and Android." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "Yes; plans are per user." },
-      { label: "AI rewriting", koegaki: "None. Koegaki types what you said.", other: "Yes, the transcript is cleaned up and reformatted by Wispr's models." },
+      { label: "AI rewriting", koegaki: "Optional, off by default, and local: a cleanup model that runs on your own machine. Nothing is sent anywhere.", other: "Yes, the transcript is cleaned up and reformatted by Wispr's models." },
       { label: "Custom vocabulary", koegaki: koegakiCommon.vocab, other: "Dictionary of terms it learns to recognise." },
       { label: "Word limit", koegaki: "None. There is no server to meter you.", other: "Free tier is capped; paid tier is unlimited." },
     ],
@@ -101,21 +101,21 @@ export const COMPARISONS: Comparison[] = [
       {
         heading: "The trade Wispr Flow asks you to make",
         paragraphs: [
-          "Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. That is why it needs an account, a subscription, and an internet connection, and why every sentence you dictate passes through a company's infrastructure.",
+          "Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
           "Koegaki makes the opposite trade. Recognition runs on your computer with a model that is downloaded once. There is no account because there is nothing to log in to, no subscription because there is no server to pay for, and no word limit because nothing is counting.",
         ],
       },
       {
         heading: "What you give up",
         paragraphs: [
-          "Koegaki does not rewrite your text. It types what you said, with punctuation, and stops. If you rely on an AI pass to turn rambling into prose, Wispr Flow does that and Koegaki does not. If you want to be the one deciding what the sentence says, that is the app.",
+          "By default Koegaki types what you said, with punctuation, and stops. Its optional cleanup pass is off until you switch it on, and it runs on your own machine. If you rely on a cloud AI pass to turn rambling into polished prose, Wispr Flow is built around that and Koegaki is not.",
         ],
       },
     ],
     faqs: [
       { q: "Does Wispr Flow have an offline mode?", a: "As of September 2026, no. Wispr Flow's recognition runs on its servers at every tier. Koegaki runs entirely on your computer." },
       { q: "Is Koegaki a subscription?", a: `No. ${price}, ${trial}, updates included.` },
-      { q: "Does Koegaki clean up my speech like Wispr Flow?", a: "It punctuates and inserts what you said. It does not send your words to a language model to rewrite them, on purpose." },
+      { q: "Does Koegaki clean up my speech like Wispr Flow?", a: "By default it punctuates and inserts what you said. An optional cleanup model can tidy the text, and it runs on your computer; your words are never sent to a service." },
     ],
   },
   {

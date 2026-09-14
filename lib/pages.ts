@@ -46,7 +46,7 @@ export const LANDING_PAGES: LandingPage[] = [
         heading: "The speech model runs on your Mac",
         paragraphs: [
           `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
-          "That is the whole reason the app exists. Most dictation apps send your voice to a server because that is the easy way to build one. Apple Silicon is fast enough that it no longer has to be, and Koegaki uses the Neural Engine so transcription feels instant.",
+          "That is the whole reason the app exists. Most dictation apps send your voice to a server because that is the easy way to build one. Apple Silicon is fast enough that it no longer has to be, and Koegaki uses the Neural Engine so transcription feels instant. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your Mac too.",
         ],
       },
       {
@@ -74,7 +74,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it need an internet connection?",
-        a: "Only to download the speech model on first launch and to activate a licence. Dictation itself runs entirely offline, and being offline never locks you out.",
+        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the one-time model download, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, and the download of an update or a model when you choose one. Being offline never locks a paid licence out.",
       },
       {
         q: "Is there a subscription?",
@@ -102,14 +102,14 @@ export const LANDING_PAGES: LandingPage[] = [
         heading: "Transcription happens on your PC",
         paragraphs: [
           `Koegaki transcribes with ${SITE.windowsEngine}. The model downloads once on first launch, and from then on dictation works with no internet connection at all. Your audio and your text stay on your machine. Nothing is uploaded and there is no server on our side to upload to.`,
-          "The voice typing built into Windows sends your speech to Microsoft's servers to be recognised. Koegaki does the recognition locally, which is why it can be used on documents you would never paste into a website.",
+          "The voice typing built into Windows sends your speech to Microsoft's servers to be recognised. Koegaki does the recognition locally, which is why it can be used on documents you would never paste into a website. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your PC too.",
         ],
       },
       {
         heading: "What you need",
         paragraphs: [
           `${SITE.windowsRequirements}. The model runs on the CPU, so no particular graphics card is needed; a laptop from the last few years is plenty.`,
-          "The installer is not yet signed with a certificate, so Windows shows its SmartScreen warning the first time you run it. Choose More info, then Run anyway. The warning is about the missing certificate, not about anything found in the app, and a signed build is on the list.",
+          "The installer is not yet signed with a certificate, so Windows shows its SmartScreen warning the first time you run it. Usually you choose More info, then Run anyway. On a PC with Smart App Control switched on there is no Run anyway and the installer is refused; that setting can only be turned off in Windows Security, so if you would rather not, write to us and wait for the signed build. The warning is about the missing certificate, not about anything found in the app.",
         ],
       },
       {
@@ -126,7 +126,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it work without internet?",
-        a: "Yes. After the one-time model download, dictation runs entirely offline. Activating a licence uses the network once, and being offline afterwards never locks you out.",
+        a: "Yes. After the one-time model download, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the one-time model download, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, and the download of an update or a model when you choose one. Being offline never locks a paid licence out.",
       },
       {
         q: "Which versions of Windows are supported?",
@@ -164,7 +164,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          "Three things, none of them involving audio or text: the one-time model download, activating a licence key, and checking for app updates. If you are offline when a licence check would run, nothing happens; a paid licence is never revoked for being offline.",
+          "A few things, none of them involving audio or text: the one-time model download, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, and the download of an update or a model when you choose one. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.",
         ],
       },
       {
@@ -185,7 +185,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes. Dictation makes no network requests. The only outbound connections are to koegaki.com for the model download, licence activation and update checks, and none of them carry audio or text.",
+        a: "Yes. Dictation makes no network requests. The app's only connections are the licence, version and model checks with koegaki.com and the downloads of models and updates from our hosting storage, and none of them carry audio or text.",
       },
       {
         q: "Is there a word limit?",
