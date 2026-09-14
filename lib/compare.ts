@@ -129,7 +129,7 @@ export const COMPARISONS: Comparison[] = [
       "Your Mac can already take dictation. Here is what changes when you use Koegaki instead, and when the built-in one is enough.",
     asOf: "September 2026",
     rows: [
-      { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On-device for supported languages once the language is downloaded; otherwise Apple's servers." },
+      { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On-device for general text in supported languages once the language is downloaded, as shown in Keyboard settings; dictation into search boxes and other languages go to Apple's servers." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "A key press toggles dictation on; it stays on until you stop it, or stops after 30 seconds of silence." },
       { label: "Custom vocabulary", koegaki: koegakiCommon.vocab, other: "None documented by Apple for dictation." },
       { label: "Price", koegaki: koegakiCommon.price, other: "Included with macOS." },
@@ -153,7 +153,7 @@ export const COMPARISONS: Comparison[] = [
       },
     ],
     faqs: [
-      { q: "Is macOS Dictation private?", a: "For languages Apple supports on-device, and once the language is downloaded, recognition happens on your Mac. Koegaki has no server path at all, so there is nothing to configure and nothing to fall back to." },
+      { q: "Is macOS Dictation private?", a: "Partly. For general text in languages Apple supports on-device, and once the language is downloaded, recognition happens on your Mac; Keyboard settings shows whether it does. Apple says dictation into search boxes is handled differently, and other languages use its servers. Koegaki has no server path at all, so there is nothing to configure and nothing to fall back to." },
       { q: "Can I keep using macOS Dictation alongside Koegaki?", a: "Yes. Koegaki uses its own shortcut and does not change any macOS setting." },
       { q: "Does Koegaki cost money?", a: `Yes, ${price} after a ${trial}. macOS Dictation is free with the system.` },
     ],
