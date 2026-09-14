@@ -86,15 +86,15 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
-    description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in any program. Recognition runs on your PC, never in the cloud. ${price} one-time.`,
+    description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands where you were typing. Recognition runs on your PC, never in the cloud. ${price} one-time.`,
     kicker: "Koegaki for Windows",
     h1: "Dictation software for Windows that never sends your voice anywhere.",
-    lede: `Hold Ctrl+Alt+D, talk, release. Koegaki types what you said into whatever program you were using, and every word is transcribed on your own PC. No account, no cloud, no subscription.`,
+    lede: `Hold Ctrl+Alt+D, talk, release. Koegaki types what you said where you were typing, and every word is transcribed on your own PC. No account, no cloud, no subscription.`,
     sections: [
       {
-        heading: "Dictate into any Windows program",
+        heading: "Dictate into the program you are using",
         paragraphs: [
-          "Koegaki sits in the system tray. Wherever the cursor is, in Outlook, Word, Teams, a browser, a terminal, hold the shortcut and speak. When you release the key the text is inserted where you were typing. Nothing to open, nothing to paste. The one exception is a program running as administrator: Windows does not let an ordinary app type into it, so Koegaki leaves the text on the clipboard for you to paste.",
+          "Koegaki sits in the system tray. Wherever the cursor is, in Outlook, Word, Teams, a browser, a terminal, hold the shortcut and speak. When you release the key the text is inserted where you were typing. Nothing to open, nothing to paste. The one exception is a program running as administrator: Windows does not let an ordinary app type into it, so Koegaki copies the text for you to paste instead, and tells you if even that fails.",
           "The default shortcut is Ctrl+Alt+D and you can change it. Hold it to talk, or use toggle mode and press once to start and once to stop.",
         ],
       },
