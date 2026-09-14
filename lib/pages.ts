@@ -70,7 +70,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Is this different from the dictation built into macOS?",
-        a: "Yes. macOS Dictation is toggled on and off and types into one field at a time. Koegaki is push-to-talk with a shortcut you choose, works the same way in every app, and lets you define word replacements. The full comparison is on the Koegaki vs macOS Dictation page.",
+        a: "Yes. macOS Dictation is toggled on and off and stops on its own after 30 seconds of silence. Koegaki is push-to-talk with a shortcut you choose, works the same way in every app, and lets you define word replacements. The full comparison is on the Koegaki vs macOS Dictation page.",
       },
       {
         q: "Does it need an internet connection?",
@@ -122,7 +122,7 @@ export const LANDING_PAGES: LandingPage[] = [
     faqs: [
       {
         q: "Is this different from Windows voice typing (Win+H)?",
-        a: "Yes. Windows voice typing sends your speech to Microsoft's online speech service, is toggled on and off, and has no custom vocabulary. Koegaki recognises speech on your PC, is push-to-talk with a shortcut you choose, and lets you define word replacements. The full comparison is on the Koegaki vs Windows Voice Typing page.",
+        a: "Yes. Windows voice typing sends your speech to Microsoft's online speech service and is toggled on and off. Koegaki recognises speech on your PC, is push-to-talk with a shortcut you choose, and lets you define word replacements. The full comparison is on the Koegaki vs Windows Voice Typing page.",
       },
       {
         q: "Does it work without internet?",
