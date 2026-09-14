@@ -66,7 +66,7 @@ export const LANDING_PAGES: LandingPage[] = [
     faqs: [
       {
         q: "Does Koegaki work on Intel Macs?",
-        a: `Koegaki requires macOS 14 or later. Apple Silicon is recommended because the model runs on the Neural Engine there and transcription is fastest; on an Intel Mac the same model runs on the CPU and is slower.`,
+        a: "The current Mac build is for Apple Silicon (M1 and later) on macOS 14 or later, where the model runs on the Neural Engine. It does not run on Intel Macs.",
       },
       {
         q: "Is this different from the dictation built into macOS?",
@@ -185,7 +185,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes. Dictation makes no network requests. The app's only connections are licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of models and updates from our hosting storage. None of them carry audio or text.",
+        a: "Yes. Dictation makes no network requests. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of models and updates from our hosting storage, with Hugging Face as the fallback source for the speech model if our mirror is unavailable. None of these carry audio or text.",
       },
       {
         q: "Is there a word limit?",

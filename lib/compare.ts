@@ -82,7 +82,7 @@ export const COMPARISONS: Comparison[] = [
     other: "Wispr Flow",
     title: "Koegaki vs Wispr Flow: on-device dictation instead of the cloud",
     description:
-      "Wispr Flow recognises your speech on its servers, with a capped free tier and paid plans above it. Koegaki does it on your Mac or PC, never uploads your voice, and costs $30 once.",
+      "Wispr Flow recognises your speech on its servers, with a free tier capped on desktop and paid plans above it. Koegaki does it on your Mac or PC, never uploads your voice, and costs $30 once.",
     h1: "Koegaki vs Wispr Flow",
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
@@ -90,7 +90,7 @@ export const COMPARISONS: Comparison[] = [
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
       { label: "Offline mode", koegaki: koegakiCommon.offline, other: "None at any tier." },
-      { label: "Price", koegaki: koegakiCommon.price, other: "Monthly subscription per user, with a free tier capped at a weekly word count. Current prices are on wisprflow.ai." },
+      { label: "Price", koegaki: koegakiCommon.price, other: "Monthly subscription per user, with a free tier capped at a weekly word count on desktop and iPhone. Current prices are on wisprflow.ai." },
       { label: "Platforms", koegaki: koegakiCommon.platforms, other: "macOS, Windows, iOS and Android." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "Yes; plans are per user." },
       { label: "AI rewriting", koegaki: "Optional, off by default, and local: a cleanup model that runs on your own machine. Nothing is sent anywhere.", other: "Yes, the transcript is cleaned up and reformatted by Wispr's models." },
@@ -101,7 +101,7 @@ export const COMPARISONS: Comparison[] = [
       {
         heading: "The trade Wispr Flow asks you to make",
         paragraphs: [
-          "Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
+          "Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
           "Koegaki makes the opposite trade. Recognition runs on your computer with a model that is downloaded once. There is no account because there is nothing to log in to, no subscription because there is no server to pay for, and no word limit because nothing is counting.",
         ],
       },
@@ -146,7 +146,7 @@ export const COMPARISONS: Comparison[] = [
       {
         heading: "What Koegaki changes",
         paragraphs: [
-          "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Nothing to switch on, nothing left running, no wondering whether it is still listening.",
+          "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Releasing the key ends the dictation; nothing is transcribed until you press it again.",
           "The same behaviour in every app. Koegaki inserts text wherever the cursor is, using one shortcut, in Mail, Slack, a terminal, a browser form.",
           "Word replacements. Say a short word and Koegaki types the full phrase: an email address, a product name it might spell wrong, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
         ],
@@ -188,7 +188,7 @@ export const COMPARISONS: Comparison[] = [
         heading: "What Koegaki changes",
         paragraphs: [
           "Your voice stays on your PC. Windows voice typing sends your speech to Microsoft's servers to be recognised. Koegaki runs the speech model locally, so it works on a plane, behind a corporate firewall, and on documents you are not allowed to send anywhere.",
-          "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open and nothing left listening.",
+          "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open, and releasing the key ends the dictation.",
           "Word replacements. Say a short word and Koegaki types the full phrase, everywhere, without teaching anything.",
         ],
       },
