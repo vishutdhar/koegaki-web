@@ -94,7 +94,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Dictate into any Windows program",
         paragraphs: [
-          "Koegaki sits in the system tray. Wherever the cursor is, in Outlook, Word, Teams, a browser, a terminal, hold the shortcut and speak. When you release the key the text is inserted where you were typing. Nothing to open, nothing to paste.",
+          "Koegaki sits in the system tray. Wherever the cursor is, in Outlook, Word, Teams, a browser, a terminal, hold the shortcut and speak. When you release the key the text is inserted where you were typing. Nothing to open, nothing to paste. The one exception is a program running as administrator: Windows does not let an ordinary app type into it, so Koegaki leaves the text on the clipboard for you to paste.",
           "The default shortcut is Ctrl+Alt+D and you can change it. Hold it to talk, or use toggle mode and press once to start and once to stop.",
         ],
       },
