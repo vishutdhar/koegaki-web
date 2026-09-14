@@ -37,6 +37,8 @@ export const SITE = {
     "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.0.dmg",
 
   requirements: "macOS 14+ · Apple Silicon recommended",
+  /** What the shipped Mac build actually needs (the export is arm64 only); the secondary pages state this. */
+  macRequirementsStrict: "macOS 14+ · Apple Silicon (M1 or later)",
 
   windowsDownloadUrl:
     process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??

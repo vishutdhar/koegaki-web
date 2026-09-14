@@ -1,8 +1,52 @@
 import { SITE } from "@/lib/site";
+import { COMPARISONS } from "@/lib/compare";
 
-export function Footer() {
+const PLATFORM_LINKS = [
+  { href: "/mac", label: "Dictation for Mac" },
+  { href: "/windows", label: "Dictation for Windows" },
+  { href: "/offline-dictation", label: "Offline dictation" },
+];
+
+/**
+ * Link groups for the secondary pages: every one of them links to all the
+ * others, so a crawler that lands on any of them reaches the rest in one hop.
+ * The landing page keeps its original footer.
+ */
+function LinkGroups() {
+  return (
+    <div className="mx-auto grid w-full max-w-5xl gap-8 px-6 pt-12 sm:grid-cols-2">
+      <div>
+        <p className="font-display text-sm font-medium tracking-tight">Platforms</p>
+        <ul className="mt-3 space-y-2 text-sm text-muted">
+          {PLATFORM_LINKS.map(({ href, label }) => (
+            <li key={href}>
+              <a href={href} className="transition-colors hover:text-ink">
+                {label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <p className="font-display text-sm font-medium tracking-tight">Compare</p>
+        <ul className="mt-3 space-y-2 text-sm text-muted">
+          {COMPARISONS.map(({ slug, other }) => (
+            <li key={slug}>
+              <a href={`/vs/${slug}`} className="transition-colors hover:text-ink">
+                {SITE.name} vs {other}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function Footer({ extended = false }: { extended?: boolean }) {
   return (
     <footer className="mt-auto border-t border-hairline">
+      {extended && <LinkGroups />}
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2.5">
           <span className="font-display text-xl text-ink">{SITE.mark}</span>
