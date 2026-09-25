@@ -5,4 +5,10 @@
 // tsconfig.json, and extensionless relative imports of .ts files.
 import { register } from "node:module";
 
+// Type stripping arrived unflagged in Node 22.18 and 23.6; on an older Node
+// every import below would fail with a syntax error that hides the cause.
+if (!process.features.typescript) {
+  throw new Error(`npm test needs Node 22.18 or later (type stripping); this is Node ${process.versions.node}.`);
+}
+
 register("./resolve-ts.mjs", import.meta.url);

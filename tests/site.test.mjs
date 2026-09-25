@@ -69,11 +69,18 @@ function anchors(fragment) {
 
 test("the home page footer links every landing and comparison page with descriptive text", () => {
   const links = anchors(footer(html("/")));
-  const wanted = [...LANDING_PAGES.map((p) => p.path), ...COMPARISONS.map((c) => `/vs/${c.slug}`)];
-  for (const path of wanted) {
+  const wanted = [
+    ...LANDING_PAGES.map((p) => [p.path, p.linkLabel]),
+    ...COMPARISONS.map((c) => [`/vs/${c.slug}`, `${SITE.name} vs ${c.other}`]),
+  ];
+  for (const [path, text] of wanted) {
     const hit = links.find((l) => l.href === path);
     assert.ok(hit, `home footer does not link ${path}`);
-    assert.ok(hit.text.split(/\s+/).length >= 2, `anchor text for ${path} is not descriptive: "${hit.text}"`);
+    assert.equal(hit.text, text, `anchor text for ${path}`);
+  }
+  // The labels themselves must say what is behind the link.
+  for (const p of LANDING_PAGES) {
+    assert.match(p.linkLabel, /dictation/i, `link label for ${p.path} does not name the subject`);
   }
 });
 
@@ -130,6 +137,9 @@ test("the sitemap lists every page, each with a lastmod date", () => {
     assert.ok(lastmod, `no lastmod in ${e.trim()}`);
     assert.match(lastmod[1], /^\d{4}-\d{2}-\d{2}/);
     assert.ok(!Number.isNaN(Date.parse(lastmod[1])), `unparseable lastmod ${lastmod[1]}`);
+    // A page cannot have changed after the build that serves it, nor before the site existed.
+    assert.ok(Date.parse(lastmod[1]) <= Date.now(), `lastmod ${lastmod[1]} is in the future`);
+    assert.ok(lastmod[1] >= "2026-06-25", `lastmod ${lastmod[1]} predates the site`);
   }
 });
 
@@ -142,23 +152,54 @@ test("the platform landing pages describe the product with its one-time offer", 
     assert.equal(apps.length, 1, `SoftwareApplication count on ${page.path}`);
     const [app] = apps;
     assert.deepEqual(Object.keys(app), Object.keys(home), `shape of ${page.path} differs from home`);
+    assert.equal(app["@context"], "https://schema.org");
     assert.equal(app.name, SITE.name);
+    assert.equal(app.description, page.description, `description of ${page.path}`);
+    assert.equal(app.url, `${SITE.url}${page.path}`, `url of ${page.path}`);
+    assert.equal(app.image, home.image);
+    assert.equal(app.applicationCategory, home.applicationCategory);
     assert.equal(app.operatingSystem, page.operatingSystem);
     assert.deepEqual(app.offers, home.offers);
+    assert.deepEqual(app.offers, {
+      "@type": "Offer",
+      price: String(SITE.priceUSD),
+      priceCurrency: "USD",
+      url: `${SITE.url}/buy`,
+    });
     assert.equal(app.offers.price, "30");
-    assert.equal(app.offers.priceCurrency, "USD");
     assert.equal(nodes.filter((n) => n["@type"] === "FAQPage").length, 1, `FAQPage count on ${page.path}`);
     assert.equal(nodes.filter((n) => n["@type"] === "BreadcrumbList").length, 1, `breadcrumb count on ${page.path}`);
   }
 });
 
+/**
+ * The @id values a set of JSON-LD graphs references but never defines. A node
+ * that carries only "@id" is a reference; a node with any other property
+ * defines that id.
+ */
+function danglingIds(graphs) {
+  const defined = new Set();
+  const referenced = new Set();
+  const walk = (v) => {
+    if (Array.isArray(v)) return v.forEach(walk);
+    if (!v || typeof v !== "object") return;
+    if (typeof v["@id"] === "string") {
+      (Object.keys(v).length === 1 ? referenced : defined).add(v["@id"]);
+    }
+    Object.values(v).forEach(walk);
+  };
+  walk(graphs);
+  return [...referenced].filter((id) => !defined.has(id));
+}
+
+test("the dangling @id check catches a reference with no definition", () => {
+  assert.deepEqual(danglingIds([{ "@type": "WebPage", publisher: { "@id": "#org" } }]), ["#org"]);
+  assert.deepEqual(danglingIds([{ "@id": "#org", "@type": "Organization" }, { publisher: { "@id": "#org" } }]), []);
+});
+
 test("all JSON-LD parses and every @id reference resolves on the same page", () => {
   for (const path of ROUTES) {
-    const text = JSON.stringify(jsonLd(html(path)));
-    const defined = new Set([...text.matchAll(/"@id":"([^"]+)"/g)].map((m) => m[1]));
-    for (const m of text.matchAll(/\{"@id":"([^"]+)"\}/g)) {
-      assert.ok(defined.has(m[1]), `${path} references undefined @id ${m[1]}`);
-    }
+    assert.deepEqual(danglingIds(jsonLd(html(path))), [], `${path} references undefined @id`);
   }
 });
 
@@ -167,4 +208,18 @@ test("the home H1 does not run the platform words together in extracted text", (
   const text = h1.replace(/<br[^>]*>/g, " ").replace(/<[^>]*>/g, "");
   assert.doesNotMatch(text, /MacPC/);
   assert.match(text, /Mac\s+PC/);
+});
+
+test("the H1 separator stays invisible: one platform word shows and its space collapses", () => {
+  const doc = html("/");
+  const h1 = doc.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1];
+  // The separator lives inside the Windows word, directly after the space
+  // before the Mac word, so whichever word is shown gets exactly one space.
+  assert.match(h1, /on your <span class="os-mac">Mac<\/span><span class="os-win"> PC<\/span>\./);
+  // ...which only holds while the stylesheet removes the other word entirely.
+  const css = [...doc.matchAll(/href="(\/_next\/static\/[^"]+\.css)"/g)]
+    .map((m) => readFileSync(new URL(`../.next${m[1].slice("/_next".length)}`, import.meta.url), "utf8"))
+    .join("");
+  assert.match(css, /html:not\(\[data-os=win\]\) \.os-win[,{][^}]*display:none/);
+  assert.match(css, /\[data-os=win\] \.os-mac[,{][^}]*display:none/);
 });
