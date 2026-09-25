@@ -1,16 +1,12 @@
 import { SITE } from "@/lib/site";
 import { COMPARISONS } from "@/lib/compare";
-
-const PLATFORM_LINKS = [
-  { href: "/mac", label: "Dictation for Mac" },
-  { href: "/windows", label: "Dictation for Windows" },
-  { href: "/offline-dictation", label: "Offline dictation" },
-];
+import { LANDING_PAGES } from "@/lib/pages";
 
 /**
- * Link groups for the secondary pages: every one of them links to all the
- * others, so a crawler that lands on any of them reaches the rest in one hop.
- * The landing page keeps its original footer.
+ * Link groups to every landing and comparison page, generated from the same
+ * lists that create those pages, so a new page is linked the moment it exists.
+ * The home page and every landing and comparison page render them, so a
+ * crawler that lands on any of those reaches all the others in one hop.
  */
 function LinkGroups() {
   return (
@@ -18,10 +14,10 @@ function LinkGroups() {
       <div>
         <p className="font-display text-sm font-medium tracking-tight">Platforms</p>
         <ul className="mt-3 space-y-2 text-sm text-muted">
-          {PLATFORM_LINKS.map(({ href, label }) => (
-            <li key={href}>
-              <a href={href} className="transition-colors hover:text-ink">
-                {label}
+          {LANDING_PAGES.map(({ path, linkLabel }) => (
+            <li key={path}>
+              <a href={path} className="transition-colors hover:text-ink">
+                {linkLabel}
               </a>
             </li>
           ))}

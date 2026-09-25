@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { SITE } from "@/lib/site";
+import { OPEN_GRAPH_DEFAULTS } from "@/lib/metadata";
 import { Background } from "@/components/background";
 import "./globals.css";
 
@@ -23,13 +24,14 @@ export const metadata: Metadata = {
   description: SITE.description,
   applicationName: SITE.name,
   alternates: { canonical: "/" },
+  robots: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  // Pages that set their own openGraph replace this object entirely, which is
+  // why they build theirs with pageMetadata (lib/metadata.ts) from the same defaults.
   openGraph: {
+    ...OPEN_GRAPH_DEFAULTS,
     title: `${SITE.name} · ${SITE.tagline}`,
     description: SITE.description,
     url: SITE.url,
-    siteName: SITE.name,
-    type: "website",
-    images: ["/og.png"],
   },
   twitter: {
     card: "summary_large_image",

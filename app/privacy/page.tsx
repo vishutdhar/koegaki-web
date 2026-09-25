@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { SITE } from "@/lib/site";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Privacy",
+export const metadata: Metadata = pageMetadata({
+  path: "/privacy",
+  title: `Privacy · ${SITE.name}`,
   description: `How ${SITE.name} handles your data: it doesn't. Voice and transcripts never leave your computer.`,
-};
+});
 
 export default function PrivacyPage() {
   return (

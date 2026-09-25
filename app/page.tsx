@@ -34,7 +34,7 @@ export default function Home() {
         <Faq />
         <CtaBand />
       </main>
-      <Footer />
+      <Footer extended />
     </>
   );
 }
