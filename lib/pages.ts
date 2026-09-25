@@ -13,6 +13,12 @@ export type LandingPage = {
   path: string;
   /** Short name used in breadcrumbs and the browser tab. */
   name: string;
+  /** Anchor text for the site-wide footer link to this page. */
+  linkLabel: string;
+  /** The SoftwareApplication operatingSystem for this page's product graph. */
+  operatingSystem: string;
+  /** Sitemap lastmod: the date this page's content last changed (YYYY-MM-DD). */
+  lastModified: string;
   /** The <title>, written as the visitor's search, then the answer. */
   title: string;
   description: string;
@@ -28,9 +34,12 @@ const price = `$${SITE.priceUSD}`;
 export const LANDING_PAGES: LandingPage[] = [
   {
     path: "/mac",
+    linkLabel: "Dictation for Mac",
+    operatingSystem: "macOS 14.0 or later",
+    lastModified: "2026-09-25",
     name: "Koegaki for Mac",
     title: "Dictation app for Mac that runs on-device",
-    description: `Private dictation for macOS. Hold a key, speak, and the text lands in any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
+    description: `Private dictation for macOS. Hold a key, speak, and the text lands in almost any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
     kicker: "Koegaki for Mac",
     h1: "A dictation app for Mac that keeps your voice on your Mac.",
     lede: `Hold a shortcut, talk, release. Koegaki types what you said into whatever app you were using, and every word is transcribed on your own machine. No account, no cloud, no subscription.`,
@@ -84,9 +93,12 @@ export const LANDING_PAGES: LandingPage[] = [
   },
   {
     path: "/windows",
+    linkLabel: "Dictation for Windows",
+    operatingSystem: "Windows 10, Windows 11",
+    lastModified: "2026-09-25",
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
-    description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands where you were typing. Recognition runs on your PC, not the cloud. ${price} one-time.`,
+    description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in almost any program. Recognition runs on your PC, not the cloud. ${price} one-time.`,
     kicker: "Koegaki for Windows",
     h1: "Dictation software for Windows that never sends your voice anywhere.",
     lede: `Hold Ctrl+Alt+D, talk, release. Koegaki types what you said where you were typing, and every word is transcribed on your own PC. No account, no cloud, no subscription.`,
@@ -140,6 +152,9 @@ export const LANDING_PAGES: LandingPage[] = [
   },
   {
     path: "/offline-dictation",
+    linkLabel: "Offline dictation",
+    operatingSystem: "macOS 14.0 or later, Windows 10, Windows 11",
+    lastModified: "2026-09-25",
     name: "Offline dictation",
     title: "Offline dictation software for Mac and Windows",
     description: `Dictation that works with no internet connection. The speech model runs on your Mac or PC, so it keeps working on a plane or behind a firewall. ${price} one-time.`,

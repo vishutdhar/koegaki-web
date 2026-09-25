@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ComparisonPage } from "@/components/subpage/comparison-page";
 import { COMPARISONS, comparison } from "@/lib/compare";
-import { SITE } from "@/lib/site";
+import { pageMetadata } from "@/lib/metadata";
 
 export const dynamicParams = false;
 
@@ -18,20 +18,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const c = comparison(slug);
   if (!c) return {};
-  return {
-    title: { absolute: c.title },
-    description: c.description,
-    alternates: { canonical: `/vs/${c.slug}` },
-    openGraph: {
-      title: c.title,
-      description: c.description,
-      url: `/vs/${c.slug}`,
-      siteName: SITE.name,
-      type: "website",
-      images: ["/og.png"],
-    },
-    twitter: { card: "summary_large_image", title: c.title, description: c.description, images: ["/og.png"] },
-  };
+  return pageMetadata({ path: `/vs/${c.slug}`, title: c.title, description: c.description });
 }
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {

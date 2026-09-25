@@ -12,7 +12,12 @@ import type { LandingPage as LandingPageData } from "@/lib/pages";
 export function LandingPage({ page }: { page: LandingPageData }) {
   return (
     <>
-      <PageStructuredData path={page.path} title={page.name} faqs={page.faqs} />
+      <PageStructuredData
+        path={page.path}
+        title={page.name}
+        faqs={page.faqs}
+        product={{ description: page.description, operatingSystem: page.operatingSystem }}
+      />
       <Nav home={false} />
       <main className="flex-1">
         <SubpageHero kicker={page.kicker} title={page.h1} lede={page.lede} />

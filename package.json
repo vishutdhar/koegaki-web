@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "next build && node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'tests/*.test.mjs'"
   },
   "dependencies": {
     "next": "16.2.9",

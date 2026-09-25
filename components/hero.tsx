@@ -17,8 +17,13 @@ export function Hero() {
           className="animate-rise font-display text-5xl font-semibold leading-[0.98] tracking-[-0.03em] sm:text-[5.25rem] sm:tracking-[-0.045em]"
           style={{ animationDelay: "80ms" }}
         >
+          {/*
+            The space inside the Windows word keeps text extraction from reading
+            "MacPC". Only one of the two words is ever displayed, and a leading
+            space after the space before it collapses, so nothing moves on screen.
+          */}
           Dictate anywhere on your <span className="os-mac">Mac</span>
-          <span className="os-win">PC</span>.
+          <span className="os-win"> PC</span>.
           <br className="hidden sm:block" />{" "}
           <span className="inline-block bg-gradient-to-br from-ember to-[#ff8a63] bg-clip-text pb-[0.08em] text-transparent">
             Instantly. Privately.

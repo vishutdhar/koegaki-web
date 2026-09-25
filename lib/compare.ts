@@ -18,6 +18,8 @@ export type Comparison = {
   h1: string;
   lede: string;
   asOf: string;
+  /** Sitemap lastmod: the date this page's content last changed (YYYY-MM-DD). */
+  lastModified: string;
   rows: CompareRow[];
   sections: ProseSection[];
   faqs: FaqItem[];
@@ -47,6 +49,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Both apps can transcribe on your own machine. The differences are what you pay, what is behind the paywall, and how much app you get.",
     asOf: "September 2026",
+    lastModified: "2026-09-14",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On your device with local models, or in the cloud with the cloud models it also offers." },
       { label: "On-device models", koegaki: "Included. An English model (Parakeet) and a multilingual model (Whisper), both local, at no extra cost.", other: "Some local models are free; the Parakeet models need the paid Pro tier." },
@@ -87,6 +90,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
     asOf: "September 2026",
+    lastModified: "2026-09-14",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
       { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. On desktop, a recording that failed to send can be retried from History after you reconnect." },
@@ -128,6 +132,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Your Mac can already take dictation. Here is what changes when you use Koegaki instead, and when the built-in one is enough.",
     asOf: "September 2026",
+    lastModified: "2026-09-14",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On-device for general text in supported languages once the language is downloaded, as shown in Keyboard settings; dictation into search boxes and other languages go to Apple's servers." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "A key press toggles dictation on; it stays on until you stop it, or stops after 30 seconds of silence." },
@@ -168,6 +173,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Press Win+H and Windows will take dictation, as long as you are online. Koegaki does the same job on your own PC, with the network unplugged.",
     asOf: "September 2026",
+    lastModified: "2026-09-14",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Microsoft's online speech service. An internet connection is required." },
       { label: "Works offline", koegaki: koegakiCommon.offline, other: "No." },
