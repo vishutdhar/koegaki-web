@@ -132,6 +132,15 @@ test("the sitemap lists every page, each with a lastmod date", () => {
   const locs = entries.map((e) => e.match(/<loc>([^<]*)<\/loc>/)[1]);
   const expected = ROUTES.map((p) => (p === "/" ? SITE.url : `${SITE.url}${p}`));
   assert.deepEqual([...locs].sort(), [...expected].sort());
+  // Each page's date comes from its entry in the page data, not a shared default.
+  const dated = [
+    ...LANDING_PAGES.map((p) => [`${SITE.url}${p.path}`, p.lastModified]),
+    ...COMPARISONS.map((c) => [`${SITE.url}/vs/${c.slug}`, c.lastModified]),
+  ];
+  for (const [loc, date] of dated) {
+    const entry = entries.find((e) => e.includes(`<loc>${loc}</loc>`));
+    assert.match(entry, new RegExp(`<lastmod>${date}</lastmod>`), `lastmod of ${loc}`);
+  }
   for (const e of entries) {
     const lastmod = e.match(/<lastmod>([^<]*)<\/lastmod>/);
     assert.ok(lastmod, `no lastmod in ${e.trim()}`);
@@ -222,4 +231,9 @@ test("the H1 separator stays invisible: one platform word shows and its space co
     .join("");
   assert.match(css, /html:not\(\[data-os=win\]\) \.os-win[,{][^}]*display:none/);
   assert.match(css, /\[data-os=win\] \.os-mac[,{][^}]*display:none/);
+  // No other rule may style the two words (a later display value would bring
+  // the hidden one back), and nothing on the H1 may preserve whitespace.
+  const rules = css.match(/[^{}]*\.os-(?:mac|win)\b[^{}]*\{[^}]*\}/g) ?? [];
+  assert.deepEqual(rules, ["html:not([data-os=win]) .os-win,[data-os=win] .os-mac{display:none}"]);
+  assert.doesNotMatch(doc.match(/<h1[^>]*>/)[0], /whitespace-pre|break-spaces/);
 });
