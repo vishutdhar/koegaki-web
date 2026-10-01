@@ -34,7 +34,7 @@ export const SITE = {
    */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
-    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.1.dmg",
+    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.6.0.dmg",
 
   requirements: "macOS 14+ · Apple Silicon recommended",
   /** What the shipped Mac build actually needs (the export is arm64 only); the secondary pages state this. */
@@ -42,7 +42,7 @@ export const SITE = {
 
   windowsDownloadUrl:
     process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??
-    "https://koegaki.com/downloads/Koegaki-1.5.2-setup.exe",
+    "https://koegaki.com/downloads/Koegaki-1.6.0-setup.exe",
 
   windowsRequirements: "Windows 10 & 11 · 64-bit",
 
