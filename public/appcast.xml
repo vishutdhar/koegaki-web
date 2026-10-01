@@ -3,19 +3,19 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.5.1</title>
-            <pubDate>Wed, 30 Sep 2026 16:33:15 -0400</pubDate>
-            <sparkle:version>20</sparkle:version>
-            <sparkle:shortVersionString>1.5.1</sparkle:shortVersionString>
+            <title>1.6.0</title>
+            <pubDate>Thu, 01 Oct 2026 19:51:37 -0400</pubDate>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.5.1</h2>
+            <description><![CDATA[<h2>Koegaki 1.6.0</h2>
 <ul>
-    <li>Fixed: the microphone could stop answering after an audio device change, such as AirPods disconnecting, and every press then sat on Preparing speech engine until Koegaki was quit. Each microphone rebuild now has a time limit. If one misses it, Koegaki reports that the microphone is not responding, tries once more on the next press, and restarts itself if that attempt hangs too.</li>
-    <li>While a dictation waits on the microphone, the on-screen pill now names the microphone instead of the speech engine.</li>
-    <li>A device merely appearing or disappearing no longer rebuilds the microphone while your input device is unchanged.</li>
+    <li>Each dictation now stays on your clipboard after it is inserted, so if a paste missed you can paste it again. A dictation that came in parts is on the clipboard whole.</li>
+    <li>New in Settings: Restore my previous clipboard after inserting. Turn it on and Koegaki puts back what you had copied before, once the paste lands. Off is the default.</li>
+    <li>If part of a dictation could not be confirmed, the notice names that part and says the whole dictation is on your clipboard, instead of asking you to paste again.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.1.dmg" length="14827422" type="application/octet-stream" sparkle:edSignature="WUkn982hB2hrgMurRPBodFk8Wy/Pveaft0/PM1y7lgr3Ot45cBj1Awn75WYkn5bDHzcLMuuS9wINCjoNsncGDQ=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.6.0.dmg" length="14852634" type="application/octet-stream" sparkle:edSignature="i6pq8R6kSlwvGNEknL1hD7gQORqENpgEiy+z1jZQ2juWGFG25U/84oJnorDYPjVRoIXw8AWcgOjJCAN6gvWYCQ=="/>
         </item>
     </channel>
 </rss>

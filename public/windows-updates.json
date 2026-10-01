@@ -1,11 +1,11 @@
 {
-  "version": "1.5.2",
-  "notes": "Fixed: a microphone that stopped answering could freeze Koegaki, so presses did nothing, Quit did nothing, and only Task Manager helped. Each microphone open now has a time limit. If one misses it, Koegaki reports that the microphone is not responding, tries once more on the next press, and restarts itself if that attempt hangs too. While a dictation waits on the microphone, the pill reads Waiting for mic, and its stop button cancels that start instead of letting it go ahead.",
-  "pub_date": "2026-10-01T22:14:55Z",
+  "version": "1.6.0",
+  "notes": "Each dictation now stays on your clipboard after it is inserted, so if a paste missed you can paste it again. A dictation that came in parts is on the clipboard whole. New in Settings: Restore my previous clipboard after inserting. Turn it on and Koegaki puts back what you had copied before, once the paste lands. Off is the default. If part of a dictation could not be inserted, the warning now points you to Paste last dictation in the tray, which has all of it.",
+  "pub_date": "2026-10-01T23:56:07Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2hPL2NadlpCVEM4cVVsdXpWc05QSVRCd0UvODZlVkpERm5rTGM5R2VZOEZ3OEVrbm9uVlh0RytVa01wZmtUekNyaUl6Z3pMQ1o1a0tyRHJIRjk0Z2c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwODkyNzY1CWZpbGU6S29lZ2FraV8xLjUuMl94NjQtc2V0dXAuZXhlCkxBbENMMTlpUXlEZmEremFjNFVhNWJ6UWpHclQzbi9jVjV6QUdOU2lYUXUzSEZFcEdDakhYNEttV3V6Y3dtNXZVNUdhSzR0VVB0UlBiUjZJTTlWa0FnPT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.2-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3VScGxEK3NFSHVFVHZ1cG9RUmtSYnUrS281THFSWEJlQkJGbFpBMWlqMCtjUUNXWWh6VUFsM0lLOE9xUEhXUDFiUU5MQkpvK3hKdUhoWjJ2a1RzQ2dzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwODk4ODg0CWZpbGU6S29lZ2FraV8xLjYuMF94NjQtc2V0dXAuZXhlCnNRQkpuVlFwRHhVUld2YUFidEtRNC9zOC9YRHV5T21TUkM4QzRiNDF6UE9QSHNzcHVQZU14dkJiaEVZOXNHOHJuQkwrMFBsMFB1M3NRWlU4MEdoOUJ3PT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.6.0-setup.exe"
     }
   }
 }
