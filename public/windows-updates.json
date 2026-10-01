@@ -1,11 +1,11 @@
 {
-  "version": "1.5.1",
-  "notes": "New: Koegaki keeps its cleanup model current. When it starts, and once a day after that, it checks koegaki.com for a newer cleanup model and, when one is published, offers it on Home. Nothing downloads until you choose Update. The check fetches one small list of models; nothing about you or your dictations is sent. After an update downloads, Koegaki asks you to restart, and the new model takes over on the next launch. If it fails to load, Koegaki goes back to the cleanup model it shipped with and tells you. Home now offers Cleanup once, after your first dictations, so you can try it or leave it off. Off stays the default. Updates no longer stop on an error about the program file being in use: the installer moves the previous program file aside instead of writing over it.",
-  "pub_date": "2026-09-11T20:28:57Z",
+  "version": "1.5.2",
+  "notes": "Fixed: a microphone that stopped answering could freeze Koegaki, so presses did nothing, Quit did nothing, and only Task Manager helped. Each microphone open now has a time limit. If one misses it, Koegaki reports that the microphone is not responding, tries once more on the next press, and restarts itself if that attempt hangs too. While a dictation waits on the microphone, the pill reads Waiting for mic, and its stop button cancels that start instead of letting it go ahead.",
+  "pub_date": "2026-10-01T22:14:55Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2lnZjIxUlJ6RE54SjVJZ0hwV0xVS3ZtZGNvVXlJWm12bm0wdUpWWUFoYVBFbUdTWkVuT3Fsa3NvQ0p5WWpRZDVRZnNCeG9TYUdWQ2tVQXM1QVF6aUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTU4NDg3CWZpbGU6S29lZ2FraV8xLjUuMV94NjQtc2V0dXAuZXhlCmR1SzNqellSeEkvRDcvemlqQnMwaGJYQzc4MEwvUUdtOWlVaUIxeGhUMCsyWlYxMzNDNFRFYm9pQUVUK21pY2l2VzJDMVMzVHFIdjJqaVdhRWd4SUN3PT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.1-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2hPL2NadlpCVEM4cVVsdXpWc05QSVRCd0UvODZlVkpERm5rTGM5R2VZOEZ3OEVrbm9uVlh0RytVa01wZmtUekNyaUl6Z3pMQ1o1a0tyRHJIRjk0Z2c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwODkyNzY1CWZpbGU6S29lZ2FraV8xLjUuMl94NjQtc2V0dXAuZXhlCkxBbENMMTlpUXlEZmEremFjNFVhNWJ6UWpHclQzbi9jVjV6QUdOU2lYUXUzSEZFcEdDakhYNEttV3V6Y3dtNXZVNUdhSzR0VVB0UlBiUjZJTTlWa0FnPT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.5.2-setup.exe"
     }
   }
 }
