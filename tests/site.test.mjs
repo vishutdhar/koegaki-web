@@ -253,7 +253,7 @@ test("each platform's engine copy names the English model the model index serves
   // identity missing here is a new model: add its name and update the copy.
   const NAMES = {
     "parakeet-ultra": "Parakeet Ultra",
-    "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8": "Parakeet TDT 0.6B v3",
+    "sherpa-onnx-nemo-parakeet-ultra-int8": "Parakeet Ultra",
   };
   const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
   const engines = { mac: SITE.engine, windows: SITE.windowsEngine };
@@ -267,17 +267,48 @@ test("each platform's engine copy names the English model the model index serves
 
 test("a page that promises a one-time model download also says how a new speech model arrives", () => {
   // Each model downloads once, but an app update that brings a new speech model
-  // downloads it in the background, so "downloads once" alone is not the whole
-  // truth. The Windows page is exempt only while the index still serves the
-  // Windows v3 identity: that build has not changed its speech model yet, and the
-  // exemption lapses by itself once the index moves it on.
-  const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
-  const windowsUnchanged =
-    index.windows["speech-english"].identity === "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
+  // downloads it in the background on both platforms, so "downloads once" alone
+  // is not the whole truth.
   for (const path of ROUTES) {
-    if (path === "/windows" && windowsUnchanged) continue;
     const text = html(path).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     if (!/downloads? once|downloaded once|one-time model download/i.test(text)) continue;
     assert.match(text, /app update brings a new speech model/i, `${path} says a model downloads once and stops there`);
+  }
+});
+
+test("no page promises a change for an app version the site already serves", () => {
+  // Copy written ahead of a release ("the Windows app gains this in version
+  // 1.7.0") is a promise, and it turns false the day that version ships. Each
+  // platform serves the version its download link names; a sentence that
+  // promises something for a version at or below that one is stale.
+  const served = {
+    mac: SITE.downloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)\.dmg$/)?.[1],
+    windows: SITE.windowsDownloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)-setup\.exe$/)?.[1],
+  };
+  assert.ok(served.mac && served.windows, `no served version in the download links ${JSON.stringify(served)}`);
+  const parts = (v) => v.split(".").map(Number);
+  const atOrBelow = (v, ceiling) => {
+    const [a, b] = [parts(v), parts(ceiling)];
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0);
+    }
+    return true;
+  };
+  for (const path of ROUTES) {
+    const text = html(path)
+      .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+      if (!/\b(?:gains?|will|moves? to|coming|until)\b/i.test(sentence)) continue;
+      const names = { mac: /\bmac\b/i.test(sentence), windows: /\bwindows\b/i.test(sentence) };
+      // A sentence naming one platform answers to that platform's version; one
+      // naming both or neither is stale only once every platform serves it.
+      const platforms = names.mac !== names.windows ? [names.mac ? "mac" : "windows"] : ["mac", "windows"];
+      for (const [, version] of sentence.matchAll(/\bversion (\d+(?:\.\d+){1,2})\b/gi)) {
+        const stale = platforms.every((p) => atOrBelow(version, served[p]));
+        assert.ok(!stale, `${path} promises version ${version}, which the site already serves: "${sentence.trim()}"`);
+      }
+    }
   }
 });
