@@ -3,6 +3,7 @@
 // `npm test`, which builds first.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash, createPublicKey, verify } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { SITE } from "../lib/site.ts";
 import { LANDING_PAGES } from "../lib/pages.ts";
@@ -253,7 +254,7 @@ test("each platform's engine copy names the English model the model index serves
   // identity missing here is a new model: add its name and update the copy.
   const NAMES = {
     "parakeet-ultra": "Parakeet Ultra",
-    "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8": "Parakeet TDT 0.6B v3",
+    "sherpa-onnx-nemo-parakeet-ultra-int8": "Parakeet Ultra",
   };
   const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
   const engines = { mac: SITE.engine, windows: SITE.windowsEngine };
@@ -267,17 +268,413 @@ test("each platform's engine copy names the English model the model index serves
 
 test("a page that promises a one-time model download also says how a new speech model arrives", () => {
   // Each model downloads once, but an app update that brings a new speech model
-  // downloads it in the background, so "downloads once" alone is not the whole
-  // truth. The Windows page is exempt only while the index still serves the
-  // Windows v3 identity: that build has not changed its speech model yet, and the
-  // exemption lapses by itself once the index moves it on.
-  const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
-  const windowsUnchanged =
-    index.windows["speech-english"].identity === "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
+  // downloads it in the background on both platforms, so "downloads once" alone
+  // is not the whole truth.
   for (const path of ROUTES) {
-    if (path === "/windows" && windowsUnchanged) continue;
     const text = html(path).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     if (!/downloads? once|downloaded once|one-time model download/i.test(text)) continue;
     assert.match(text, /app update brings a new speech model/i, `${path} says a model downloads once and stops there`);
   }
+});
+
+test("no page promises a change for an app version the site already serves", () => {
+  // Copy written ahead of a release ("the Windows app gains this in version
+  // 1.7.0") is a promise, and it turns false the day that version ships. Each
+  // platform serves the version its download link names; a sentence that
+  // promises something for a version at or below that one is stale.
+  const served = {
+    mac: SITE.downloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)\.dmg$/)?.[1],
+    windows: SITE.windowsDownloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)-setup\.exe$/)?.[1],
+  };
+  assert.ok(served.mac && served.windows, `no served version in the download links ${JSON.stringify(served)}`);
+  const parts = (v) => v.split(".").map(Number);
+  const atOrBelow = (v, ceiling) => {
+    const [a, b] = [parts(v), parts(ceiling)];
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0);
+    }
+    return true;
+  };
+  for (const path of ROUTES) {
+    const text = html(path)
+      .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+      if (!/\b(?:gains?|will|moves? to|coming|until)\b/i.test(sentence)) continue;
+      const names = { mac: /\bmac\b/i.test(sentence), windows: /\bwindows\b/i.test(sentence) };
+      // A sentence naming one platform answers to that platform's version; one
+      // naming both or neither is stale only once every platform serves it.
+      const platforms = names.mac !== names.windows ? [names.mac ? "mac" : "windows"] : ["mac", "windows"];
+      for (const [, version] of sentence.matchAll(/\bversion (\d+(?:\.\d+){1,2})\b/gi)) {
+        const stale = platforms.every((p) => atOrBelow(version, served[p]));
+        assert.ok(!stale, `${path} promises version ${version}, which the site already serves: "${sentence.trim()}"`);
+      }
+    }
+  }
+});
+
+const publicJson = (name) => JSON.parse(readFileSync(new URL(`../public/${name}`, import.meta.url), "utf8"));
+
+/**
+ * What an installed app refuses in public/models.json, mirrored from its two
+ * readers in the Koegaki repo so the site never serves an index an app throws
+ * away. Mac: Sources/KoegakiCore/ModelMirror/ModelIndex.swift (ModelIndex.decode,
+ * isSafeManifestPath, AppVersion.parse). Windows:
+ * apps/KoegakiWindows/crates/koegaki-win/src/model_updates.rs (ModelIndex::decode,
+ * is_safe_manifest_name, AppVersion::parse) and
+ * apps/KoegakiWindows/crates/koegaki-core/src/pathname.rs (is_plain_component).
+ * The Mac decodes both platform blocks, so a mistyped Windows entry breaks it
+ * too, and every entry here is held to the stricter Windows component rule for
+ * its identity and manifest, which every current entry already meets.
+ */
+function modelIndexProblems(index) {
+  const RESERVED = new Set(["CON", "PRN", "AUX", "NUL"]);
+  for (let n = 1; n <= 9; n++) RESERVED.add(`COM${n}`).add(`LPT${n}`);
+  // ASCII letters, digits, dot, dash and underscore; no leading or trailing
+  // dot, no ".part" suffix, and no Windows device name as the stem.
+  const plain = (c) =>
+    typeof c === "string" &&
+    /^[A-Za-z0-9._-]+$/.test(c) &&
+    !c.startsWith(".") &&
+    !c.endsWith(".") &&
+    !c.toLowerCase().endsWith(".part") &&
+    !RESERVED.has(c.split(".")[0].toUpperCase());
+  const optionalString = (v) => v === undefined || v === null || typeof v === "string";
+  // Each min_app part must also fit the integer its reader parses into: a Mac
+  // Int for the mac block, a Windows u64 for the windows block.
+  const LARGEST_PART = { mac: 2n ** 63n - 1n, windows: 2n ** 64n - 1n };
+  const appVersion = (v, platform) =>
+    typeof v === "string" &&
+    /^[0-9]+(?:\.[0-9]+){0,2}$/.test(v) &&
+    v.split(".").every((part) => BigInt(part) <= LARGEST_PART[platform]);
+  const problems = [];
+  if (!index || typeof index !== "object") return ["the index is not an object"];
+  if (index.schema !== 1) problems.push(`schema ${JSON.stringify(index.schema)} is not 1`);
+  for (const platform of ["mac", "windows"]) {
+    const block = index[platform];
+    if (!block || typeof block !== "object" || Array.isArray(block)) {
+      problems.push(`no ${platform} block`);
+      continue;
+    }
+    for (const [id, e] of Object.entries(block)) {
+      const at = `${platform}.${id}`;
+      if (id === "") problems.push(`${platform}: an empty set id`);
+      if (!e || typeof e !== "object") {
+        problems.push(`${at}: not an object`);
+        continue;
+      }
+      if (!plain(e.identity)) problems.push(`${at}: identity ${JSON.stringify(e.identity)} is not one plain path component`);
+      if (!plain(e.manifest) || !e.manifest.endsWith(".json") || e.manifest.length <= ".json".length) {
+        problems.push(`${at}: manifest ${JSON.stringify(e.manifest)} is not one plain JSON file name`);
+      }
+      if (typeof e.label !== "string" || e.label === "") problems.push(`${at}: label is empty`);
+      if (!Number.isSafeInteger(e.bytes) || e.bytes <= 0) problems.push(`${at}: bytes ${JSON.stringify(e.bytes)} is not a positive integer`);
+      if (!appVersion(e.min_app, platform)) {
+        problems.push(`${at}: min_app ${JSON.stringify(e.min_app)} is not one to three numeric parts its reader can hold`);
+      }
+      if (!optionalString(e.vad)) problems.push(`${at}: vad is not a string`);
+      if (!optionalString(e.notes)) problems.push(`${at}: notes is not a string`);
+    }
+  }
+  return problems;
+}
+
+test("every model index entry passes the rules both app readers apply", () => {
+  assert.deepEqual(modelIndexProblems(publicJson("models.json")), []);
+});
+
+test("the model index check refuses what the app readers refuse", () => {
+  const index = publicJson("models.json");
+  const mutations = [
+    ["schema 99", (i) => (i.schema = 99), /schema/],
+    ["a manifest outside the mirror root", (i) => (i.windows.cleanup.manifest = "../bad.json"), /windows\.cleanup: manifest/],
+    ["zero bytes", (i) => (i.mac["speech-multilingual"].bytes = 0), /mac\.speech-multilingual: bytes/],
+    ["bytes as a string", (i) => (i.windows["speech-english"].bytes = "488914608"), /windows\.speech-english: bytes/],
+    ["a min_app that is not a version", (i) => (i.windows["speech-multilingual"].min_app = "x"), /windows\.speech-multilingual: min_app/],
+    ["an identity with a slash", (i) => (i.mac.cleanup.identity = "cleanup/qwen3"), /mac\.cleanup: identity/],
+    ["an identity with a leading dot", (i) => (i.windows.cleanup.identity = ".cleanup"), /windows\.cleanup: identity/],
+    ["an identity with a trailing dot", (i) => (i.mac["speech-english"].identity = "parakeet-ultra."), /mac\.speech-english: identity/],
+    ["an identity named like a partial download", (i) => (i.windows["speech-english"].identity = "ultra.part"), /windows\.speech-english: identity/],
+    ["an identity that is not ASCII", (i) => (i.mac["speech-multilingual"].identity = "whisper-turbo-\u00e9"), /mac\.speech-multilingual: identity/],
+    ["a manifest named after a Windows device", (i) => (i.mac.cleanup.manifest = "CON.json"), /mac\.cleanup: manifest/],
+    ["a manifest that is not JSON", (i) => (i.windows["speech-multilingual"].manifest = "manifest-1.txt"), /windows\.speech-multilingual: manifest/],
+    ["a vad that is not a string", (i) => (i.windows["speech-english"].vad = 6), /windows\.speech-english: vad/],
+    ["an empty label", (i) => (i.mac["speech-english"].label = ""), /mac\.speech-english: label/],
+    ["no windows block", (i) => delete i.windows, /windows block/],
+    ["a Windows min_app part above u64", (i) => (i.windows["speech-english"].min_app = "18446744073709551616"), /windows\.speech-english: min_app/],
+    ["a Mac min_app part above Int", (i) => (i.mac.cleanup.min_app = "9223372036854775808"), /mac\.cleanup: min_app/],
+  ];
+  const accepted = [
+    ["the index as published", () => {}],
+    ["a Windows min_app part at the u64 limit", (i) => (i.windows["speech-english"].min_app = "18446744073709551615")],
+    ["a Mac min_app part at the Int limit", (i) => (i.mac.cleanup.min_app = "9223372036854775807")],
+  ];
+  const problemsAfter = (mutate) => {
+    const copy = structuredClone(index);
+    mutate(copy);
+    return modelIndexProblems(copy);
+  };
+  const missed = mutations.filter(([, mutate, expected]) => !problemsAfter(mutate).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const refused = accepted.map(([name, mutate]) => [name, problemsAfter(mutate)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(refused, [], "these were refused");
+});
+
+/**
+ * The Windows updater's public key, copied from the Koegaki repo
+ * (apps/KoegakiWindows/src-tauri/tauri.conf.json, plugins.updater.pubkey). Every
+ * installed Windows build checks an update against it, so a manifest that does
+ * not verify here is an update no PC will install.
+ */
+const WINDOWS_UPDATER_PUBKEY =
+  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFQjY3RUQzRENFNDQ1OUEKUldTYVJlVGMwMzYyN2gxZS9nL2VjMmkyQU9RclhvT2t4MWQxeDZKa0FkYysvMUtGVGVTZGxYZFEK";
+
+/** The DER prefix that turns a raw 32 byte Ed25519 key into an SPKI public key. */
+const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
+
+/**
+ * The bytes of canonical base64 text, or undefined. Node's decoder skips
+ * characters it does not know, so "abc!" would decode as "abc" here while the
+ * updater refuses it; only text that re-encodes to itself passes.
+ */
+function canonicalBase64(text) {
+  if (typeof text !== "string" || text.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(text)) return undefined;
+  const bytes = Buffer.from(text, "base64");
+  return bytes.toString("base64") === text ? bytes : undefined;
+}
+
+/**
+ * Check a Tauri updater signature as the updater does. It is a minisign
+ * signature, base64 text whose second line is "ED" (prehashed Ed25519), the
+ * 8 byte key id and the 64 byte signature of the installer's BLAKE2b-512
+ * digest; the fourth line signs those 64 bytes followed by the trusted comment
+ * (third line), which names the signed file. The key's second line is "Ed", the
+ * same key id and the 32 byte key. Returns what failed and the trusted comment.
+ */
+function updaterSignatureProblems(file, signature, pubkey) {
+  // The updater reads the decoded bytes as strict UTF-8 (str::from_utf8, which
+  // keeps a byte order mark), then splits them with Rust's lines(), which ends a
+  // line at "\n" and drops a "\r" before it, so a CRLF signature reads the same.
+  const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  const lines = (bytes) => {
+    try {
+      return utf8.decode(bytes).split(/\r?\n/);
+    } catch {
+      return undefined;
+    }
+  };
+  const keyBytes = canonicalBase64(pubkey);
+  if (!keyBytes) return { problems: ["the key is not canonical base64"] };
+  const keyText = lines(keyBytes);
+  if (!keyText) return { problems: ["the key is not UTF-8"] };
+  const key = canonicalBase64(keyText[1] ?? "");
+  if (!key) return { problems: ["the key line is not canonical base64"] };
+  const signatureBytes = canonicalBase64(signature);
+  if (!signatureBytes) return { problems: ["the signature is not canonical base64"] };
+  const signatureText = lines(signatureBytes);
+  if (!signatureText) return { problems: ["the signature is not UTF-8"] };
+  const [, sigLine = "", trustedLine = "", globalLine = ""] = signatureText;
+  const sig = canonicalBase64(sigLine);
+  if (!sig) return { problems: ["the signature line is not canonical base64"] };
+  const prefix = "trusted comment: ";
+  const trusted = trustedLine.startsWith(prefix) ? trustedLine.slice(prefix.length) : undefined;
+  if (key.length !== 42 || key.subarray(0, 2).toString() !== "Ed") return { problems: ["not an Ed25519 minisign key"], trusted };
+  if (sig.length !== 74 || sig.subarray(0, 2).toString() !== "ED") {
+    return { problems: ["not a prehashed Ed25519 minisign signature"], trusted };
+  }
+  const problems = [];
+  if (!key.subarray(2, 10).equals(sig.subarray(2, 10))) problems.push("the key ids differ");
+  const publicKey = createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, key.subarray(10)]), format: "der", type: "spki" });
+  const digest = createHash("blake2b512").update(file).digest();
+  if (!verify(null, digest, publicKey, sig.subarray(10))) problems.push("the installer signature does not verify");
+  const global = canonicalBase64(globalLine);
+  if (!global) problems.push("the trusted comment signature line is not canonical base64");
+  else if (trusted === undefined) problems.push("no trusted comment");
+  else if (global.length !== 64 || !verify(null, Buffer.concat([sig.subarray(10), Buffer.from(trusted)]), publicKey, global)) {
+    problems.push("the trusted comment signature does not verify");
+  }
+  return { problems, trusted };
+}
+
+/**
+ * An RFC 3339 date and time that names a real instant: the fields as written
+ * survive a round trip through Date, so 30 February or hour 25 are refused
+ * rather than rolled over into another day.
+ */
+function rfc3339Problem(date) {
+  const m = typeof date === "string" && date.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/);
+  if (!m) return `pub_date ${JSON.stringify(date)} is not RFC 3339`;
+  const written = m.slice(1, 7).map(Number);
+  const [year, month, day, hour, minute, second] = written;
+  const wall = new Date(0);
+  wall.setUTCFullYear(year, month - 1, day);
+  wall.setUTCHours(hour, minute, second, Number((m[7] ?? ".").slice(1, 4).padEnd(3, "0")));
+  const fields = [wall.getUTCFullYear(), wall.getUTCMonth() + 1, wall.getUTCDate(), wall.getUTCHours(), wall.getUTCMinutes(), wall.getUTCSeconds()];
+  const offsetMinutes = m[8] ? (m[8] === "-" ? -1 : 1) * (Number(m[9]) * 60 + Number(m[10])) : 0;
+  const parsed = new Date(date);
+  const instant = Number.isNaN(parsed.getTime()) ? NaN : new Date(parsed.toISOString()).getTime();
+  if (fields.join() !== written.join() || instant !== wall.getTime() - offsetMinutes * 60_000) {
+    return `pub_date ${date} is not a real instant`;
+  }
+  return undefined;
+}
+
+/** An https url with a host, nothing after the path, and the installer's name as the whole path. */
+function updaterUrlProblem(url, version) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return `the url ${JSON.stringify(url)} does not parse`;
+  }
+  const exact =
+    parsed.protocol === "https:" &&
+    parsed.hostname !== "" &&
+    parsed.username === "" &&
+    parsed.password === "" &&
+    parsed.search === "" &&
+    parsed.hash === "" &&
+    parsed.pathname === `/Koegaki-${version}-setup.exe` &&
+    parsed.href === url;
+  return exact ? undefined : `the url ${url} is not https://<host>/Koegaki-${version}-setup.exe`;
+}
+
+/**
+ * What the Windows updater would refuse in this manifest for this installer.
+ * It deserializes the whole manifest before it picks its own platform (the
+ * RemoteRelease deserializer in tauri-plugin-updater 2.10.1): every platform
+ * entry must be an object with a parseable url and a string signature, or no
+ * platform updates. Publication asks a little more than the reader: notes and
+ * pub_date are present strings, and version is a bare SemVer core, three parts
+ * with no leading zero, each within u64, and no prerelease or build suffix.
+ */
+function windowsUpdateProblems(manifest, installer, pubkey) {
+  const problems = [];
+  const { version, notes, pub_date: date, platforms } = manifest;
+  const semverCore =
+    typeof version === "string" &&
+    /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(version) &&
+    version.split(".").every((part) => BigInt(part) <= 2n ** 64n - 1n);
+  if (!semverCore) problems.push(`version ${JSON.stringify(version)} is not a SemVer core`);
+  if (typeof notes !== "string") problems.push(`notes ${JSON.stringify(notes)} is not a string`);
+  const dateProblem = rfc3339Problem(date);
+  if (dateProblem) problems.push(dateProblem);
+  if (!platforms || typeof platforms !== "object" || Array.isArray(platforms)) return [...problems, "platforms is not an object"];
+  for (const [name, entry] of Object.entries(platforms)) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      problems.push(`platform ${name} is not an object`);
+      continue;
+    }
+    if (typeof entry.url !== "string" || !URL.canParse(entry.url)) problems.push(`platform ${name}: url ${JSON.stringify(entry.url)} does not parse`);
+    if (typeof entry.signature !== "string") problems.push(`platform ${name}: signature is not a string`);
+  }
+  const target = platforms["windows-x86_64"];
+  if (!target || typeof target !== "object") return [...problems, "no windows-x86_64 platform"];
+  const urlProblem = updaterUrlProblem(target.url, version);
+  if (urlProblem) problems.push(urlProblem);
+  const { problems: signatureProblems, trusted } = updaterSignatureProblems(installer, target.signature, pubkey);
+  problems.push(...signatureProblems);
+  if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
+    problems.push(`the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${version}_x64-setup.exe`);
+  }
+  return problems;
+}
+
+/** The updater manifest and the installer in public/downloads it names. */
+function windowsUpdate() {
+  const manifest = publicJson("windows-updates.json");
+  const installer = readFileSync(new URL(`../public/downloads/Koegaki-${manifest.version}-setup.exe`, import.meta.url));
+  return { manifest, installer };
+}
+
+test("the Windows updater manifest names the installer its signature covers", () => {
+  const { manifest, installer } = windowsUpdate();
+  assert.deepEqual(windowsUpdateProblems(manifest, installer, WINDOWS_UPDATER_PUBKEY), []);
+  // The site's own download link serves the same release the updater offers.
+  assert.ok(SITE.windowsDownloadUrl.endsWith(`/Koegaki-${manifest.version}-setup.exe`), `the download link does not name ${manifest.version}`);
+});
+
+test("the updater manifest check refuses a damaged manifest, signature, installer or key", () => {
+  const { manifest, installer } = windowsUpdate();
+  const { signature, url } = manifest.platforms["windows-x86_64"];
+  const { version } = manifest;
+  const decoded = (b64) => Buffer.from(b64, "base64").toString("utf8").split("\n");
+  const encoded = (lines, end = "\n") => Buffer.from(lines.join(end)).toString("base64");
+  // Rewrite one line of the signature text, re-encoded as the manifest carries it.
+  const withLine = (n, change) => {
+    const lines = decoded(signature);
+    lines[n] = change(lines[n]);
+    return encoded(lines);
+  };
+  const flipByte = (b64, at) => {
+    const bytes = Buffer.from(b64, "base64");
+    bytes[at] ^= 0x01;
+    return bytes.toString("base64");
+  };
+  const flipped = (bytes, at) => {
+    const copy = Buffer.from(bytes);
+    copy[at] ^= 0x01;
+    return copy;
+  };
+  const keyLines = decoded(WINDOWS_UPDATER_PUBKEY);
+  const check = ({ sig = signature, href = url, date, release = version, file = installer, key = WINDOWS_UPDATER_PUBKEY, edit }) => {
+    const copy = structuredClone(manifest);
+    Object.assign(copy.platforms["windows-x86_64"], { signature: sig, url: href });
+    copy.version = release;
+    if (date !== undefined) copy.pub_date = date;
+    edit?.(copy);
+    return windowsUpdateProblems(copy, file, key);
+  };
+  // The signature text with its first byte made invalid UTF-8, re-encoded canonically.
+  const notUtf8 = (() => {
+    const bytes = Buffer.from(signature, "base64");
+    bytes[0] = 0xff;
+    return bytes.toString("base64");
+  })();
+  const refused = [
+    ["one signature byte", { sig: withLine(1, (l) => flipByte(l, 40)) }, /installer signature does not verify/],
+    ["one installer byte", { file: flipped(installer, Math.floor(installer.length / 2)) }, /installer signature does not verify/],
+    ["the signed file name", { sig: withLine(2, (l) => l.replace(/file:\S+/, "file:Koegaki_0.0.1_x64-setup.exe")) }, /trusted comment signature does not verify/],
+    ["the key id", { sig: withLine(1, (l) => flipByte(l, 2)) }, /key ids differ/],
+    ["a release the trusted comment does not name", { release: "1.7.1" }, /does not name Koegaki_1\.7\.1_x64-setup\.exe/],
+    ["a character after the signature", { sig: `${signature}!` }, /signature is not canonical base64/],
+    ["a character after the signature line", { sig: withLine(1, (l) => `${l}!`) }, /signature line is not canonical base64/],
+    ["a character after the trusted comment signature line", { sig: withLine(3, (l) => `${l}!`) }, /trusted comment signature line is not canonical base64/],
+    ["a character after the key", { key: `${WINDOWS_UPDATER_PUBKEY}!` }, /key is not canonical base64/],
+    ["a character after the key line", { key: encoded(keyLines.map((l, i) => (i === 1 ? `${l}!` : l))) }, /key line is not canonical base64/],
+    ["a url with no host", { href: `https://?/Koegaki-${version}-setup.exe` }, /url/],
+    ["a url whose fragment names the installer", { href: `https://example.com/wrong.exe#/Koegaki-${version}-setup.exe` }, /url/],
+    ["a url with a query", { href: `${url}?v=1` }, /url/],
+    ["a url over http", { href: url.replace(/^https:/, "http:") }, /url/],
+    ["a url with a user", { href: url.replace("https://", "https://someone@") }, /url/],
+    ["a day February does not have", { date: "2026-02-30T15:26:44Z" }, /pub_date/],
+    ["an hour the day does not have", { date: "2026-10-03T25:26:44Z" }, /pub_date/],
+    ["a signature text that is not UTF-8", { sig: notUtf8 }, /signature is not UTF-8/],
+    ["notes that are not a string", { edit: (m) => (m.notes = 123) }, /notes/],
+    ["platforms that are not an object", { edit: (m) => (m.platforms = [m.platforms["windows-x86_64"]]) }, /platforms is not an object/],
+    ["another platform with a numeric signature", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "broken", signature: 42 }) }, /darwin-aarch64: signature is not a string/],
+    ["another platform whose url does not parse", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "broken", signature: "x" }) }, /darwin-aarch64: url/],
+    ["another platform that is not an object", { edit: (m) => (m.platforms["darwin-aarch64"] = "x") }, /darwin-aarch64 is not an object/],
+    ["a version with a leading zero", { release: "01.7.0" }, /^version/],
+    ["a version part above u64", { release: "18446744073709551616.7.0" }, /^version/],
+    ["a prerelease version", { release: "1.7.0-beta.1" }, /^version/],
+    ["a version with build metadata", { release: "1.7.0+22" }, /^version/],
+  ];
+  const accepted = [
+    ["the manifest as published", {}],
+    ["the signature text with CRLF line ends", { sig: encoded(decoded(signature), "\r\n") }],
+    ["a pub_date with an offset", { date: "2026-10-03T17:26:44+02:00" }],
+    ["another well formed platform", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "https://example.com/Koegaki.app.tar.gz", signature: "x" }) }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+  // Versions the updater reads as SemVer cores; any other release fails on its
+  // url and trusted comment, so only the version rule is asked here.
+  const versionRefused = ["0.0.0", "1.7.0", "18446744073709551615.7.0"].filter((release) =>
+    check({ release }).some((p) => p.startsWith("version")),
+  );
+  assert.deepEqual(versionRefused, [], "these versions were refused");
 });

@@ -42,7 +42,7 @@ export const SITE = {
 
   windowsDownloadUrl:
     process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??
-    "https://koegaki.com/downloads/Koegaki-1.6.0-setup.exe",
+    "https://koegaki.com/downloads/Koegaki-1.7.0-setup.exe",
 
   windowsRequirements: "Windows 10 & 11 · 64-bit",
 
@@ -51,13 +51,13 @@ export const SITE = {
 
   /**
    * English speech model per platform, stated plainly (no unsourced benchmark
-   * claims in product copy). Mac 1.7.0 moved to Parakeet Ultra; Windows runs
-   * Parakeet TDT 0.6B v3 until its own 1.7.0. Each string is verified against
-   * what that build actually does rather than assumed, and the site tests hold
-   * it to the English identity public/models.json serves for that platform.
+   * claims in product copy). Both platforms moved to Parakeet Ultra in 1.7.0;
+   * only the compute differs. Each string is verified against what that build
+   * actually does rather than assumed, and the site tests hold it to the
+   * English identity public/models.json serves for that platform.
    */
   engine: "Parakeet Ultra · on-device (Apple Neural Engine)",
-  windowsEngine: "Parakeet TDT 0.6B v3 · on-device (CPU)",
+  windowsEngine: "Parakeet Ultra · on-device (CPU)",
 } as const;
 
 export type Site = typeof SITE;

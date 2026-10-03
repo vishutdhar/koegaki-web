@@ -29,11 +29,12 @@
   },
   "windows": {
     "speech-english": {
-      "identity": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
-      "manifest": "windows-speech-english-1.json",
+      "identity": "sherpa-onnx-nemo-parakeet-ultra-int8",
+      "vad": "silero-vad-v6.2.1",
+      "manifest": "windows-speech-english-2.json",
       "label": "English speech model",
-      "bytes": 487813909,
-      "min_app": "1.4.1",
+      "bytes": 488914608,
+      "min_app": "1.7.0",
       "notes": ""
     },
     "speech-multilingual": {

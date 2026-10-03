@@ -1,11 +1,11 @@
 {
-  "version": "1.6.0",
-  "notes": "Each dictation now stays on your clipboard after it is inserted, so if a paste missed you can paste it again. A dictation that came in parts is on the clipboard whole. New in Settings: Restore my previous clipboard after inserting. Turn it on and Koegaki puts back what you had copied before, once the paste lands. Off is the default. If part of a dictation could not be inserted, the warning now points you to Paste last dictation in the tray, which has all of it.",
-  "pub_date": "2026-10-01T23:56:07Z",
+  "version": "1.7.0",
+  "notes": "New speech model: Parakeet Ultra. Fewer misheard English words at the same speed. If you already use the English model, it keeps working while the new one downloads in the background (about 489 MB), and Koegaki switches over once it is ready. The English model now downloads from Koegaki's own model mirror. No recordings or transcripts are ever sent. If Koegaki finds a damaged English model file, it repairs or replaces it instead of loading it.",
+  "pub_date": "2026-10-03T15:26:44Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3VScGxEK3NFSHVFVHZ1cG9RUmtSYnUrS281THFSWEJlQkJGbFpBMWlqMCtjUUNXWWh6VUFsM0lLOE9xUEhXUDFiUU5MQkpvK3hKdUhoWjJ2a1RzQ2dzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwODk4ODg0CWZpbGU6S29lZ2FraV8xLjYuMF94NjQtc2V0dXAuZXhlCnNRQkpuVlFwRHhVUld2YUFidEtRNC9zOC9YRHV5T21TUkM4QzRiNDF6UE9QSHNzcHVQZU14dkJiaEVZOXNHOHJuQkwrMFBsMFB1M3NRWlU4MEdoOUJ3PT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.6.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2tlcUVQUTNXZWtaZ2QvWVloa05xNFRaRFdNYnJNRmNNQVJYSXdnY21kV00wL0p6SHlQOUlQNlZKQVhnZk15ZmRwMytkU2VPNm4yWUJKTU1TWWZMYUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDQxMTM2CWZpbGU6S29lZ2FraV8xLjcuMF94NjQtc2V0dXAuZXhlCi9ua1NxUUtkaEdNNm14WHd2dDQ1QStmTXRYV2pHclp3VEp2bnp3a01uVmNvWjkxT0tHK2diSlNLb3M1a0VhdXAybG9Uck9taXFqNWtwZlJZY1ZsQkN3PT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.7.0-setup.exe"
     }
   }
 }

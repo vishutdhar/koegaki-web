@@ -13,7 +13,7 @@ export const FAQS = [
   },
   {
     q: "Does it need the internet?",
-    a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. On Mac, when an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. The Windows app gains the same behavior in version 1.7.0. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
+    a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
   },
   {
     q: "How does the free trial work?",
