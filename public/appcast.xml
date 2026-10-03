@@ -4,7 +4,7 @@
         <title>KoegakiMac</title>
         <item>
             <title>1.7.0</title>
-            <pubDate>Fri, 02 Oct 2026 23:51:49 -0400</pubDate>
+            <pubDate>Sat, 03 Oct 2026 00:03:40 -0400</pubDate>
             <sparkle:version>22</sparkle:version>
             <sparkle:shortVersionString>1.7.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -12,10 +12,10 @@
 <ul>
     <li>New speech model: Parakeet Ultra. Fewer misheard English words, in quiet rooms and noisy ones, at the same speed. Your current model keeps working while the new one downloads in the background (about 632 MB), and Koegaki switches over once it is ready.</li>
     <li>Models come only from the koegaki.com model mirror. Koegaki never fetches a model from anywhere else, and nothing about you is sent.</li>
-    <li>If a model file on disk is damaged, Koegaki repairs just that file from the mirror and keeps dictating on the model it already has.</li>
+    <li>If a model file on disk is damaged, Koegaki repairs just that file from the mirror instead of downloading the whole model again.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.7.0.dmg" length="31141616" type="application/octet-stream" sparkle:edSignature="jzEOPiRLvUTMGYGrjYQEJ2xe7It3W+3/KEE/vY4ZIuikjgpZUc0IZgvAYaDEhcLCWfcEEtFUs78EwWgfi0tuCQ=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.7.0.dmg" length="31141678" type="application/octet-stream" sparkle:edSignature="4z211kop4+AEOc3ksoN81HUBH3xJ2z1iw9qUQ0ognDbxHCj6ujaK8h0IrSs5e5uMOlk1sGnRYeOTVnpGWiyODQ=="/>
         </item>
     </channel>
 </rss>
