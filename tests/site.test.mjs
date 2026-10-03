@@ -453,16 +453,28 @@ function canonicalBase64(text) {
  * same key id and the 32 byte key. Returns what failed and the trusted comment.
  */
 function updaterSignatureProblems(file, signature, pubkey) {
-  // The updater splits the decoded texts with Rust's lines(), which ends a line
-  // at "\n" and drops a "\r" before it, so a CRLF signature reads the same.
-  const lines = (bytes) => bytes.toString("utf8").split(/\r?\n/);
-  const keyText = canonicalBase64(pubkey);
-  if (!keyText) return { problems: ["the key is not canonical base64"] };
-  const key = canonicalBase64(lines(keyText)[1] ?? "");
+  // The updater reads the decoded bytes as strict UTF-8 (str::from_utf8, which
+  // keeps a byte order mark), then splits them with Rust's lines(), which ends a
+  // line at "\n" and drops a "\r" before it, so a CRLF signature reads the same.
+  const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  const lines = (bytes) => {
+    try {
+      return utf8.decode(bytes).split(/\r?\n/);
+    } catch {
+      return undefined;
+    }
+  };
+  const keyBytes = canonicalBase64(pubkey);
+  if (!keyBytes) return { problems: ["the key is not canonical base64"] };
+  const keyText = lines(keyBytes);
+  if (!keyText) return { problems: ["the key is not UTF-8"] };
+  const key = canonicalBase64(keyText[1] ?? "");
   if (!key) return { problems: ["the key line is not canonical base64"] };
-  const signatureText = canonicalBase64(signature);
-  if (!signatureText) return { problems: ["the signature is not canonical base64"] };
-  const [, sigLine = "", trustedLine = "", globalLine = ""] = lines(signatureText);
+  const signatureBytes = canonicalBase64(signature);
+  if (!signatureBytes) return { problems: ["the signature is not canonical base64"] };
+  const signatureText = lines(signatureBytes);
+  if (!signatureText) return { problems: ["the signature is not UTF-8"] };
+  const [, sigLine = "", trustedLine = "", globalLine = ""] = signatureText;
   const sig = canonicalBase64(sigLine);
   if (!sig) return { problems: ["the signature line is not canonical base64"] };
   const prefix = "trusted comment: ";
@@ -528,17 +540,37 @@ function updaterUrlProblem(url, version) {
   return exact ? undefined : `the url ${url} is not https://<host>/Koegaki-${version}-setup.exe`;
 }
 
-/** What the Windows updater would refuse in this manifest for this installer. */
+/**
+ * What the Windows updater would refuse in this manifest for this installer.
+ * It deserializes the whole manifest before it picks its own platform (the
+ * RemoteRelease deserializer in tauri-plugin-updater 2.10.1): every platform
+ * entry must be an object with a parseable url and a string signature, or no
+ * platform updates. Publication asks a little more than the reader: notes and
+ * pub_date are present strings, and version is a bare SemVer core, three parts
+ * with no leading zero, each within u64, and no prerelease or build suffix.
+ */
 function windowsUpdateProblems(manifest, installer, pubkey) {
   const problems = [];
-  const { version, pub_date: date } = manifest;
-  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) {
-    problems.push(`version ${JSON.stringify(version)} is not three numeric parts`);
-  }
+  const { version, notes, pub_date: date, platforms } = manifest;
+  const semverCore =
+    typeof version === "string" &&
+    /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(version) &&
+    version.split(".").every((part) => BigInt(part) <= 2n ** 64n - 1n);
+  if (!semverCore) problems.push(`version ${JSON.stringify(version)} is not a SemVer core`);
+  if (typeof notes !== "string") problems.push(`notes ${JSON.stringify(notes)} is not a string`);
   const dateProblem = rfc3339Problem(date);
   if (dateProblem) problems.push(dateProblem);
-  const target = manifest.platforms?.["windows-x86_64"];
-  if (!target) return [...problems, "no windows-x86_64 platform"];
+  if (!platforms || typeof platforms !== "object" || Array.isArray(platforms)) return [...problems, "platforms is not an object"];
+  for (const [name, entry] of Object.entries(platforms)) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      problems.push(`platform ${name} is not an object`);
+      continue;
+    }
+    if (typeof entry.url !== "string" || !URL.canParse(entry.url)) problems.push(`platform ${name}: url ${JSON.stringify(entry.url)} does not parse`);
+    if (typeof entry.signature !== "string") problems.push(`platform ${name}: signature is not a string`);
+  }
+  const target = platforms["windows-x86_64"];
+  if (!target || typeof target !== "object") return [...problems, "no windows-x86_64 platform"];
   const urlProblem = updaterUrlProblem(target.url, version);
   if (urlProblem) problems.push(urlProblem);
   const { problems: signatureProblems, trusted } = updaterSignatureProblems(installer, target.signature, pubkey);
@@ -586,13 +618,20 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     return copy;
   };
   const keyLines = decoded(WINDOWS_UPDATER_PUBKEY);
-  const check = ({ sig = signature, href = url, date, release = version, file = installer, key = WINDOWS_UPDATER_PUBKEY }) => {
+  const check = ({ sig = signature, href = url, date, release = version, file = installer, key = WINDOWS_UPDATER_PUBKEY, edit }) => {
     const copy = structuredClone(manifest);
     Object.assign(copy.platforms["windows-x86_64"], { signature: sig, url: href });
     copy.version = release;
     if (date !== undefined) copy.pub_date = date;
+    edit?.(copy);
     return windowsUpdateProblems(copy, file, key);
   };
+  // The signature text with its first byte made invalid UTF-8, re-encoded canonically.
+  const notUtf8 = (() => {
+    const bytes = Buffer.from(signature, "base64");
+    bytes[0] = 0xff;
+    return bytes.toString("base64");
+  })();
   const refused = [
     ["one signature byte", { sig: withLine(1, (l) => flipByte(l, 40)) }, /installer signature does not verify/],
     ["one installer byte", { file: flipped(installer, Math.floor(installer.length / 2)) }, /installer signature does not verify/],
@@ -611,14 +650,31 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["a url with a user", { href: url.replace("https://", "https://someone@") }, /url/],
     ["a day February does not have", { date: "2026-02-30T15:26:44Z" }, /pub_date/],
     ["an hour the day does not have", { date: "2026-10-03T25:26:44Z" }, /pub_date/],
+    ["a signature text that is not UTF-8", { sig: notUtf8 }, /signature is not UTF-8/],
+    ["notes that are not a string", { edit: (m) => (m.notes = 123) }, /notes/],
+    ["platforms that are not an object", { edit: (m) => (m.platforms = [m.platforms["windows-x86_64"]]) }, /platforms is not an object/],
+    ["another platform with a numeric signature", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "broken", signature: 42 }) }, /darwin-aarch64: signature is not a string/],
+    ["another platform whose url does not parse", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "broken", signature: "x" }) }, /darwin-aarch64: url/],
+    ["another platform that is not an object", { edit: (m) => (m.platforms["darwin-aarch64"] = "x") }, /darwin-aarch64 is not an object/],
+    ["a version with a leading zero", { release: "01.7.0" }, /^version/],
+    ["a version part above u64", { release: "18446744073709551616.7.0" }, /^version/],
+    ["a prerelease version", { release: "1.7.0-beta.1" }, /^version/],
+    ["a version with build metadata", { release: "1.7.0+22" }, /^version/],
   ];
   const accepted = [
     ["the manifest as published", {}],
     ["the signature text with CRLF line ends", { sig: encoded(decoded(signature), "\r\n") }],
     ["a pub_date with an offset", { date: "2026-10-03T17:26:44+02:00" }],
+    ["another well formed platform", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "https://example.com/Koegaki.app.tar.gz", signature: "x" }) }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
   assert.deepEqual(wronglyRefused, [], "these were refused");
+  // Versions the updater reads as SemVer cores; any other release fails on its
+  // url and trusted comment, so only the version rule is asked here.
+  const versionRefused = ["0.0.0", "1.7.0", "18446744073709551615.7.0"].filter((release) =>
+    check({ release }).some((p) => p.startsWith("version")),
+  );
+  assert.deepEqual(versionRefused, [], "these versions were refused");
 });
