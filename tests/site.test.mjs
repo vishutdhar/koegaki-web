@@ -341,6 +341,13 @@ function modelIndexProblems(index) {
     !c.toLowerCase().endsWith(".part") &&
     !RESERVED.has(c.split(".")[0].toUpperCase());
   const optionalString = (v) => v === undefined || v === null || typeof v === "string";
+  // Each min_app part must also fit the integer its reader parses into: a Mac
+  // Int for the mac block, a Windows u64 for the windows block.
+  const LARGEST_PART = { mac: 2n ** 63n - 1n, windows: 2n ** 64n - 1n };
+  const appVersion = (v, platform) =>
+    typeof v === "string" &&
+    /^[0-9]+(?:\.[0-9]+){0,2}$/.test(v) &&
+    v.split(".").every((part) => BigInt(part) <= LARGEST_PART[platform]);
   const problems = [];
   if (!index || typeof index !== "object") return ["the index is not an object"];
   if (index.schema !== 1) problems.push(`schema ${JSON.stringify(index.schema)} is not 1`);
@@ -363,8 +370,8 @@ function modelIndexProblems(index) {
       }
       if (typeof e.label !== "string" || e.label === "") problems.push(`${at}: label is empty`);
       if (!Number.isSafeInteger(e.bytes) || e.bytes <= 0) problems.push(`${at}: bytes ${JSON.stringify(e.bytes)} is not a positive integer`);
-      if (typeof e.min_app !== "string" || !/^[0-9]+(?:\.[0-9]+){0,2}$/.test(e.min_app)) {
-        problems.push(`${at}: min_app ${JSON.stringify(e.min_app)} is not one to three numeric components`);
+      if (!appVersion(e.min_app, platform)) {
+        problems.push(`${at}: min_app ${JSON.stringify(e.min_app)} is not one to three numeric parts its reader can hold`);
       }
       if (!optionalString(e.vad)) problems.push(`${at}: vad is not a string`);
       if (!optionalString(e.notes)) problems.push(`${at}: notes is not a string`);
@@ -395,13 +402,23 @@ test("the model index check refuses what the app readers refuse", () => {
     ["a vad that is not a string", (i) => (i.windows["speech-english"].vad = 6), /windows\.speech-english: vad/],
     ["an empty label", (i) => (i.mac["speech-english"].label = ""), /mac\.speech-english: label/],
     ["no windows block", (i) => delete i.windows, /windows block/],
+    ["a Windows min_app part above u64", (i) => (i.windows["speech-english"].min_app = "18446744073709551616"), /windows\.speech-english: min_app/],
+    ["a Mac min_app part above Int", (i) => (i.mac.cleanup.min_app = "9223372036854775808"), /mac\.cleanup: min_app/],
   ];
-  for (const [name, mutate, expected] of mutations) {
+  const accepted = [
+    ["the index as published", () => {}],
+    ["a Windows min_app part at the u64 limit", (i) => (i.windows["speech-english"].min_app = "18446744073709551615")],
+    ["a Mac min_app part at the Int limit", (i) => (i.mac.cleanup.min_app = "9223372036854775807")],
+  ];
+  const problemsAfter = (mutate) => {
     const copy = structuredClone(index);
     mutate(copy);
-    const problems = modelIndexProblems(copy);
-    assert.ok(problems.some((p) => expected.test(p)), `${name} passed the check: ${JSON.stringify(problems)}`);
-  }
+    return modelIndexProblems(copy);
+  };
+  const missed = mutations.filter(([, mutate, expected]) => !problemsAfter(mutate).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const refused = accepted.map(([name, mutate]) => [name, problemsAfter(mutate)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(refused, [], "these were refused");
 });
 
 /**
@@ -417,6 +434,17 @@ const WINDOWS_UPDATER_PUBKEY =
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
 /**
+ * The bytes of canonical base64 text, or undefined. Node's decoder skips
+ * characters it does not know, so "abc!" would decode as "abc" here while the
+ * updater refuses it; only text that re-encodes to itself passes.
+ */
+function canonicalBase64(text) {
+  if (typeof text !== "string" || text.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(text)) return undefined;
+  const bytes = Buffer.from(text, "base64");
+  return bytes.toString("base64") === text ? bytes : undefined;
+}
+
+/**
  * Check a Tauri updater signature as the updater does. It is a minisign
  * signature, base64 text whose second line is "ED" (prehashed Ed25519), the
  * 8 byte key id and the 64 byte signature of the installer's BLAKE2b-512
@@ -425,10 +453,18 @@ const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
  * same key id and the 32 byte key. Returns what failed and the trusted comment.
  */
 function updaterSignatureProblems(file, signature, pubkey) {
-  const lines = (text) => Buffer.from(text, "base64").toString("utf8").split("\n");
-  const key = Buffer.from(lines(pubkey)[1] ?? "", "base64");
-  const [, sigLine = "", trustedLine = "", globalLine = ""] = lines(signature);
-  const sig = Buffer.from(sigLine, "base64");
+  // The updater splits the decoded texts with Rust's lines(), which ends a line
+  // at "\n" and drops a "\r" before it, so a CRLF signature reads the same.
+  const lines = (bytes) => bytes.toString("utf8").split(/\r?\n/);
+  const keyText = canonicalBase64(pubkey);
+  if (!keyText) return { problems: ["the key is not canonical base64"] };
+  const key = canonicalBase64(lines(keyText)[1] ?? "");
+  if (!key) return { problems: ["the key line is not canonical base64"] };
+  const signatureText = canonicalBase64(signature);
+  if (!signatureText) return { problems: ["the signature is not canonical base64"] };
+  const [, sigLine = "", trustedLine = "", globalLine = ""] = lines(signatureText);
+  const sig = canonicalBase64(sigLine);
+  if (!sig) return { problems: ["the signature line is not canonical base64"] };
   const prefix = "trusted comment: ";
   const trusted = trustedLine.startsWith(prefix) ? trustedLine.slice(prefix.length) : undefined;
   if (key.length !== 42 || key.subarray(0, 2).toString() !== "Ed") return { problems: ["not an Ed25519 minisign key"], trusted };
@@ -440,60 +476,149 @@ function updaterSignatureProblems(file, signature, pubkey) {
   const publicKey = createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, key.subarray(10)]), format: "der", type: "spki" });
   const digest = createHash("blake2b512").update(file).digest();
   if (!verify(null, digest, publicKey, sig.subarray(10))) problems.push("the installer signature does not verify");
-  const global = Buffer.from(globalLine, "base64");
-  if (trusted === undefined) problems.push("no trusted comment");
+  const global = canonicalBase64(globalLine);
+  if (!global) problems.push("the trusted comment signature line is not canonical base64");
+  else if (trusted === undefined) problems.push("no trusted comment");
   else if (global.length !== 64 || !verify(null, Buffer.concat([sig.subarray(10), Buffer.from(trusted)]), publicKey, global)) {
     problems.push("the trusted comment signature does not verify");
   }
   return { problems, trusted };
 }
 
-/** The updater manifest, its installer from public/downloads, and its signature. */
+/**
+ * An RFC 3339 date and time that names a real instant: the fields as written
+ * survive a round trip through Date, so 30 February or hour 25 are refused
+ * rather than rolled over into another day.
+ */
+function rfc3339Problem(date) {
+  const m = typeof date === "string" && date.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/);
+  if (!m) return `pub_date ${JSON.stringify(date)} is not RFC 3339`;
+  const written = m.slice(1, 7).map(Number);
+  const [year, month, day, hour, minute, second] = written;
+  const wall = new Date(0);
+  wall.setUTCFullYear(year, month - 1, day);
+  wall.setUTCHours(hour, minute, second, Number((m[7] ?? ".").slice(1, 4).padEnd(3, "0")));
+  const fields = [wall.getUTCFullYear(), wall.getUTCMonth() + 1, wall.getUTCDate(), wall.getUTCHours(), wall.getUTCMinutes(), wall.getUTCSeconds()];
+  const offsetMinutes = m[8] ? (m[8] === "-" ? -1 : 1) * (Number(m[9]) * 60 + Number(m[10])) : 0;
+  const parsed = new Date(date);
+  const instant = Number.isNaN(parsed.getTime()) ? NaN : new Date(parsed.toISOString()).getTime();
+  if (fields.join() !== written.join() || instant !== wall.getTime() - offsetMinutes * 60_000) {
+    return `pub_date ${date} is not a real instant`;
+  }
+  return undefined;
+}
+
+/** An https url with a host, nothing after the path, and the installer's name as the whole path. */
+function updaterUrlProblem(url, version) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return `the url ${JSON.stringify(url)} does not parse`;
+  }
+  const exact =
+    parsed.protocol === "https:" &&
+    parsed.hostname !== "" &&
+    parsed.username === "" &&
+    parsed.password === "" &&
+    parsed.search === "" &&
+    parsed.hash === "" &&
+    parsed.pathname === `/Koegaki-${version}-setup.exe` &&
+    parsed.href === url;
+  return exact ? undefined : `the url ${url} is not https://<host>/Koegaki-${version}-setup.exe`;
+}
+
+/** What the Windows updater would refuse in this manifest for this installer. */
+function windowsUpdateProblems(manifest, installer, pubkey) {
+  const problems = [];
+  const { version, pub_date: date } = manifest;
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) {
+    problems.push(`version ${JSON.stringify(version)} is not three numeric parts`);
+  }
+  const dateProblem = rfc3339Problem(date);
+  if (dateProblem) problems.push(dateProblem);
+  const target = manifest.platforms?.["windows-x86_64"];
+  if (!target) return [...problems, "no windows-x86_64 platform"];
+  const urlProblem = updaterUrlProblem(target.url, version);
+  if (urlProblem) problems.push(urlProblem);
+  const { problems: signatureProblems, trusted } = updaterSignatureProblems(installer, target.signature, pubkey);
+  problems.push(...signatureProblems);
+  if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
+    problems.push(`the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${version}_x64-setup.exe`);
+  }
+  return problems;
+}
+
+/** The updater manifest and the installer in public/downloads it names. */
 function windowsUpdate() {
   const manifest = publicJson("windows-updates.json");
-  const target = manifest.platforms?.["windows-x86_64"];
   const installer = readFileSync(new URL(`../public/downloads/Koegaki-${manifest.version}-setup.exe`, import.meta.url));
-  return { manifest, target, installer };
+  return { manifest, installer };
 }
 
 test("the Windows updater manifest names the installer its signature covers", () => {
-  const { manifest, target, installer } = windowsUpdate();
-  const { version, pub_date: date } = manifest;
-  assert.match(version, /^\d+\.\d+\.\d+$/, "version is not three numeric components");
-  assert.match(date, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/, `pub_date ${date} is not RFC 3339`);
-  assert.ok(!Number.isNaN(Date.parse(date)), `pub_date ${date} does not parse`);
-  assert.ok(target, "no windows-x86_64 platform");
-  assert.match(target.url, /^https:\/\//, "the installer url is not https");
-  assert.ok(target.url.endsWith(`/Koegaki-${version}-setup.exe`), `the url ${target.url} does not name the ${version} installer`);
+  const { manifest, installer } = windowsUpdate();
+  assert.deepEqual(windowsUpdateProblems(manifest, installer, WINDOWS_UPDATER_PUBKEY), []);
   // The site's own download link serves the same release the updater offers.
-  assert.ok(SITE.windowsDownloadUrl.endsWith(`/Koegaki-${version}-setup.exe`), `the download link does not name ${version}`);
-  const { problems, trusted } = updaterSignatureProblems(installer, target.signature, WINDOWS_UPDATER_PUBKEY);
-  assert.deepEqual(problems, []);
-  assert.ok(trusted.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`), `the trusted comment "${trusted}" names another file`);
+  assert.ok(SITE.windowsDownloadUrl.endsWith(`/Koegaki-${manifest.version}-setup.exe`), `the download link does not name ${manifest.version}`);
 });
 
-test("the updater signature check refuses a changed signature, installer or trusted comment", () => {
-  const { target, installer } = windowsUpdate();
+test("the updater manifest check refuses a damaged manifest, signature, installer or key", () => {
+  const { manifest, installer } = windowsUpdate();
+  const { signature, url } = manifest.platforms["windows-x86_64"];
+  const { version } = manifest;
+  const decoded = (b64) => Buffer.from(b64, "base64").toString("utf8").split("\n");
+  const encoded = (lines, end = "\n") => Buffer.from(lines.join(end)).toString("base64");
   // Rewrite one line of the signature text, re-encoded as the manifest carries it.
   const withLine = (n, change) => {
-    const lines = Buffer.from(target.signature, "base64").toString("utf8").split("\n");
+    const lines = decoded(signature);
     lines[n] = change(lines[n]);
-    return Buffer.from(lines.join("\n")).toString("base64");
+    return encoded(lines);
+  };
+  const flipByte = (b64, at) => {
+    const bytes = Buffer.from(b64, "base64");
+    bytes[at] ^= 0x01;
+    return bytes.toString("base64");
   };
   const flipped = (bytes, at) => {
     const copy = Buffer.from(bytes);
     copy[at] ^= 0x01;
     return copy;
   };
-  const cases = [
-    ["one signature byte", installer, withLine(1, (l) => flipped(Buffer.from(l, "base64"), 40).toString("base64")), /installer signature/],
-    ["one installer byte", flipped(installer, Math.floor(installer.length / 2)), target.signature, /installer signature/],
-    ["the signed file name", installer, withLine(2, (l) => l.replace(/file:\S+/, "file:Koegaki_0.0.1_x64-setup.exe")), /trusted comment/],
-    ["the key id", installer, withLine(1, (l) => flipped(Buffer.from(l, "base64"), 2).toString("base64")), /key ids/],
+  const keyLines = decoded(WINDOWS_UPDATER_PUBKEY);
+  const check = ({ sig = signature, href = url, date, release = version, file = installer, key = WINDOWS_UPDATER_PUBKEY }) => {
+    const copy = structuredClone(manifest);
+    Object.assign(copy.platforms["windows-x86_64"], { signature: sig, url: href });
+    copy.version = release;
+    if (date !== undefined) copy.pub_date = date;
+    return windowsUpdateProblems(copy, file, key);
+  };
+  const refused = [
+    ["one signature byte", { sig: withLine(1, (l) => flipByte(l, 40)) }, /installer signature does not verify/],
+    ["one installer byte", { file: flipped(installer, Math.floor(installer.length / 2)) }, /installer signature does not verify/],
+    ["the signed file name", { sig: withLine(2, (l) => l.replace(/file:\S+/, "file:Koegaki_0.0.1_x64-setup.exe")) }, /trusted comment signature does not verify/],
+    ["the key id", { sig: withLine(1, (l) => flipByte(l, 2)) }, /key ids differ/],
+    ["a release the trusted comment does not name", { release: "1.7.1" }, /does not name Koegaki_1\.7\.1_x64-setup\.exe/],
+    ["a character after the signature", { sig: `${signature}!` }, /signature is not canonical base64/],
+    ["a character after the signature line", { sig: withLine(1, (l) => `${l}!`) }, /signature line is not canonical base64/],
+    ["a character after the trusted comment signature line", { sig: withLine(3, (l) => `${l}!`) }, /trusted comment signature line is not canonical base64/],
+    ["a character after the key", { key: `${WINDOWS_UPDATER_PUBKEY}!` }, /key is not canonical base64/],
+    ["a character after the key line", { key: encoded(keyLines.map((l, i) => (i === 1 ? `${l}!` : l))) }, /key line is not canonical base64/],
+    ["a url with no host", { href: `https://?/Koegaki-${version}-setup.exe` }, /url/],
+    ["a url whose fragment names the installer", { href: `https://example.com/wrong.exe#/Koegaki-${version}-setup.exe` }, /url/],
+    ["a url with a query", { href: `${url}?v=1` }, /url/],
+    ["a url over http", { href: url.replace(/^https:/, "http:") }, /url/],
+    ["a url with a user", { href: url.replace("https://", "https://someone@") }, /url/],
+    ["a day February does not have", { date: "2026-02-30T15:26:44Z" }, /pub_date/],
+    ["an hour the day does not have", { date: "2026-10-03T25:26:44Z" }, /pub_date/],
   ];
-  assert.deepEqual(updaterSignatureProblems(installer, target.signature, WINDOWS_UPDATER_PUBKEY).problems, []);
-  for (const [name, file, signature, expected] of cases) {
-    const { problems } = updaterSignatureProblems(file, signature, WINDOWS_UPDATER_PUBKEY);
-    assert.ok(problems.some((p) => expected.test(p)), `a changed ${name} still verified: ${JSON.stringify(problems)}`);
-  }
+  const accepted = [
+    ["the manifest as published", {}],
+    ["the signature text with CRLF line ends", { sig: encoded(decoded(signature), "\r\n") }],
+    ["a pub_date with an offset", { date: "2026-10-03T17:26:44+02:00" }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
 });
