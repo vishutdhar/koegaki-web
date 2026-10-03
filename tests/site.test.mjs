@@ -281,3 +281,30 @@ test("a page that promises a one-time model download also says how a new speech 
     assert.match(text, /app update brings a new speech model/i, `${path} says a model downloads once and stops there`);
   }
 });
+
+test("while the Windows build lacks the background speech-model download, the site promises it for the Mac only", (t) => {
+  // Mac 1.7.0 downloads a new speech model in the background while the current
+  // one keeps working; Windows 1.6.0 does not. Windows 1.7.0 brings the same
+  // download and is expected to move the index off the v3 identity, so until the
+  // index moves, every sentence promising that download names the Mac. The Mac
+  // page is about the Mac alone, so it is exempt.
+  const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
+  if (index.windows["speech-english"].identity !== "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8") {
+    t.skip("the index has moved Windows on, so its build has the background download");
+    return;
+  }
+  const unscoped = [];
+  for (const path of ROUTES) {
+    if (path === "/mac") continue;
+    const text = html(path)
+      .replace(/<script[\s\S]*?<\/script>/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+      if (/in the background|background download/i.test(sentence) && !/\bon Mac\b/i.test(sentence)) {
+        unscoped.push(`${path}: ${sentence}`);
+      }
+    }
+  }
+  assert.deepEqual(unscoped, [], "these sentences promise the background download on Windows too");
+});

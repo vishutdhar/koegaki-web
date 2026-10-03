@@ -50,11 +50,12 @@ export default function PrivacyPage() {
                 storage. The app also asks koegaki.com once a day whether a newer speech or cleanup
                 model exists, a request that carries nothing but the request itself. A newer cleanup
                 model is offered on the Home screen, and nothing downloads until you choose to update
-                it. A new speech model arrives only with an app update. When an update brings a new
-                version of the speech model you use, the updated app downloads it automatically in
-                the background from our model mirror, a download of several hundred megabytes, and
-                you keep dictating on your current model until the new one is ready. That download
-                is a plain request for the model files, carries nothing about you or your
+                it. A new speech model arrives only with an app update. On Mac, when an update brings
+                a new version of the speech model you use, the updated app downloads it automatically
+                in the background from our model mirror, a download of several hundred megabytes,
+                and you keep dictating on your current model until the new one is ready. The Windows
+                app gains the same automatic download in version 1.7.0. That download is a plain
+                request for the model files, carries nothing about you or your
                 dictations, and uses only the internet connection you already have. The license
                 and update checks carry only license and version metadata; the update download is
                 the app itself. None of this ever includes
