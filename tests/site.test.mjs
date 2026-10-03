@@ -237,3 +237,30 @@ test("the H1 separator stays invisible: one platform word shows and its space co
   assert.deepEqual(rules, ["html:not([data-os=win]) .os-win,[data-os=win] .os-mac{display:none}"]);
   assert.doesNotMatch(doc.match(/<h1[^>]*>/)[0], /whitespace-pre|break-spaces/);
 });
+
+test("no page tells a visitor that a model can come from Hugging Face", () => {
+  // Every shipped build fetches its models from the Koegaki model mirror or
+  // the pinned upstream release it names; none falls back to Hugging Face, so
+  // the site may not say one does.
+  for (const path of ROUTES) {
+    const sentence = html(path).match(/[^.>]*hugging\s*face[^.<]*/i)?.[0];
+    assert.equal(sentence, undefined, `${path} names Hugging Face`);
+  }
+});
+
+test("each platform's engine copy names the English model the model index serves", () => {
+  // The display name for each English speech identity the index can list. An
+  // identity missing here is a new model: add its name and update the copy.
+  const NAMES = {
+    "parakeet-ultra": "Parakeet Ultra",
+    "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8": "Parakeet TDT 0.6B v3",
+  };
+  const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
+  const engines = { mac: SITE.engine, windows: SITE.windowsEngine };
+  for (const [platform, engine] of Object.entries(engines)) {
+    const identity = index[platform]["speech-english"].identity;
+    const name = NAMES[identity];
+    assert.ok(name, `no display name for the ${platform} English identity ${identity}`);
+    assert.ok(engine.startsWith(`${name} · `), `${platform} engine "${engine}" does not name ${name}`);
+  }
+});

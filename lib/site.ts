@@ -50,11 +50,13 @@ export const SITE = {
   contactEmail: "support@freedom-terminal.com",
 
   /**
-   * Speech model, stated plainly (no unsourced benchmark claims in product copy).
-   * Both platforms run the same model; only the compute differs, and each string
-   * is verified against what that build actually does rather than assumed.
+   * English speech model per platform, stated plainly (no unsourced benchmark
+   * claims in product copy). Mac 1.7.0 moved to Parakeet Ultra; Windows runs
+   * Parakeet TDT 0.6B v3 until its own 1.7.0. Each string is verified against
+   * what that build actually does rather than assumed, and the site tests hold
+   * it to the English identity public/models.json serves for that platform.
    */
-  engine: "Parakeet TDT 0.6B v3 · on-device (Apple Neural Engine)",
+  engine: "Parakeet Ultra · on-device (Apple Neural Engine)",
   windowsEngine: "Parakeet TDT 0.6B v3 · on-device (CPU)",
 } as const;
 

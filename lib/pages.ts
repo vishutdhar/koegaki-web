@@ -36,7 +36,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/mac",
     linkLabel: "Dictation for Mac",
     operatingSystem: "macOS 14.0 or later",
-    lastModified: "2026-09-25",
+    lastModified: "2026-10-03",
     name: "Koegaki for Mac",
     title: "Dictation app for Mac that runs on-device",
     description: `Private dictation for macOS. Hold a key, speak, and the text lands in almost any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
@@ -154,7 +154,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/offline-dictation",
     linkLabel: "Offline dictation",
     operatingSystem: "macOS 14.0 or later, Windows 10, Windows 11",
-    lastModified: "2026-09-25",
+    lastModified: "2026-10-03",
     name: "Offline dictation",
     title: "Offline dictation software for Mac and Windows",
     description: `Dictation that works with no internet connection. The speech model runs on your Mac or PC, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
@@ -196,11 +196,11 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "How accurate is offline recognition?",
-        a: `Koegaki uses the Parakeet TDT 0.6B v3 model, the same model on Mac and Windows. On Mac it runs on the Apple Neural Engine; on Windows on the CPU. It handles natural speech at a normal pace; pauses are fine.`,
+        a: `On Mac, Koegaki uses the Parakeet Ultra model, which it moved to in version 1.7.0, and runs it on the Apple Neural Engine. On Windows it uses the Parakeet TDT 0.6B v3 model on the CPU, and Windows moves to Parakeet Ultra in its own version 1.7.0. Both handle natural speech at a normal pace; pauses are fine.`,
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes, once it is set up. Dictation itself makes no network requests. First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com and the files from our model mirror at koegaki-models.vishutdhar.workers.dev on both platforms, with two exceptions: the English speech and voice-detection models on Mac can fall back to Hugging Face, and the speech and voice-detection models on Windows come from GitHub releases. None of these carry audio or text.",
+        a: "Yes, once it is set up. Dictation itself makes no network requests. First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com. On Mac every model file comes from our model mirror at koegaki-models.vishutdhar.workers.dev and nowhere else. On Windows the cleanup model comes from the same mirror, and the speech and voice-detection models come from GitHub releases. None of these carry audio or text.",
       },
       {
         q: "Is there a word limit?",
