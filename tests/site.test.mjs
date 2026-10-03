@@ -264,3 +264,20 @@ test("each platform's engine copy names the English model the model index serves
     assert.ok(engine.startsWith(`${name} · `), `${platform} engine "${engine}" does not name ${name}`);
   }
 });
+
+test("a page that promises a one-time model download also says how a new speech model arrives", () => {
+  // Each model downloads once, but an app update that brings a new speech model
+  // downloads it in the background, so "downloads once" alone is not the whole
+  // truth. The Windows page is exempt only while the index still serves the
+  // Windows v3 identity: that build has not changed its speech model yet, and the
+  // exemption lapses by itself once the index moves it on.
+  const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
+  const windowsUnchanged =
+    index.windows["speech-english"].identity === "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
+  for (const path of ROUTES) {
+    if (path === "/windows" && windowsUnchanged) continue;
+    const text = html(path).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    if (!/downloads? once|downloaded once|one-time model download/i.test(text)) continue;
+    assert.match(text, /app update brings a new speech model/i, `${path} says a model downloads once and stops there`);
+  }
+});

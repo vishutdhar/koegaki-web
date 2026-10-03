@@ -54,7 +54,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "The speech model runs on your Mac",
         paragraphs: [
-          `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
+          `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
           "That is the whole reason the app exists. Most dictation apps send your voice to a server because that is the easy way to build one. Apple Silicon is fast enough that it no longer has to be, and Koegaki uses the Neural Engine so transcription feels instant. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your Mac too.",
         ],
       },
@@ -83,7 +83,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it need an internet connection?",
-        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the one-time model download, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, and the download of an update or a model when you choose one. Being offline never locks a paid licence out.",
+        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
       },
       {
         q: "Is there a subscription?",
@@ -166,7 +166,7 @@ export const LANDING_PAGES: LandingPage[] = [
         heading: "Why most dictation stops working offline",
         paragraphs: [
           "Most dictation tools are a microphone connected to a server. They record you, upload the audio, and wait for a transcript to come back. Lose the connection and they stop. Keep the connection and every word you say passes through someone else's computer.",
-          "Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text.",
+          "Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing.",
         ],
       },
       {
@@ -179,7 +179,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          "A few things, none of them involving audio or text: the one-time model download, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, and the download of an update or a model when you choose one. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.",
+          "A few things, none of them involving audio or text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. Each model downloads once, and a cleanup model downloads only when you choose it. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.",
         ],
       },
       {
