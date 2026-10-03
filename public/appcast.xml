@@ -3,19 +3,19 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.6.0</title>
-            <pubDate>Thu, 01 Oct 2026 19:51:37 -0400</pubDate>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+            <title>1.7.0</title>
+            <pubDate>Sat, 03 Oct 2026 00:03:40 -0400</pubDate>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>1.7.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.6.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.7.0</h2>
 <ul>
-    <li>Each dictation now stays on your clipboard after it is inserted, so if a paste missed you can paste it again. A dictation that came in parts is on the clipboard whole.</li>
-    <li>New in Settings: Restore my previous clipboard after inserting. Turn it on and Koegaki puts back what you had copied before, once the paste lands. Off is the default.</li>
-    <li>If part of a dictation could not be confirmed, the notice names that part and says the whole dictation is on your clipboard, instead of asking you to paste again.</li>
+    <li>New speech model: Parakeet Ultra. Fewer misheard English words, in quiet rooms and noisy ones, at the same speed. Your current model keeps working while the new one downloads in the background (about 632 MB), and Koegaki switches over once it is ready.</li>
+    <li>Models come only from the koegaki.com model mirror. Koegaki never fetches a model from anywhere else, and nothing about you is sent.</li>
+    <li>If a model file on disk is damaged, Koegaki repairs just that file from the mirror instead of downloading the whole model again.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.6.0.dmg" length="14852634" type="application/octet-stream" sparkle:edSignature="i6pq8R6kSlwvGNEknL1hD7gQORqENpgEiy+z1jZQ2juWGFG25U/84oJnorDYPjVRoIXw8AWcgOjJCAN6gvWYCQ=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.7.0.dmg" length="31141678" type="application/octet-stream" sparkle:edSignature="4z211kop4+AEOc3ksoN81HUBH3xJ2z1iw9qUQ0ognDbxHCj6ujaK8h0IrSs5e5uMOlk1sGnRYeOTVnpGWiyODQ=="/>
         </item>
     </channel>
 </rss>

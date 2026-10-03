@@ -35,7 +35,7 @@ const koegakiCommon = {
   platforms: "macOS 14+ and Windows 10 & 11, one licence for both.",
   trigger: "Hold a shortcut you choose (push-to-talk), or toggle with one press.",
   vocab: "Word replacements: say a short word, Koegaki types the full phrase.",
-  offline: "Yes. After the one-time model download, dictation needs no network.",
+  offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
 };
 
 export const COMPARISONS: Comparison[] = [
@@ -49,7 +49,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Both apps can transcribe on your own machine. The differences are what you pay, what is behind the paywall, and how much app you get.",
     asOf: "September 2026",
-    lastModified: "2026-09-14",
+    lastModified: "2026-10-03",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On your device with local models, or in the cloud with the cloud models it also offers." },
       { label: "On-device models", koegaki: "Included. An English model (Parakeet) and a multilingual model (Whisper), both local, at no extra cost.", other: "Some local models are free; the Parakeet models need the paid Pro tier." },
@@ -90,7 +90,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
     asOf: "September 2026",
-    lastModified: "2026-09-14",
+    lastModified: "2026-10-03",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
       { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. On desktop, a recording that failed to send can be retried from History after you reconnect." },
@@ -106,7 +106,7 @@ export const COMPARISONS: Comparison[] = [
         heading: "The trade Wispr Flow asks you to make",
         paragraphs: [
           "Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
-          "Koegaki makes the opposite trade. Recognition runs on your computer with a model that is downloaded once. There is no account because there is nothing to log in to, no subscription because there is no server to pay for, and no word limit because nothing is counting.",
+          "Koegaki makes the opposite trade. Recognition runs on your computer with a speech model stored on it. There is no account because there is nothing to log in to, no subscription because there is no server to pay for, and no word limit because nothing is counting.",
         ],
       },
       {
@@ -173,7 +173,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Press Win+H and Windows will take dictation, as long as you are online. Koegaki does the same job on your own PC, with the network unplugged.",
     asOf: "September 2026",
-    lastModified: "2026-09-14",
+    lastModified: "2026-10-03",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Microsoft's online speech service. An internet connection is required." },
       { label: "Works offline", koegaki: koegakiCommon.offline, other: "No." },
@@ -200,7 +200,7 @@ export const COMPARISONS: Comparison[] = [
       },
     ],
     faqs: [
-      { q: "Does Windows voice typing work offline?", a: "No. Microsoft's own documentation says voice typing requires an internet connection because it uses online speech recognition. Koegaki works offline after its one-time model download." },
+      { q: "Does Windows voice typing work offline?", a: "No. Microsoft's own documentation says voice typing requires an internet connection because it uses online speech recognition. Koegaki works offline once its speech model has downloaded." },
       { q: "Does Koegaki need a graphics card?", a: "No. On Windows the model runs on the CPU; a laptop from the last few years is plenty." },
       { q: "Does Koegaki cost money?", a: `Yes, ${price} after a ${trial}. Windows voice typing is free with the system.` },
     ],
