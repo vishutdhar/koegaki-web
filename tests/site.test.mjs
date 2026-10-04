@@ -599,6 +599,10 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
   const { manifest, installer } = windowsUpdate();
   const { signature, url } = manifest.platforms["windows-x86_64"];
   const { version } = manifest;
+  // A release that is not the one published, derived from it so every release
+  // has one: the same version with its patch part one higher.
+  const otherRelease = version.split(".").map((part, i) => (i === 2 ? String(BigInt(part) + 1n) : part)).join(".");
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const decoded = (b64) => Buffer.from(b64, "base64").toString("utf8").split("\n");
   const encoded = (lines, end = "\n") => Buffer.from(lines.join(end)).toString("base64");
   // Rewrite one line of the signature text, re-encoded as the manifest carries it.
@@ -635,9 +639,9 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
   const refused = [
     ["one signature byte", { sig: withLine(1, (l) => flipByte(l, 40)) }, /installer signature does not verify/],
     ["one installer byte", { file: flipped(installer, Math.floor(installer.length / 2)) }, /installer signature does not verify/],
-    ["the signed file name", { sig: withLine(2, (l) => l.replace(/file:\S+/, "file:Koegaki_0.0.1_x64-setup.exe")) }, /trusted comment signature does not verify/],
+    ["the signed file name", { sig: withLine(2, (l) => l.replace(/file:\S+/, `file:Koegaki_${otherRelease}_x64-setup.exe`)) }, /trusted comment signature does not verify/],
     ["the key id", { sig: withLine(1, (l) => flipByte(l, 2)) }, /key ids differ/],
-    ["a release the trusted comment does not name", { release: "1.7.1" }, /does not name Koegaki_1\.7\.1_x64-setup\.exe/],
+    ["a release the trusted comment does not name", { release: otherRelease }, new RegExp(`does not name Koegaki_${escaped(otherRelease)}_x64-setup\\.exe`)],
     ["a character after the signature", { sig: `${signature}!` }, /signature is not canonical base64/],
     ["a character after the signature line", { sig: withLine(1, (l) => `${l}!`) }, /signature line is not canonical base64/],
     ["a character after the trusted comment signature line", { sig: withLine(3, (l) => `${l}!`) }, /trusted comment signature line is not canonical base64/],
