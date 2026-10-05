@@ -16,6 +16,10 @@ export const FAQS = [
     a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
   },
   {
+    q: "Can I add my own words?",
+    a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
+  },
+  {
     q: "How does the free trial work?",
     a: `You get every feature free for ${SITE.trialDays} days. After that, a one-time $${SITE.priceUSD} license keeps it running. No subscription.`,
   },

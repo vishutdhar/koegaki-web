@@ -34,7 +34,7 @@ const koegakiCommon = {
   price: `${price}, ${trial}. Every feature included, free updates for life.`,
   platforms: "macOS 14+ and Windows 10 & 11, one licence for both.",
   trigger: "Hold a shortcut you choose (push-to-talk), or toggle with one press.",
-  vocab: "Word replacements: say a short word, Koegaki types the full phrase.",
+  vocab: "Custom words, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe; this changes how a word is written, not what is heard. Replacements turn a phrase you say into the text you choose.",
   offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
 };
 
@@ -90,7 +90,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
     asOf: "September 2026",
-    lastModified: "2026-10-03",
+    lastModified: "2026-10-05",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
       { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. On desktop, a recording that failed to send can be retried from History after you reconnect." },
@@ -127,12 +127,12 @@ export const COMPARISONS: Comparison[] = [
     other: "macOS Dictation",
     title: "Koegaki vs macOS Dictation: push-to-talk in every app",
     description:
-      "macOS has dictation built in. Koegaki adds a hold-to-talk shortcut that works across apps, word replacements, and a model that always runs on your Mac.",
+      "macOS has dictation built in. Koegaki adds a hold-to-talk shortcut across apps, custom words and replacements, and a model that always runs on your Mac.",
     h1: "Koegaki vs the dictation built into macOS",
     lede:
       "Your Mac can already take dictation. Here is what changes when you use Koegaki instead, and when the built-in one is enough.",
     asOf: "September 2026",
-    lastModified: "2026-09-14",
+    lastModified: "2026-10-05",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On-device for general text in supported languages once the language is downloaded, as shown in Keyboard settings; dictation into search boxes and other languages go to Apple's servers." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "A key press toggles dictation on; it stays on until you stop it, or stops after 30 seconds of silence." },
@@ -153,7 +153,7 @@ export const COMPARISONS: Comparison[] = [
         paragraphs: [
           "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Releasing the key ends capture; Koegaki then transcribes and inserts what you said.",
           "The same behaviour across apps. Koegaki inserts text where the cursor is, using one shortcut, in Mail, Slack, a terminal, a browser form; the rare app that refuses insertion gets the text on the clipboard instead.",
-          "Word replacements. Say a short word and Koegaki types the full phrase: an email address, a product name it might spell wrong, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
+          "Custom words and replacements. Add a product name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe. Say a short word and a replacement types the full phrase: an email address, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
         ],
       },
     ],
@@ -173,7 +173,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Press Win+H and Windows will take dictation, as long as you are online. Koegaki does the same job on your own PC, with the network unplugged.",
     asOf: "September 2026",
-    lastModified: "2026-10-03",
+    lastModified: "2026-10-05",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Microsoft's online speech service. An internet connection is required." },
       { label: "Works offline", koegaki: koegakiCommon.offline, other: "No." },
@@ -195,7 +195,7 @@ export const COMPARISONS: Comparison[] = [
         paragraphs: [
           "Your voice stays on your PC. Windows voice typing sends your speech to Microsoft's servers to be recognised. Koegaki runs the speech model locally, so it works on a plane, behind a corporate firewall, and on documents you are not allowed to send anywhere.",
           "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open; releasing the key ends capture, and Koegaki then transcribes and inserts what you said. A program running as administrator is the exception: Windows does not let an ordinary app type into it, so Koegaki copies the text for you to paste.",
-          "Word replacements. Say a short word and Koegaki types the full phrase, without teaching anything.",
+          "Custom words and replacements. Add a name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe; say a short word and a replacement types the full phrase. Both are rules applied on your PC, with nothing to train.",
         ],
       },
     ],

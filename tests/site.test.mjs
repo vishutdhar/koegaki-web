@@ -249,6 +249,53 @@ test("no page tells a visitor that a model can come from Hugging Face", () => {
   }
 });
 
+/** A page's visible text: no scripts or styles, tags as spaces, the common entities decoded. */
+function pageText(doc) {
+  return doc
+    .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;|&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
+}
+
+test("the Mac, Windows and home pages answer whether you can add your own words", () => {
+  // Custom words ship on both platforms (Koegaki spec 2026-10-04), so every page
+  // that sells a platform answers the question, in the visible FAQ and in the
+  // FAQPage data built from the same list, and says where the list lives.
+  const question = "Can I add my own words?";
+  for (const path of ["/", "/mac", "/windows"]) {
+    const doc = html(path);
+    const faq = jsonLd(doc).find((n) => n["@type"] === "FAQPage");
+    assert.ok(faq, `${path} has no FAQPage`);
+    const entry = faq.mainEntity.find((e) => e.name === question);
+    assert.ok(entry, `${path} does not answer "${question}"`);
+    assert.match(entry.acceptedAnswer.text, /\bCustom words\b/, `${path} answer does not name Custom words`);
+    assert.match(entry.acceptedAnswer.text, /\bVocabulary page\b/, `${path} answer does not say where the list is`);
+    assert.ok(pageText(doc).includes(question), `${path} does not show "${question}"`);
+  }
+});
+
+test("custom words are described as a spelling rule, never as recognition", () => {
+  // A custom word changes how a run of words the recognizer already heard is
+  // written, never what Koegaki hears (Koegaki spec 2026-10-04, item 2), and
+  // recognizer biasing is out of that spec's scope. So no sentence about custom
+  // words may say the app learns, is trained or taught, is biased toward or
+  // recognises them, or that they improve accuracy; the copy says "hears" and
+  // "written" for what does and does not change.
+  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura)/i;
+  let described = 0;
+  for (const path of ROUTES) {
+    for (const sentence of pageText(html(path)).split(/(?<=[.!?])\s+/)) {
+      if (!/\bcustom words?\b/i.test(sentence)) continue;
+      described++;
+      assert.doesNotMatch(sentence, recognitionClaim, `${path} describes custom words as recognition: "${sentence.trim()}"`);
+    }
+  }
+  assert.ok(described > 0, "no page describes custom words");
+});
+
 test("each platform's engine copy names the English model the model index serves", () => {
   // The display name for each English speech identity the index can list. An
   // identity missing here is a new model: add its name and update the copy.

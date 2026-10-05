@@ -9,7 +9,7 @@ const INCLUDED = [
   "Every feature. No tiers, no add-ons",
   "Unlimited on-device dictation",
   "Mac and Windows, one licence",
-  "Word replacements & shortcuts",
+  "Custom words, replacements & shortcuts",
   "Free updates for life",
   "Use on up to 10 of your own computers",
 ];
