@@ -416,7 +416,8 @@ function decodeEntities(text) {
 /**
  * Every block of text on a page a visitor or a crawler reads, in order: each
  * paragraph, list item, table cell, heading and FAQ summary of the body (a
- * heading or summary is marked, and so is a table cell), then the page's
+ * heading or summary is marked, and so is a table cell, and a block a
+ * container ends after is marked closed), then the page's
  * description and social title meta tags and every string in its JSON-LD,
  * which stand alone.
  */
@@ -440,6 +441,12 @@ function textBlocks(doc) {
   };
   parts.forEach((part, i) => {
     if (i % 2 === 1) {
+      // A container that ends after a block (a FAQ answer's details, a list
+      // item, a section) closes it, so nothing after it reads as its
+      // continuation; a div is layout, not a container.
+      if (/^<\/(?:details|section|article|li|dd|dl|ul|ol|table|header|footer|main|nav)\b/i.test(part) && blocks.length) {
+        blocks[blocks.length - 1].closed = true;
+      }
       if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
       else if (/^<\/(?:h[1-6]|summary)\b/i.test(part)) inHeading = false;
       else if (/^<t[dh]\b/i.test(part)) {
@@ -833,7 +840,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
   }],
   ["That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.", {
     where: ["/vs/wispr-flow"],
-    after: null,
+    after: [["Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back."]],
     then: null,
     why: "about Wispr Flow's account and word cap, not about a Koegaki download",
   }],
@@ -859,7 +866,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
  */
 function aboutWaiting(sentence) {
   const costly =
-    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap)s?|ordinary connection|wi-?fi)\b/i;
+    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap|allowance|usage)s?|allowances?|bandwidth|ordinary connection|wi-?fi)\b/i;
   const waiting =
     /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped)\b/i;
   // A sentence that carries a wait over from another ("the same rule
@@ -890,12 +897,14 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const found = [];
   const blocks = [
     // A paragraph runs on into the next one of its section, so a continuation
-    // cannot hide behind a paragraph break; a heading or the end of the page
-    // ends it. A string that stands alone ends with itself.
-    ...body.map((b, k) => ({
-      text: b.text,
-      next: body[k + 1] && !body[k + 1].heading ? sentencesOf(body[k + 1].text)[0] : END,
-    })),
+    // cannot hide behind a paragraph break; a heading, a table cell, the end of
+    // a container (a FAQ answer, a section) or of the page ends it. A string
+    // that stands alone ends with itself.
+    ...body.map((b, k) => {
+      const after = body[k + 1];
+      const runsOn = after && !b.closed && !b.cell && !after.heading && !after.cell;
+      return { text: b.text, next: runsOn ? sentencesOf(after.text)[0] : END };
+    }),
     ...standalone.map((text) => ({ text, next: END })),
   ];
   for (const { text, next } of blocks) {
@@ -1015,6 +1024,8 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     `${PRIVACY_UPDATE} ${PRIVACY_REQUEST} ${PRIVACY_WAIT} So does the app update.`,
     `${SPEECH_UPDATE[1][0]} ${BOTH_WAIT}</p><p>The app update does too.`,
     "Koegaki only downloads models on an unlimited connection.",
+    "Model downloads never use your data allowance.",
+    "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
     // In the body, and standing alone in a social title.
@@ -1031,6 +1042,16 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
   delete withoutThen.then;
   unpinned.set(MAC_WAIT, withoutThen);
   assert.notDeepEqual(ledgerProblems(unpinned), [], "a wait entry with no then passed");
+  // A wait sentence that ends a table cell or a FAQ answer is not continued by
+  // the next cell or what follows the answer.
+  for (const fine of [
+    `<table><tr><td>${SPEECH_UPDATE[1][0]} ${BOTH_WAIT}</td><td>Downloads start immediately.</td></tr></table>`,
+    `<details><summary>Does it need the internet?</summary><p>${SPEECH_UPDATE[1][0]} ${BOTH_WAIT}</p></details><p>Try Koegaki today.</p>`,
+  ]) {
+    const doc = `<html><head></head><body><main>${fine}</main></body></html>`;
+    const continued = waitProblems(doc).problems.filter((p) => p.includes("is followed by"));
+    assert.deepEqual(continued, [], `the wait check ran across a boundary in: ${fine}`);
+  }
   // And it passes the block the site says.
   const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p></main></body></html>`;
   assert.deepEqual(waitProblems(right).problems, []);
