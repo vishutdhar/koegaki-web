@@ -927,11 +927,11 @@ function aboutWaiting(sentence) {
   const costly =
     /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap|allowance|usage)s?|allowances?|bandwidth|ordinary connection|wi-?fi)\b/i;
   const waiting =
-    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped|requir\w*|(?:un)?restrict\w*)\b/i;
+    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped|requir\w*|(?:un)?restrict\w*|immediately|instantly|right away|at once|exclusive\w*)\b/i;
   // A promise about data or money ("never cost you extra"), next to a download
   // or a connection rather than a model, which the comparison pages name freely.
   const promise =
-    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't|balance|affect\w*|avoid\w*|needs?|needed)\b/i;
+    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't|balance|affect\w*|avoid\w*|needs?|needed|consum\w*|monthly)\b/i;
   const transferOrData = /\b(?:download\w*|connection\w*|network\w*|data)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
@@ -1183,6 +1183,9 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     "App updates are restricted to home networks.",
     "Model downloads need a home connection.",
     "Model downloads avoid using your data.",
+    "Background model downloads start immediately on any connection.",
+    "Model downloads use home networks exclusively.",
+    "Model downloads do not consume your monthly data.",
     "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
