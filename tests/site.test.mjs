@@ -703,8 +703,12 @@ test("a page that promises a one-time model download also says how a new speech 
  * sentence that leans on what comes before it ("That background download",
  * "they") lists in `after` the exact sentences that may come right before it,
  * so it cannot be moved after a different download or subject; one whose
- * subject is its own has `after` null. An honest sentence the check flags for
- * another reason is reviewed and listed too.
+ * subject is its own has `after` null. A sentence that claims a wait lists in
+ * `then` the exact sentences that may come right after it (END when it may end
+ * its block), so a short continuation such as "The app update does too." cannot
+ * carry the wait to another download; a sentence without `then` may be followed
+ * by anything. An honest sentence the check flags for another reason is
+ * reviewed and listed too.
  */
 const MAC_WAIT =
   "That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on.";
@@ -725,30 +729,44 @@ const PRIVACY_REQUEST =
   "That download is a plain request for the model files, carries nothing about you or your dictations, and uses only the internet connection you already have.";
 const PRIVACY_WAIT =
   "That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.";
+const COSTLY_EXAMPLES =
+  "Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.";
+const EACH_MODEL_ONCE = "Each model downloads once, and a cleanup model downloads only when you choose it.";
+/** What `then` names when a sentence ends its block. */
+const END = "(the end of the block)";
 const REVIEWED_WAIT_SENTENCES = new Map([
   [MAC_WAIT, {
     where: ["/mac"],
     after: SPEECH_UPDATE,
+    then: ["Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.", EACH_MODEL_ONCE],
     why: "the speech update on the Mac waits on an expensive path (Personal Hotspot) or a constrained one (Low Data Mode)",
   }],
   [WINDOWS_WAIT, {
     where: ["/windows"],
     after: SPEECH_UPDATE,
+    then: ["Your audio and your text stay on your machine.", EACH_MODEL_ONCE],
     why: "the speech update on Windows waits on the cost Windows reports; cellular is metered by default and Wi-Fi only once marked",
   }],
   [BOTH_WAIT, {
     where: ["/", "/offline-dictation"],
     after: SPEECH_UPDATE,
+    then: [
+      "Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
+      EACH_MODEL_ONCE,
+      END,
+    ],
     why: "the same rule for both platforms, each example under its own OS",
   }],
   [PRIVACY_WAIT, {
     where: ["/privacy"],
     after: [[PRIVACY_UPDATE, PRIVACY_REQUEST]],
+    then: [COSTLY_EXAMPLES],
     why: "names exactly the two downloads that wait, not every download the app starts by itself",
   }],
-  ["Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.", {
+  [COSTLY_EXAMPLES, {
     where: ["/privacy"],
     after: null,
+    then: ["A download you start yourself, and the first download after you install, go ahead on any connection."],
     why: "each OS's own signal, and a Windows phone hotspot counts only once marked metered",
   }],
   ["A download you start yourself, and the first download after you install, go ahead on any connection.", {
@@ -776,7 +794,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     after: null,
     why: "the same list on the offline page",
   }],
-  ["Each model downloads once, and a cleanup model downloads only when you choose it.", {
+  [EACH_MODEL_ONCE, {
     where: ["/mac", "/windows", "/offline-dictation"],
     after: null,
     why: "a cleanup model is never downloaded unless the user chose it; no wait claimed",
@@ -806,8 +824,10 @@ function aboutWaiting(sentence) {
   const waiting =
     /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*)\b/i;
   // A sentence that carries a wait over from another ("the same rule
-  // applies") or speaks of the downloads a user starts, which never wait.
-  const carried = /\b(?:(?:same|this|that|these) rules?|also appl\w*|appl\w* (?:too|as well|equally)|likewise|the same goes)\b/i;
+  // applies"), speaks of every download at once, or speaks of the downloads a
+  // user starts, which never wait.
+  const carried =
+    /\b(?:(?:same|this|that|these) rules?|also appl\w*|appl\w* (?:too|as well|equally)|likewise|the same goes|(?:any|every|all|each)\s+(?:\S+\s+){0,2}?downloads?)\b/i;
   const userStarted =
     /\byou (?:start|started|choose|chose|pick|picked|select|selected|click|clicked|accept|accepted|turn(?:ed)? on|ask for|asked for)\b|\b(?:manual\w*|user[- ]initiated|on demand)\b/i;
   const transfer = /\b(?:download\w*|connection\w*|network\w*|models?|updates?|transfer\w*|fetch\w*)\b/i;
@@ -822,7 +842,8 @@ function aboutWaiting(sentence) {
  * What is wrong with what a page says about waiting: each flagged sentence of
  * every block, from the body and from what stands alone (meta and JSON-LD),
  * that is unreviewed, or reviewed but not right after one of its `after`
- * sequences. With the reviewed sentences found, for the where check.
+ * sequences or not right before one of its `then` sentences. With the reviewed
+ * sentences found, for the where check.
  */
 function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const { body, standalone } = textBlocks(doc);
@@ -838,6 +859,9 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
         return;
       }
       found.push(sentence);
+      if (entry.then && !entry.then.includes(sentences[i + 1] ?? END)) {
+        problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${sentences[i + 1] ?? END}"`);
+      }
       if (entry.after === null) return;
       const follows = entry.after.some(
         (before) => i >= before.length && before.every((b, k) => sentences[i - before.length + k] === b),
@@ -926,6 +950,10 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     "All model downloads are blocked on mobile connections.",
     "Downloads you start yourself wait too.",
     "Every download is suspended while you are away from home.",
+    `${SPEECH_UPDATE[0][0]} ${MAC_WAIT} The app update does too.`,
+    `${SPEECH_UPDATE[0][0]} ${MAC_WAIT} This covers every automatic download.`,
+    "This covers every automatic download.",
+    `${PRIVACY_UPDATE} ${PRIVACY_REQUEST} ${PRIVACY_WAIT} So does the app update.`,
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
     // In the body, and standing alone in a social title.
@@ -937,7 +965,7 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     }
   }
   // And it passes the block the site says.
-  const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT}</p></main></body></html>`;
+  const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p></main></body></html>`;
   assert.deepEqual(waitProblems(right).problems, []);
 });
 
