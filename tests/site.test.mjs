@@ -879,6 +879,30 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     then: ["Koegaki works offline once its speech model has downloaded."],
     why: "about Windows voice typing, which names its subject",
   }],
+  ["Does it need an internet connection?", {
+    where: ["/mac"],
+    after: null,
+    then: [END],
+    why: "a FAQ question; its answer is reviewed where it says anything about a download",
+  }],
+  ["First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once.", {
+    where: ["/offline-dictation"],
+    after: null,
+    then: ["The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com."],
+    why: "the hosts a firewall must allow once; names its subject, claims no wait",
+  }],
+  ["Once the speech model has downloaded, dictation needs no network.", {
+    where: ["/vs/superwhisper", "/vs/windows-voice-typing", "/vs/wispr-flow"],
+    after: null,
+    then: [END],
+    why: "Koegaki's offline cell in the comparison tables; dictation needs no network, no wait claimed",
+  }],
+  ["Dictation itself needs no internet connection at all.", {
+    where: ["/privacy"],
+    after: null,
+    then: ["Beyond that, the app talks to the network to verify your license key (at activation, then a quiet daily check while licensed), to check koegaki.com for new versions, and, when an update installs, to download the new app package from our hosting storage."],
+    why: "dictation is local; the network uses follow, none claimed to wait",
+  }],
   ["Lose the connection and they stop.", {
     where: ["/offline-dictation"],
     after: [[
@@ -907,7 +931,7 @@ function aboutWaiting(sentence) {
   // A promise about data or money ("never cost you extra"), next to a download
   // or a connection rather than a model, which the comparison pages name freely.
   const promise =
-    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't|balance|affect\w*)\b/i;
+    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't|balance|affect\w*|avoid\w*|needs?|needed)\b/i;
   const transferOrData = /\b(?:download\w*|connection\w*|network\w*|data)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
@@ -951,9 +975,10 @@ function readingBlocks(doc) {
   let run = [];
   body.forEach((b, k) => {
     if (k === 0 || !runsOn(body[k - 1], b)) run = [];
+    // The FAQ marks each question with a "+" it draws, not part of the question.
+    const text = b.heading ? b.text.replace(/\s*\+$/, "") : b.text;
     if (b.heading) {
-      // The FAQ marks each question with a "+" it draws, not part of the question.
-      heading = b.text.replace(/\s*\+$/, "");
+      heading = text;
       sinceHeading = 0;
     } else {
       sinceHeading += 1;
@@ -961,7 +986,7 @@ function readingBlocks(doc) {
     const rest = [];
     for (let j = k; j + 1 < body.length && runsOn(body[j], body[j + 1]); j++) rest.push(...sentencesOf(body[j + 1].text));
     blocks.push({
-      text: b.text,
+      text,
       body: true,
       before: run,
       next: rest[0] ?? END,
@@ -1156,6 +1181,8 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     "Model downloads require an unrestricted connection.",
     "Downloading models does not affect your data balance.",
     "App updates are restricted to home networks.",
+    "Model downloads need a home connection.",
+    "Model downloads avoid using your data.",
     "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
