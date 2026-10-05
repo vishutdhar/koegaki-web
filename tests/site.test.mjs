@@ -50,7 +50,8 @@ const canonical = (doc) => one(doc, "rel", "canonical", "href");
 const og = (doc, prop) => one(doc, "property", `og:${prop}`, "content");
 
 function jsonLd(doc) {
-  return [...doc.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) =>
+  // Any attributes may sit beside the type, so an id or a nonce cannot hide a graph.
+  return [...doc.matchAll(/<script\b[^>]*\btype="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) =>
     JSON.parse(m[1]),
   );
 }
@@ -246,6 +247,405 @@ test("no page tells a visitor that a model can come from Hugging Face", () => {
   for (const path of ROUTES) {
     const sentence = html(path).match(/[^.>]*hugging\s*face[^.<]*/i)?.[0];
     assert.equal(sentence, undefined, `${path} names Hugging Face`);
+  }
+});
+
+/** A page's visible text: no scripts or styles, tags as spaces, the common entities decoded. */
+function pageText(doc) {
+  return doc
+    .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;|&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
+}
+
+test("the Mac, Windows and home pages answer whether you can add your own words", () => {
+  // Custom words ship on both platforms (Koegaki spec 2026-10-04), so every page
+  // that sells a platform answers the question, in the visible FAQ and in the
+  // FAQPage data built from the same list, and says where the list lives.
+  const question = "Can I add my own words?";
+  for (const path of ["/", "/mac", "/windows"]) {
+    const doc = html(path);
+    const faq = jsonLd(doc).find((n) => n["@type"] === "FAQPage");
+    assert.ok(faq, `${path} has no FAQPage`);
+    const entry = faq.mainEntity.find((e) => e.name === question);
+    assert.ok(entry, `${path} does not answer "${question}"`);
+    assert.match(entry.acceptedAnswer.text, /^Yes\. /, `${path} answer does not say yes`);
+    assert.match(entry.acceptedAnswer.text, /\bCustom words\b/, `${path} answer does not name Custom words`);
+    assert.match(entry.acceptedAnswer.text, /\bVocabulary page\b/, `${path} answer does not say where the list is`);
+    assert.ok(pageText(doc).includes(question), `${path} does not show "${question}"`);
+    assert.ok(pageText(doc).includes(entry.acceptedAnswer.text), `${path} does not show the answer it gives crawlers`);
+  }
+});
+
+/**
+ * The transcript examples the site may quote about custom words, each mirrored
+ * from a case in the table the Mac and Windows rules both run (Koegaki
+ * docs/vocabulary/canonical-spelling-cases.json at afd62e12; the case id is
+ * beside each): what the recognizer wrote, and what Koegaki writes with the
+ * term saved. An example the copy needs that is missing here is added from
+ * that table, never from memory.
+ */
+const VERIFIED_EXAMPLES = new Map([
+  ["post hog", "PostHog"], // join-space, term PostHog
+  ["habit-flame", "HabitFlame"], // join-hyphen, term HabitFlame
+  ["o brien", "O'Brien"], // join-apostrophe-in-term, term O'Brien
+  ["private scan", "PrivateScan"], // homophone-two-real-words, term PrivateScan
+  ["github", "GitHub"], // case-only-mixed-case-fires, term GitHub
+  ["freedom terminal", "Freedom Terminal"], // case-only-multiword-fires, term Freedom Terminal
+  ["tell us now", "tell us now"], // case-only-allcaps-blocked, term US
+  ["a swift reply", "a swift reply"], // case-only-initialcap-blocked, term Swift
+  ["a w s", "AWS"], // allcaps-join-fires, term AWS
+  ["X code", "Xcode"], // initialcap-join-fires, term Xcode
+  ["x code", "x code"], // lowercase-single-letter-does-not-join, term Xcode
+  ["i phone", "i phone"], // lowercase-single-letter-before-word-blocked, term iPhone
+  ["I pad", "iPad"], // uppercase-single-letter-joins, term iPad
+  ["vitamin d", "Vitamin D"], // single-letter-at-stored-space-joins, term Vitamin D
+]);
+
+/**
+ * Every transcript example in a block, checked against VERIFIED_EXAMPLES:
+ * "“heard” becomes Written", "“heard” is written Written", "turns “heard” into
+ * Written", and "“heard” stays" (or "is left") for text the rule does not
+ * touch. A quoted saved term ("“PostHog” as a custom word") is not an example.
+ * A quote in any other shape, or a "becomes", "turns into" or "is written
+ * Spelling" outside a quoted example, cannot be checked, so it is a problem
+ * too: the check fails closed.
+ */
+function exampleProblems(block) {
+  const end = String.raw`(?=[,.;:]|\s+(?:and|while|so|though|but)\s|$)`;
+  const savedTerm = /[“"]([^”"]+)[”"]\s+as\s+a\s+custom\s+word\b/dg;
+  const shapes = [
+    new RegExp(String.raw`[“"]([^”"]+)[”"]\s+(?:becomes|is written|turns into)\s+([^,.;:]+?)${end}`, "dg"),
+    new RegExp(String.raw`\bturns?\s+[“"]([^”"]+)[”"]\s+into\s+([^,.;:]+?)${end}`, "dg"),
+    /[“"]([^”"]+)[”"],?\s+(?:usually\s+)?(?:stays|is left)\b/dg,
+  ];
+  const problems = [];
+  const read = new Set();
+  const verbs = new Set();
+  for (const m of block.matchAll(savedTerm)) read.add(m.indices[1][0]);
+  for (const shape of shapes) {
+    for (const m of block.matchAll(shape)) {
+      const [heard, written = heard] = [m[1], m[2]];
+      read.add(m.indices[1][0]);
+      const verb = m[0].search(/\b(?:becomes|turns? into|is written|into)\b/);
+      if (verb >= 0) verbs.add(m.index + verb);
+      if (VERIFIED_EXAMPLES.get(heard) !== written) {
+        problems.push(`quotes an example the app does not produce: “${heard}” written as ${written}`);
+      }
+    }
+  }
+  for (const m of block.matchAll(/[“"]([^”"]+)[”"]/dg)) {
+    if (!read.has(m.indices[1][0])) problems.push(`quotes an example the check cannot verify: “${m[1]}”`);
+  }
+  for (const m of block.matchAll(/\b(?:becomes|turns into)\b|\bis written(?= \p{Lu})/gu)) {
+    if (!verbs.has(m.index)) problems.push(`gives an unquoted example the check cannot verify: "${m[0]}"`);
+  }
+  return problems;
+}
+
+/**
+ * Sentences in a passage about custom words that use a word the check refuses
+ * but were reviewed against the app (Koegaki spec 2026-10-04 and the code at
+ * afd62e12) and say nothing it does not do, each with the reason. The check
+ * fails closed: an honest sentence that trips it is reviewed and added here;
+ * there is no other way past it. The route test drops an entry the site no
+ * longer says.
+ */
+const REVIEWED_SENTENCES = new Map([
+  [
+    "And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
+    "about the speech model, which does run on the Mac for every language it supports, not about custom words",
+  ],
+]);
+
+/** A block's sentences, split where a sentence ends. */
+const sentencesOf = (block) => block.split(/(?<=[.!?])\s+/);
+
+/**
+ * What a page says about custom words that the app does not do (Koegaki spec
+ * 2026-10-04). A custom word changes how a run of words the recognizer already
+ * heard is written, never what Koegaki hears (item 2), and recognizer biasing
+ * is out of that spec's scope, so no sentence about custom words may use the
+ * words of learning, training, teaching, biasing, recognition, understanding,
+ * accuracy, unknown words or misspellings, in any form of those words. They ship on both platforms, so
+ * none may call them missing; they apply only to Latin, Greek and Cyrillic
+ * terms (item 4), so none may promise every language or script; and every
+ * example it quotes must be one the app's case table proves.
+ *
+ * Every sentence of a passage about custom words is judged, with no guess at
+ * negation or at what the sentence is about: those guesses let overclaims
+ * through or refused honest limits, one way or the other, in every version
+ * that tried them. An honest sentence the check refuses is reviewed and
+ * listed in REVIEWED_SENTENCES instead.
+ */
+function customWordsProblems(doc, reviewed = REVIEWED_SENTENCES) {
+  // Stems, with the irregular forms spelled out: taught, understood, misspelt.
+  const recognitionClaim = /\b(?:learn|train|teach|taught|bias|recogni|accura|understand|understood|unknown|misspel)/i;
+  const absenceClaim =
+    /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
+  // "every language", and with a qualifier between: "all supported languages".
+  const everyScript = /\b(?:every|any|all)\s+(?:\S+\s+){0,2}?(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
+  return customWordsMentions(doc).flatMap((block) =>
+    sentencesOf(block)
+      .filter((sentence) => !reviewed.has(sentence))
+      .flatMap((sentence) => [
+        ...(recognitionClaim.test(sentence) ? [`describes custom words as recognition: "${sentence}"`] : []),
+        ...(absenceClaim.test(sentence) ? [`describes custom words as absent: "${sentence}"`] : []),
+        ...(everyScript.test(sentence)
+          ? [`promises custom words in every script, past the Latin, Greek and Cyrillic limit: "${sentence}"`]
+          : []),
+        ...exampleProblems(sentence).map((problem) => `${problem}, in "${sentence}"`),
+      ]),
+  );
+}
+
+/** Decode the entities React and the meta tags write. */
+function decodeEntities(text) {
+  return text
+    .replace(/&#x27;|&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Every block of text on a page a visitor or a crawler reads, in order: each
+ * paragraph, list item, table cell, heading and FAQ summary of the body (a
+ * heading or summary is marked, and so is a table cell), then the page's
+ * description meta tags and every string in its JSON-LD, which stand alone.
+ */
+function textBlocks(doc) {
+  const body = doc.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ");
+  const parts = body.split(
+    /(<\/?(?:p|li|td|th|h[1-6]|summary|details|div|section|article|header|footer|main|nav|ul|ol|table|tr|thead|tbody|dl|dt|dd|title)\b[^>]*>)/i,
+  );
+  const blocks = [];
+  let inHeading = false;
+  let inCell = false;
+  // split() with a capturing group alternates text (even index) and the
+  // block tag that ended it (odd index). Telling them apart by position keeps
+  // a text piece that itself opens with an inline tag such as <strong>.
+  // A table cell is one block however many paragraphs it holds, since the
+  // next cell may be another product's.
+  let cellText = [];
+  const endCell = () => {
+    if (cellText.length) blocks.push({ text: cellText.join(" "), heading: false, cell: true });
+    cellText = [];
+  };
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
+      else if (/^<\/(?:h[1-6]|summary)\b/i.test(part)) inHeading = false;
+      else if (/^<t[dh]\b/i.test(part)) {
+        endCell();
+        inCell = true;
+      } else if (/^<\/t[dh]\b/i.test(part)) {
+        endCell();
+        inCell = false;
+      }
+      return;
+    }
+    const text = decodeEntities(part.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+    if (!text) return;
+    if (inCell) cellText.push(text);
+    else blocks.push({ text, heading: inHeading, cell: false });
+  });
+  endCell();
+  const standalone = [];
+  for (const [key, value] of [
+    ["name", "description"],
+    ["property", "og:description"],
+    ["name", "twitter:description"],
+  ]) {
+    for (const tag of headTags(doc, key, value)) standalone.push(decodeEntities(attr(tag, "content") ?? ""));
+  }
+  const walk = (v) => {
+    if (typeof v === "string") standalone.push(v);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(jsonLd(doc));
+  return { body: blocks, standalone: standalone.filter(Boolean) };
+}
+
+/**
+ * Every block of a page about custom words: one that names them, every block
+ * after it up to the next heading or FAQ question, and every block under a
+ * heading or FAQ question that names them, up to the next one. A table cell
+ * stands alone, since the next cell may be another product's. A claim is
+ * judged with the rest of its block, so a sentence cannot escape the check by
+ * following the one that names the feature, by sitting in a later paragraph
+ * of its section, or by sitting under a heading that names it.
+ */
+function customWordsMentions(doc) {
+  const names = (text) => /\bcustom words?\b/i.test(text);
+  const { body, standalone } = textBlocks(doc);
+  const mentions = [];
+  let underHeading = false;
+  let afterMention = false;
+  for (const { text, heading, cell } of body) {
+    if (heading) {
+      underHeading = names(text);
+      afterMention = false;
+    }
+    if (cell) {
+      if (names(text)) mentions.push(text);
+      continue;
+    }
+    if (underHeading || afterMention || names(text)) mentions.push(text);
+    if (names(text)) afterMention = true;
+  }
+  return [...mentions, ...standalone.filter(names)];
+}
+
+test("the custom words check catches an overclaim or an absence wherever a page says it", () => {
+  const page = (body, head = "") => `<html><head>${head}</head><body>${body}</body></html>`;
+  const ld = (text) =>
+    `<script type="application/ld+json">${JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [{ "@type": "Question", name: "Q", acceptedAnswer: { "@type": "Answer", text } }],
+    })}</script>`;
+  const caught = [
+    // The claim in the sentence after the one that names custom words.
+    ["a claim in the next sentence", page("<p>Custom words. It learns unknown names.</p>"), /recognition/],
+    ["a promise to fix any misspelling", page("<p>Custom words fix every misspelling.</p>"), /recognition/],
+    ["custom words described as absent", page("<p>Custom words are unavailable on the Vocabulary page.</p>"), /absent/],
+    ["a claim in the meta description", page("<p>Hi.</p>", '<meta name="description" content="Custom words Koegaki learns."/>'), /recognition/],
+    ["a claim in the Open Graph description", page("<p>Hi.</p>", '<meta property="og:description" content="Custom words improve accuracy."/>'), /recognition/],
+    ["a claim in the FAQPage data", page(`<p>Hi.</p>${ld("Custom words are trained into the model.")}`), /recognition/],
+    ["a platform described as missing it", page("<p>Custom words are not supported on Windows.</p>"), /absent/],
+    ["a claim under a heading that names it", page("<h3>Custom words</h3><p>Koegaki learns your product names as you dictate.</p>"), /recognition/],
+    ["an example the app does not produce", page("<p>Custom words turn “x code” into Xcode.</p>"), /example/],
+    ["an example the case table does not prove", page("<p>Custom words fix “pozt hog” as well.</p>"), /example/],
+    [
+      "a claim in a later paragraph of its section",
+      page("<h2>Your words</h2><p>Custom words, spelled your way.</p><p>Koegaki learns your product names as you dictate.</p>"),
+      /recognition/,
+    ],
+    ["a promise of every language", page("<p>Custom words work in every language.</p>"), /script/],
+    ["an unquoted example", page("<p>Add Xcode as a custom word and x code becomes Xcode.</p>"), /unquoted/],
+    ["an unquoted example with is written", page("<p>Add Xcode as a custom word and x code is written Xcode.</p>"), /unquoted/],
+    ["a model claim in the next sentence", page("<p>Custom words, spelled your way. Over time the model learns them.</p>"), /recognition/],
+    [
+      "a promise of every language beside the model",
+      page("<p>Add your names and jargon as custom words. They work in every language the speech model supports.</p>"),
+      /script/,
+    ],
+    [
+      "a promise of every language beside replacements",
+      page("<p>Add your names and jargon as custom words. Like replacements, they work in every language.</p>"),
+      /script/,
+    ],
+    [
+      "a claim after a negated clause",
+      page("<p>No training needed: Koegaki learns your custom words instantly.</p>"),
+      /recognition/,
+    ],
+    [
+      "a promise of every language in the next sentence",
+      page("<p>Add your names and jargon as custom words. They work in every language.</p>"),
+      /script/,
+    ],
+    ["recognition as a noun", page("<p>Custom words improve recognition.</p>"), /recognition/],
+    ["a promise of every supported language", page("<p>Custom words work in all supported languages.</p>"), /script/],
+    [
+      "a claim in a paragraph that opens with inline formatting",
+      page("<h3>Custom words</h3><p><strong>Improve accuracy</strong> for names and jargon.</p>"),
+      /recognition/,
+    ],
+    ["an irregular form of misspell", page("<p>Custom words fix misspelt names.</p>"), /recognition/],
+    ["an irregular form of understand", page("<p>Custom words ensure your jargon is understood.</p>"), /recognition/],
+    [
+      "an irregular form of teach",
+      page("<p>Once you’ve taught Koegaki your custom words, it gets them right every time.</p>"),
+      /recognition/,
+    ],
+    [
+      "a claim in a later paragraph of the same table cell",
+      page("<table><tr><td><p>Custom words, spelled your way.</p><p>Improves recognition of names and jargon.</p></td></tr></table>"),
+      /recognition/,
+    ],
+    [
+      "a claim in JSON-LD whose script tag carries another attribute",
+      page(`<p>Hi.</p>${ld("Custom words improve recognition.").replace("<script ", '<script id="vocabulary-faq" ')}`),
+      /recognition/,
+    ],
+    [
+      "a promise behind an unrelated negation",
+      page("<p>Custom words never leave your device and work in every language.</p>"),
+      /script/,
+    ],
+  ];
+  for (const [what, doc, message] of caught) {
+    const problems = customWordsProblems(doc);
+    assert.equal(problems.length, 1, `${what}: ${JSON.stringify(problems)}`);
+    assert.match(problems[0], message, what);
+  }
+  const honest = [
+    page("<p>Custom words change how a word is written, not what is heard.</p>"),
+    // The other product's cell is its own block, so its wording is its own.
+    page("<table><tr><td>Custom words, spelled your way.</td><td>Dictionary of terms it learns to recognise.</td></tr></table>"),
+    page("<p>Custom words: “post hog” becomes PostHog, “X code” becomes Xcode and “tell us now” stays as it is.</p>"),
+    page("<p>Custom words leave a lone letter, as in “x code”, usually stays a word of its own.</p>"),
+    // A heading's context ends at the next heading.
+    page("<h3>Custom words</h3><p>Spelled your way.</p><h3>Accuracy</h3><p>The model recognises speech well.</p>"),
+    // A paragraph before the one that names custom words is not about them.
+    page("<h2>Changes</h2><p>The model recognises speech.</p><p>Custom words, spelled your way.</p>"),
+    // A quoted saved term is not a transcript example.
+    page("<p>Add “PostHog” as a custom word and “post hog” becomes PostHog.</p>"),
+    // Each table cell stands alone, so the other product's cells are its own.
+    page(
+      "<h2>Compare</h2><table><tr><th>Custom vocabulary</th><td>Custom words, spelled your way.</td><td>Dictionary of terms it learns to recognise.</td></tr><tr><th>Where</th><td>Audio is uploaded for recognition.</td></tr></table>",
+    ),
+  ];
+  for (const doc of honest) assert.deepEqual(customWordsProblems(doc), [], doc);
+  assert.ok(customWordsMentions(page("<p>Custom words, spelled your way.</p>")).length > 0);
+});
+
+test("the custom words check fails closed: an honest sentence it refuses passes only once reviewed", () => {
+  // Honest limits a copywriter might write that use a refused word. The check
+  // does not guess at negation or a sentence's subject, which every earlier
+  // attempt got wrong one way or the other; each such sentence is reviewed
+  // against the app and listed in REVIEWED_SENTENCES before it can ship.
+  const page = (body) => `<html><head></head><body>${body}</body></html>`;
+  const limits = [
+    "Custom words in Japanese are not supported.",
+    "They don’t work in every language: terms need Latin, Greek or Cyrillic letters.",
+    "Custom words never change what Koegaki recognises.",
+    "Custom words need no training.",
+    "Use a replacement for a name Koegaki keeps misspelling.",
+    "Add a replacement for a name Koegaki keeps misspelling.",
+    "With a replacement, a short word becomes your full email address.",
+    "The model runs on your Mac, for every language it supports.",
+  ];
+  for (const sentence of limits) {
+    const doc = page(`<p>Custom words, spelled your way.</p><p>${sentence}</p>`);
+    assert.notDeepEqual(customWordsProblems(doc), [], `passed without review: ${sentence}`);
+    assert.deepEqual(customWordsProblems(doc, new Map([[sentence, "reviewed in this probe"]])), [], sentence);
+  }
+});
+
+test("custom words are described as a spelling rule, never as recognition or as absent", () => {
+  let described = 0;
+  const onSite = new Set();
+  for (const path of ROUTES) {
+    const doc = html(path);
+    for (const block of customWordsMentions(doc)) {
+      described++;
+      for (const sentence of sentencesOf(block)) onSite.add(sentence);
+    }
+    assert.deepEqual(customWordsProblems(doc), [], `${path} misdescribes custom words`);
+  }
+  assert.ok(described > 0, "no page describes custom words");
+  // A reviewed sentence the site no longer says is dropped from the list, so
+  // the list only ever names copy someone checked.
+  for (const sentence of REVIEWED_SENTENCES.keys()) {
+    assert.ok(onSite.has(sentence), `REVIEWED_SENTENCES lists a sentence the site no longer says: "${sentence}"`);
   }
 });
 

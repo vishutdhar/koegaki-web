@@ -36,7 +36,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/mac",
     linkLabel: "Dictation for Mac",
     operatingSystem: "macOS 14.0 or later",
-    lastModified: "2026-10-03",
+    lastModified: "2026-10-05",
     name: "Koegaki for Mac",
     title: "Dictation app for Mac that runs on-device",
     description: `Private dictation for macOS. Hold a key, speak, and the text lands in almost any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
@@ -59,10 +59,17 @@ export const LANDING_PAGES: LandingPage[] = [
         ],
       },
       {
+        heading: "Your words, spelled your way",
+        paragraphs: [
+          "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog.",
+          "A lone lowercase letter stays a word of its own unless your spelling keeps it apart or every word is a single letter, so “x code” stays as it is, while “X code” becomes Xcode and “a w s” becomes AWS. Koegaki also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
+          "Replacements turn a phrase you say into the text you choose, such as a short word for your email address. They run last, so where both lists match the same words, the replacement wins. Both lists are rules applied on your Mac, the same way every time. They change how words are written, not what Koegaki hears: a custom word fixes a term Koegaki already hears in some form, and a word it hears as something else needs a replacement.",
+        ],
+      },
+      {
         heading: "What you need",
         paragraphs: [
           "An Apple Silicon Mac (M1 or later) running macOS 14 or later. Koegaki uses the microphone you already have; a headset or the built-in mic both work. There is nothing else to install.",
-          "Word replacements let you say a short word and have Koegaki type the full phrase: your email address, a name it might misspell, a piece of jargon. They are set once and apply everywhere.",
         ],
       },
       {
@@ -79,7 +86,11 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Is this different from the dictation built into macOS?",
-        a: "Yes. macOS Dictation is toggled on and off and stops on its own after 30 seconds of silence. Koegaki is push-to-talk with a shortcut you choose, works the same way in every app, and lets you define word replacements. The full comparison is on the Koegaki vs macOS Dictation page.",
+        a: "Yes. macOS Dictation is toggled on and off and stops on its own after 30 seconds of silence. Koegaki is push-to-talk with a shortcut you choose, works the same way in every app, and lets you add custom words and replacements. The full comparison is on the Koegaki vs macOS Dictation page.",
+      },
+      {
+        q: "Can I add my own words?",
+        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This works for terms in Latin, Greek or Cyrillic letters, and it changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
       },
       {
         q: "Does it need an internet connection?",
@@ -95,7 +106,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     linkLabel: "Dictation for Windows",
     operatingSystem: "Windows 10, Windows 11",
-    lastModified: "2026-10-03",
+    lastModified: "2026-10-05",
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
     description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in almost any program. Recognition runs on your PC, not the cloud. ${price} one-time.`,
@@ -118,6 +129,14 @@ export const LANDING_PAGES: LandingPage[] = [
         ],
       },
       {
+        heading: "Your words, spelled your way",
+        paragraphs: [
+          "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog.",
+          "A lone lowercase letter stays a word of its own unless your spelling keeps it apart or every word is a single letter, so “x code” stays as it is, while “X code” becomes Xcode and “a w s” becomes AWS. Koegaki also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
+          "Replacements turn a phrase you say into the text you choose, such as a short word for your email address. They run last, so where both lists match the same words, the replacement wins. Both lists are rules applied on your PC, the same way every time. They change how words are written, not what Koegaki hears: a custom word fixes a term Koegaki already hears in some form, and a word it hears as something else needs a replacement.",
+        ],
+      },
+      {
         heading: "What you need",
         paragraphs: [
           `${SITE.windowsRequirements}. The model runs on the CPU, so no particular graphics card is needed; a laptop from the last few years is plenty.`,
@@ -134,7 +153,11 @@ export const LANDING_PAGES: LandingPage[] = [
     faqs: [
       {
         q: "Is this different from Windows voice typing (Win+H)?",
-        a: "Yes. Windows voice typing sends your speech to Microsoft's online speech service and is toggled on and off. Koegaki recognises speech on your PC, is push-to-talk with a shortcut you choose, and lets you define word replacements. The full comparison is on the Koegaki vs Windows Voice Typing page.",
+        a: "Yes. Windows voice typing sends your speech to Microsoft's online speech service and is toggled on and off. Koegaki transcribes speech on your PC and is push-to-talk with a shortcut you choose. It also lets you add custom words and replacements. The full comparison is on the Koegaki vs Windows Voice Typing page.",
+      },
+      {
+        q: "Can I add my own words?",
+        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This works for terms in Latin, Greek or Cyrillic letters, and it changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
       },
       {
         q: "Does it work without internet?",

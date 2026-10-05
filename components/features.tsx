@@ -16,8 +16,8 @@ const SMALL = [
   },
   {
     icon: IconBook,
-    title: "Word replacements",
-    body: "Say a short word, Koegaki types the full phrase. Names, emails, jargon.",
+    title: "Your words, your spelling",
+    body: "Add PostHog as a custom word and “post hog” is written PostHog. Replacements turn a short word into a full phrase.",
   },
   {
     icon: IconMenuBar,
