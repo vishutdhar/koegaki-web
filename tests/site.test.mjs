@@ -747,20 +747,41 @@ const COSTLY_EXAMPLES =
 const EACH_MODEL_ONCE = "Each model downloads once, and a cleanup model downloads only when you choose it.";
 /** What `then` names when a heading, or the end of the page or of a string, follows. */
 const END = "(the end of the block)";
+/** What follows the Mac wait sentence in its section on /mac, to the end of the section. */
+const MAC_SECTION_REST = [
+  "Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.",
+  "That is the whole reason the app exists.",
+  "Most dictation apps send your voice to a server because that is the easy way to build one.",
+  "Apple Silicon is fast enough that it no longer has to be, and Koegaki uses the Neural Engine so transcription feels instant.",
+  "A multilingual speech model and an optional cleanup model are separate downloads, and they run on your Mac too.",
+];
 const REVIEWED_WAIT_SENTENCES = new Map([
   [MAC_WAIT, {
+    rest: [
+      MAC_SECTION_REST,
+      ["Each model downloads once, and a cleanup model downloads only when you choose it.", "Being offline never locks a paid licence out."],
+    ],
     where: ["/mac"],
     after: SPEECH_UPDATE,
     then: ["Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.", EACH_MODEL_ONCE],
     why: "the speech update on the Mac waits on an expensive path (Personal Hotspot) or a constrained one (Low Data Mode)",
   }],
   [WINDOWS_WAIT, {
+    rest: [
+      ["Your audio and your text stay on your machine.", "Nothing is uploaded and there is no server on our side to upload to.", "The voice typing built into Windows sends your speech to Microsoft's servers to be recognised.", "Koegaki does the recognition locally, which is why it can be used on documents you would never paste into a website.", "A multilingual speech model and an optional cleanup model are separate downloads, and they run on your PC too."],
+      ["Each model downloads once, and a cleanup model downloads only when you choose it.", "Being offline never locks a paid licence out."],
+    ],
     where: ["/windows"],
     after: SPEECH_UPDATE,
     then: ["Your audio and your text stay on your machine.", EACH_MODEL_ONCE],
     why: "the speech update on Windows waits on the cost Windows reports; cellular is metered by default and Wi-Fi only once marked",
   }],
   [BOTH_WAIT, {
+    rest: [
+      ["Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved."],
+      ["Each model downloads once, and a cleanup model downloads only when you choose it.", "If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline."],
+      [],
+    ],
     where: ["/", "/offline-dictation"],
     after: SPEECH_UPDATE,
     then: [
@@ -771,6 +792,9 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     why: "the same rule for both platforms, each example under its own OS",
   }],
   [PRIVACY_WAIT, {
+    rest: [
+      ["Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.", "A download you start yourself, and the first download after you install, go ahead on any connection.", "The license and update checks carry only license and version metadata; the update download is the app itself.", "None of this ever includes audio or transcripts."],
+    ],
     where: ["/privacy"],
     after: [[PRIVACY_UPDATE, PRIVACY_REQUEST]],
     then: [COSTLY_EXAMPLES],
@@ -903,6 +927,12 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     then: ["Beyond that, the app talks to the network to verify your license key (at activation, then a quiet daily check while licensed), to check koegaki.com for new versions, and, when an update installs, to download the new app package from our hosting storage."],
     why: "dictation is local; the network uses follow, none claimed to wait",
   }],
+  ["A home connection that drops.", {
+    where: ["/offline-dictation"],
+    after: null,
+    then: ["In every case Koegaki keeps typing what you say."],
+    why: "a place offline dictation matters; no download claimed",
+  }],
   ["Lose the connection and they stop.", {
     where: ["/offline-dictation"],
     after: [[
@@ -925,13 +955,13 @@ const REVIEWED_WAIT_SENTENCES = new Map([
  */
 function aboutWaiting(sentence) {
   const costly =
-    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap|allowance|usage)s?|allowances?|bandwidth|ordinary connection|wi-?fi)\b/i;
+    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap|allowance|usage)s?|allowances?|bandwidth|ordinary connection|home (?:networks?|connections?)|wi-?fi)\b/i;
   const waiting =
-    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped|requir\w*|(?:un)?restrict\w*|immediately|instantly|right away|at once|exclusive\w*)\b/i;
+    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped|requir\w*|(?:un)?restrict\w*|immediately|instantly|promptly|right away|at once)\b/i;
   // A promise about data or money ("never cost you extra"), next to a download
   // or a connection rather than a model, which the comparison pages name freely.
   const promise =
-    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't|balance|affect\w*|avoid\w*|needs?|needed|consum\w*|monthly)\b/i;
+    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't|balance|affect\w*|avoid\w*|needs?|needed|consum\w*|prepaid|zero bytes)\b/i;
   const transferOrData = /\b(?:download\w*|connection\w*|network\w*|data)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
@@ -1021,7 +1051,7 @@ function readingBlocks(doc) {
 function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const problems = [];
   const found = [];
-  for (const { text, before, next, heading: under, firstUnderHeading } of readingBlocks(doc)) {
+  for (const { text, before, next, rest, heading: under, firstUnderHeading } of readingBlocks(doc)) {
     const sentences = sentencesOf(text);
     const context = [...before, ...sentences];
     sentences.forEach((sentence, i) => {
@@ -1039,6 +1069,14 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
       const following = i + 1 < sentences.length ? sentences[i + 1] : next;
       if (!entry.then.includes(following)) {
         problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${following}"`);
+      }
+      // A wait claim pins the whole rest of its run, so a continuation two
+      // sentences on cannot carry the wait to another download either.
+      if (entry.rest) {
+        const remainder = [...sentences.slice(i + 1), ...rest];
+        if (!entry.rest.some((seq) => seq.length === remainder.length && seq.every((r, k) => r === remainder[k]))) {
+          problems.push(`"${sentence}" is followed by a passage it was not reviewed with: ${JSON.stringify(remainder)}`);
+        }
       }
       if (entry.after === null) return;
       const at = before.length + i;
@@ -1105,7 +1143,9 @@ test("every block that describes the background model download says when it wait
  * ("The speech model has the same approval step."), whatever the claim's words.
  */
 function ledgerProblems(reviewed = REVIEWED_WAIT_SENTENCES) {
+  const claimsWait = /\b(?:wait\w*|paus\w*|held|on hold|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*)\b/i;
   return [...reviewed].flatMap(([sentence, entry]) => [
+    ...(claimsWait.test(sentence) && !Array.isArray(entry.rest) ? [`claims a wait without pinning the rest of its passage: "${sentence}"`] : []),
     ...(!("after" in entry) || !("then" in entry) ? [`states no after or then: "${sentence}"`] : []),
     ...(!Array.isArray(entry.then) ? [`pins nothing after it: "${sentence}"`] : []),
   ]);
@@ -1186,6 +1226,9 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     "Background model downloads start immediately on any connection.",
     "Model downloads use home networks exclusively.",
     "Model downloads do not consume your monthly data.",
+    "Model downloads begin promptly on any connection.",
+    "Model downloads use zero bytes from your prepaid bundle.",
+    `${SPEECH_UPDATE[0][0]} ${MAC_WAIT} ${MAC_SECTION_REST.join(" ")} The app update follows that schedule too.`,
     "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
@@ -1208,10 +1251,18 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
   assert.notDeepEqual(ledgerProblems(unpinned), [], "a wait entry with no then passed");
   const pauses = new Map([["The background speech update pauses on costly connections.", { where: ["/"], after: null, then: null }]]);
   assert.notDeepEqual(ledgerProblems(pauses), [], "a pause entry with no then passed");
+  // Honest copy that names a download without any wait passes untouched.
+  for (const fine of [
+    "Download Koegaki with a one-time payment and no monthly subscription.",
+    "The downloaded speech model runs exclusively on your computer.",
+  ]) {
+    const doc = `<html><head></head><body><main><p>${fine}</p></main></body></html>`;
+    assert.deepEqual(waitProblems(doc).problems, [], `the wait check refused honest copy: ${fine}`);
+  }
   // Honest layouts pass: the reviewed sentences split across two paragraphs,
   // and the answer to a question in JSON-LD.
   for (const fine of [
-    `<p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p>`,
+    `<p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} ${MAC_SECTION_REST.join(" ")}</p>`,
     `<h2>What still uses the network</h2><p>${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE} If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.</p>`,
     // The FAQ draws a "+" beside each question; the answer is still under it.
     `<details><summary>What still uses the network<span>+</span></summary><p>${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE} If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.</p></details>`,
@@ -1223,10 +1274,10 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
   const faqDoc = `<html><head></head><body><script type="application/ld+json">${faq}</script></body></html>`;
   assert.deepEqual(waitProblems(faqDoc).problems, [], "the wait check refused a JSON-LD answer under its question");
   // The coverage check reads the same runs, so a split paragraph keeps its wait.
-  const split = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p></main></body></html>`;
+  const split = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} ${MAC_SECTION_REST.join(" ")}</p></main></body></html>`;
   assert.deepEqual(backgroundCoverage(split).missing, [], "the coverage check refused a split paragraph");
   assert.deepEqual([...backgroundCoverage(split).described], ["body"]);
-  const later = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p><p>The background download comes from our model mirror.</p></main></body></html>`;
+  const later = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} ${MAC_SECTION_REST.join(" ")}</p><p>The background download comes from our model mirror.</p></main></body></html>`;
   assert.deepEqual(backgroundCoverage(later).missing, [], "the coverage check refused a later description of the same download");
   const lost = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]}</p></main></body></html>`;
   assert.notDeepEqual(backgroundCoverage(lost).missing, [], "the coverage check missed a background download with no wait");
@@ -1241,7 +1292,7 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     assert.deepEqual(continued, [], `the wait check ran across a boundary in: ${fine}`);
   }
   // And it passes the block the site says.
-  const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p></main></body></html>`;
+  const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} ${MAC_SECTION_REST.join(" ")}</p></main></body></html>`;
   assert.deepEqual(waitProblems(right).problems, []);
 });
 
