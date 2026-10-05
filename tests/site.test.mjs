@@ -441,10 +441,10 @@ function textBlocks(doc) {
   };
   parts.forEach((part, i) => {
     if (i % 2 === 1) {
-      // A container that ends after a block (a FAQ answer's details, a list
-      // item, a section) closes it, so nothing after it reads as its
-      // continuation; a div is layout, not a container.
-      if (/^<\/(?:details|section|article|li|dd|dl|ul|ol|table|header|footer|main|nav)\b/i.test(part) && blocks.length) {
+      // A container that ends after a block (a FAQ answer's details, a
+      // section, a table) closes it, so nothing after it reads as its
+      // continuation; a div is layout and a list runs on like paragraphs.
+      if (/^<\/(?:details|section|article|table|header|footer|main|nav)\b/i.test(part) && blocks.length) {
         blocks[blocks.length - 1].closed = true;
       }
       if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
@@ -716,8 +716,9 @@ test("a page that promises a one-time model download also says how a new speech 
  * its string follows), so a short continuation such as "The app update does
  * too." cannot carry the wait to another download. Every entry states `after`
  * and `then`, null where nothing is pinned, and an entry that says "wait" must
- * list its `then`. An honest sentence the check flags for another reason is
- * reviewed and listed too.
+ * list its `then`. A sentence whose subject is the question it answers names
+ * that heading in `under`. An honest sentence the check flags for another
+ * reason is reviewed and listed too.
  */
 const MAC_WAIT =
   "That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on.";
@@ -810,18 +811,19 @@ const REVIEWED_WAIT_SENTENCES = new Map([
   }],
   [PRIVACY_UPDATE, {
     where: ["/privacy"],
-    after: null,
+    after: [["A new speech model arrives only with an app update."]],
     then: null,
     why: "the background speech update itself; its wait is the sentence after next",
   }],
   [SPEECH_UPDATE[2][0], {
     where: ["/mac", "/windows"],
-    after: null,
+    after: [["Dictation itself never touches the network."]],
     then: null,
     why: "the network FAQ's list: what the user chooses, and the background speech update, with no wait claimed",
   }],
   [SPEECH_UPDATE[3][0], {
     where: ["/offline-dictation"],
+    under: "What still uses the network",
     after: null,
     then: null,
     why: "the same list on the offline page",
@@ -834,7 +836,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
   }],
   ["The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com.", {
     where: ["/offline-dictation"],
-    after: null,
+    after: [["First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once."]],
     then: null,
     why: "the hosts the app reaches, for a firewall allow list; \"only\" limits where, not when",
   }],
@@ -843,6 +845,24 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     after: [["Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back."]],
     then: null,
     why: "about Wispr Flow's account and word cap, not about a Koegaki download",
+  }],
+  ["Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.", {
+    where: ["/"],
+    after: null,
+    then: null,
+    why: "the licence checks, which never lock an offline user out; no download claimed",
+  }],
+  ["Dictation itself never touches the network.", {
+    where: ["/mac", "/windows"],
+    after: null,
+    then: null,
+    why: "dictation runs on the computer; the downloads are named in the sentence after",
+  }],
+  ["The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text.", {
+    where: ["/offline-dictation"],
+    after: null,
+    then: null,
+    why: "recognition never needs the network; the background update and its wait follow",
   }],
   ["Lose the connection and they stop.", {
     where: ["/offline-dictation"],
@@ -869,6 +889,10 @@ function aboutWaiting(sentence) {
     /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap|allowance|usage)s?|allowances?|bandwidth|ordinary connection|wi-?fi)\b/i;
   const waiting =
     /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped)\b/i;
+  // A promise about data or money ("never cost you extra"), next to a download
+  // or a connection rather than a model, which the comparison pages name freely.
+  const promise = /\b(?:never|extra|charges?|bill\w*)\b/i;
+  const transferOrData = /\b(?:download\w*|connection\w*|network\w*|data)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
   // user starts, which never wait.
@@ -880,7 +904,8 @@ function aboutWaiting(sentence) {
   return (
     costly.test(sentence) ||
     carried.test(sentence) ||
-    ((waiting.test(sentence) || userStarted.test(sentence)) && transfer.test(sentence))
+    ((waiting.test(sentence) || userStarted.test(sentence)) && transfer.test(sentence)) ||
+    (promise.test(sentence) && transferOrData.test(sentence))
   );
 }
 
@@ -895,19 +920,21 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const { body, standalone } = textBlocks(doc);
   const problems = [];
   const found = [];
+  let heading = null;
   const blocks = [
     // A paragraph runs on into the next one of its section, so a continuation
     // cannot hide behind a paragraph break; a heading, a table cell, the end of
     // a container (a FAQ answer, a section) or of the page ends it. A string
     // that stands alone ends with itself.
     ...body.map((b, k) => {
+      if (b.heading) heading = b.text;
       const after = body[k + 1];
       const runsOn = after && !b.closed && !b.cell && !after.heading && !after.cell;
-      return { text: b.text, next: runsOn ? sentencesOf(after.text)[0] : END };
+      return { text: b.text, next: runsOn ? sentencesOf(after.text)[0] : END, heading };
     }),
-    ...standalone.map((text) => ({ text, next: END })),
+    ...standalone.map((text) => ({ text, next: END, heading: null })),
   ];
-  for (const { text, next } of blocks) {
+  for (const { text, next, heading: under } of blocks) {
     const sentences = sentencesOf(text);
     sentences.forEach((sentence, i) => {
       if (!aboutWaiting(sentence)) return;
@@ -917,6 +944,9 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
         return;
       }
       found.push(sentence);
+      if (entry.under && entry.under !== under) {
+        problems.push(`"${sentence}" is not under the heading it was reviewed under: "${under}"`);
+      }
       const following = i + 1 < sentences.length ? sentences[i + 1] : next;
       if (entry.then !== null && !entry.then.includes(following)) {
         problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${following}"`);
@@ -1025,6 +1055,12 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     `${SPEECH_UPDATE[1][0]} ${BOTH_WAIT}</p><p>The app update does too.`,
     "Koegaki only downloads models on an unlimited connection.",
     "Model downloads never use your data allowance.",
+    "Model downloads never use up your data.",
+    "Model downloads never cost you extra.",
+    `<ul><li>${SPEECH_UPDATE[1][0]} ${BOTH_WAIT}</li><li>The app update does too.</li></ul>`,
+    `</p><h2>What waits?</h2><p>${SPEECH_UPDATE[3][0]}`,
+    `Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. ${SPEECH_UPDATE[2][0]}`,
+    `Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. ${PRIVACY_UPDATE}`,
     "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
