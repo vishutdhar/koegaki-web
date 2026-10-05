@@ -309,8 +309,9 @@ const VERIFIED_EXAMPLES = new Map([
  * "“heard” becomes Written", "“heard” is written Written", "turns “heard” into
  * Written", and "“heard” stays" (or "is left") for text the rule does not
  * touch. A quoted saved term ("“PostHog” as a custom word") is not an example.
- * A quote in any other shape, or a "becomes" or "turns into" outside a quoted
- * example, cannot be checked, so it is a problem too: the check fails closed.
+ * A quote in any other shape, or a "becomes", "turns into" or "is written
+ * Spelling" outside a quoted example, cannot be checked, so it is a problem
+ * too: the check fails closed.
  */
 function exampleProblems(block) {
   const end = String.raw`(?=[,.;:]|\s+(?:and|while|so|though|but)\s|$)`;
@@ -328,7 +329,7 @@ function exampleProblems(block) {
     for (const m of block.matchAll(shape)) {
       const [heard, written = heard] = [m[1], m[2]];
       read.add(m.indices[1][0]);
-      const verb = m[0].search(/\b(?:becomes|turns? into|into)\b/);
+      const verb = m[0].search(/\b(?:becomes|turns? into|is written|into)\b/);
       if (verb >= 0) verbs.add(m.index + verb);
       if (VERIFIED_EXAMPLES.get(heard) !== written) {
         problems.push(`quotes an example the app does not produce: “${heard}” written as ${written}`);
@@ -338,7 +339,7 @@ function exampleProblems(block) {
   for (const m of block.matchAll(/[“"]([^”"]+)[”"]/dg)) {
     if (!read.has(m.indices[1][0])) problems.push(`quotes an example the check cannot verify: “${m[1]}”`);
   }
-  for (const m of block.matchAll(/\b(?:becomes|turns into)\b/g)) {
+  for (const m of block.matchAll(/\b(?:becomes|turns into)\b|\bis written(?= \p{Lu})/gu)) {
     if (!verbs.has(m.index)) problems.push(`gives an unquoted example the check cannot verify: "${m[0]}"`);
   }
   return problems;
@@ -353,9 +354,10 @@ function exampleProblems(block) {
  * or that they fix any misspelling; the copy says "hears" and "written" for
  * what does and does not change. They ship on both platforms, so no page may
  * call them missing, and every example it quotes must be one the app's case
- * table proves.
+ * table proves. Each sentence of a passage about custom words is judged.
  */
 function customWordsProblems(doc) {
+  const names = (sentence) => /\bcustom words?\b/i.test(sentence);
   const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/i;
   const absenceClaim =
     /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
@@ -364,17 +366,27 @@ function customWordsProblems(doc) {
   const aboutScripts =
     /\b(?:latin|greek|cyrillic|japanese|chinese|korean|arabic|hebrew|hindi|thai|scripts?|letters|alphabets?|languages?)\b/i;
   const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
-  const sentences = (block) => block.split(/(?<=[.!?])\s+/);
-  return customWordsMentions(doc).flatMap((block) => [
-    ...(recognitionClaim.test(block) ? [`describes custom words as recognition: "${block}"`] : []),
-    ...sentences(block)
-      .filter((sentence) => absenceClaim.test(sentence) && !aboutScripts.test(sentence))
-      .map((sentence) => `describes custom words as absent: "${sentence}"`),
-    ...sentences(block)
-      .filter((sentence) => /\bcustom words?\b/i.test(sentence) && everyScript.test(sentence))
-      .map((sentence) => `promises custom words in every script, past the Latin, Greek and Cyrillic limit: "${sentence}"`),
-    ...exampleProblems(block).map((problem) => `${problem}, in "${block}"`),
-  ]);
+  // In a passage about custom words, a sentence led by a replacement is about
+  // Replacements, not custom words, unless it names them. The speech model
+  // does cover every language it supports, so that phrase in a sentence about
+  // the model is not a custom words promise.
+  const ledByReplacement = (sentence) => /^\W*(?:\S+\s+){0,3}replacements?\b/i.test(sentence);
+  const aboutModel = (sentence) => /\bmodel\b/i.test(sentence) && !names(sentence);
+  return customWordsMentions(doc).flatMap((block) =>
+    block
+      .split(/(?<=[.!?])\s+/)
+      .filter((sentence) => names(sentence) || !ledByReplacement(sentence))
+      .flatMap((sentence) => [
+        ...(recognitionClaim.test(sentence) ? [`describes custom words as recognition: "${sentence}"`] : []),
+        ...(absenceClaim.test(sentence) && !aboutScripts.test(sentence)
+          ? [`describes custom words as absent: "${sentence}"`]
+          : []),
+        ...(everyScript.test(sentence) && !aboutModel(sentence)
+          ? [`promises custom words in every script, past the Latin, Greek and Cyrillic limit: "${sentence}"`]
+          : []),
+        ...exampleProblems(sentence).map((problem) => `${problem}, in "${sentence}"`),
+      ]),
+  );
 }
 
 /** Decode the entities React and the meta tags write. */
@@ -485,6 +497,13 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     ],
     ["a promise of every language", page("<p>Custom words work in every language.</p>"), /script/],
     ["an unquoted example", page("<p>Add Xcode as a custom word and x code becomes Xcode.</p>"), /unquoted/],
+    ["an unquoted example with is written", page("<p>Add Xcode as a custom word and x code is written Xcode.</p>"), /unquoted/],
+    ["a model claim in the next sentence", page("<p>Custom words, spelled your way. Over time the model learns them.</p>"), /recognition/],
+    [
+      "a promise of every language in the next sentence",
+      page("<p>Add your names and jargon as custom words. They work in every language.</p>"),
+      /script/,
+    ],
   ];
   for (const [what, doc, message] of caught) {
     const problems = customWordsProblems(doc);
@@ -507,6 +526,9 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     page("<p>Add “PostHog” as a custom word and “post hog” becomes PostHog.</p>"),
     // Every language, said of the model, is not a promise about custom words.
     page("<p>Custom words and replacements. The model runs on your Mac, for every language it supports.</p>"),
+    // A sentence led by a replacement is about replacements, not custom words.
+    page("<p>Custom words, spelled your way.</p><p>With a replacement, a short word becomes your full email address.</p>"),
+    page("<p>Custom words, spelled your way.</p><p>Use a replacement for a name Koegaki keeps misspelling.</p>"),
     // Each table cell stands alone, so the other product's cells are its own.
     page(
       "<h2>Compare</h2><table><tr><th>Custom vocabulary</th><td>Custom words, spelled your way.</td><td>Dictionary of terms it learns to recognise.</td></tr><tr><th>Where</th><td>Audio is uploaded for recognition.</td></tr></table>",
