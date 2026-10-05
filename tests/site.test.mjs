@@ -417,7 +417,8 @@ function decodeEntities(text) {
  * Every block of text on a page a visitor or a crawler reads, in order: each
  * paragraph, list item, table cell, heading and FAQ summary of the body (a
  * heading or summary is marked, and so is a table cell), then the page's
- * description meta tags and every string in its JSON-LD, which stand alone.
+ * description and social title meta tags and every string in its JSON-LD,
+ * which stand alone.
  */
 function textBlocks(doc) {
   const body = doc.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ");
@@ -461,6 +462,8 @@ function textBlocks(doc) {
     ["name", "description"],
     ["property", "og:description"],
     ["name", "twitter:description"],
+    ["property", "og:title"],
+    ["name", "twitter:title"],
   ]) {
     for (const tag of headTags(doc, key, value)) standalone.push(decodeEntities(attr(tag, "content") ?? ""));
   }
@@ -743,9 +746,9 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     after: [[PRIVACY_UPDATE, PRIVACY_REQUEST]],
     why: "names exactly the two downloads that wait, not every download the app starts by itself",
   }],
-  ["On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.", {
+  ["Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.", {
     where: ["/privacy"],
-    after: [[PRIVACY_WAIT]],
+    after: null,
     why: "each OS's own signal, and a Windows phone hotspot counts only once marked metered",
   }],
   ["A download you start yourself, and the first download after you install, go ahead on any connection.", {
@@ -763,6 +766,21 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     after: null,
     why: "the background speech update itself; its wait is the sentence after next",
   }],
+  [SPEECH_UPDATE[2][0], {
+    where: ["/mac", "/windows"],
+    after: null,
+    why: "the network FAQ's list: what the user chooses, and the background speech update, with no wait claimed",
+  }],
+  [SPEECH_UPDATE[3][0], {
+    where: ["/offline-dictation"],
+    after: null,
+    why: "the same list on the offline page",
+  }],
+  ["Each model downloads once, and a cleanup model downloads only when you choose it.", {
+    where: ["/mac", "/windows", "/offline-dictation"],
+    after: null,
+    why: "a cleanup model is never downloaded unless the user chose it; no wait claimed",
+  }],
   ["Lose the connection and they stop.", {
     where: ["/offline-dictation"],
     after: [[
@@ -777,16 +795,27 @@ const REVIEWED_WAIT_SENTENCES = new Map([
  * Whether a sentence speaks of a costly connection, or of a download, model,
  * update or connection being made to wait. A word list cannot see every
  * wording, so it is wide on purpose and an honest sentence it flags is
- * reviewed into REVIEWED_WAIT_SENTENCES. "Later" after a version or a chip
- * ("macOS 14 or later", "M1 and later") is a requirement, not a wait.
+ * reviewed into REVIEWED_WAIT_SENTENCES. A sentence about the downloads a user
+ * starts, or one that carries a rule over from another, is flagged too, since a
+ * wait claimed for either is the likeliest overclaim. "Later" after a version or
+ * a chip ("macOS 14 or later", "M1 and later") is a requirement, not a wait.
  */
 function aboutWaiting(sentence) {
   const costly =
-    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|low data mode|cellular|mobile data|roaming|data (?:limit|plan|cap)s?|ordinary connection|wi-?fi)\b/i;
+    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap)s?|ordinary connection|wi-?fi)\b/i;
   const waiting =
-    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*)\b/i;
+    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*)\b/i;
+  // A sentence that carries a wait over from another ("the same rule
+  // applies") or speaks of the downloads a user starts, which never wait.
+  const carried = /\b(?:(?:same|this|that|these) rules?|also appl\w*|appl\w* (?:too|as well|equally)|likewise|the same goes)\b/i;
+  const userStarted =
+    /\byou (?:start|started|choose|chose|pick|picked|select|selected|click|clicked|accept|accepted|turn(?:ed)? on|ask for|asked for)\b|\b(?:manual\w*|user[- ]initiated|on demand)\b/i;
   const transfer = /\b(?:download\w*|connection\w*|network\w*|models?|updates?|transfer\w*|fetch\w*)\b/i;
-  return costly.test(sentence) || (waiting.test(sentence) && transfer.test(sentence));
+  return (
+    costly.test(sentence) ||
+    carried.test(sentence) ||
+    ((waiting.test(sentence) || userStarted.test(sentence)) && transfer.test(sentence))
+  );
 }
 
 /**
@@ -892,10 +921,20 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     "Koegaki downloads models now on your home connection, or later if you are using your phone for internet access.",
     "Koegaki downloads models immediately at home, and later when you are using your phone for internet access.",
     "Koegaki runs speech and cleanup models on your computer. Lose the connection and they stop.",
+    `${SPEECH_UPDATE[0][0]} ${MAC_WAIT} The same rule applies to downloads you start yourself.`,
+    "The same rule applies to downloads you start yourself.",
+    "All model downloads are blocked on mobile connections.",
+    "Downloads you start yourself wait too.",
+    "Every download is suspended while you are away from home.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
-    const doc = `<html><head></head><body><main><p>${wrong}</p></main></body></html>`;
-    assert.notDeepEqual(waitProblems(doc).problems, [], `the wait check let through: "${wrong}"`);
+    // In the body, and standing alone in a social title.
+    for (const doc of [
+      `<html><head></head><body><main><p>${wrong}</p></main></body></html>`,
+      `<html><head><meta property="og:title" content="${wrong.replace(/"/g, "&quot;")}"/></head><body></body></html>`,
+    ]) {
+      assert.notDeepEqual(waitProblems(doc).problems, [], `the wait check let through: "${wrong}"`);
+    }
   }
   // And it passes the block the site says.
   const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT}</p></main></body></html>`;
