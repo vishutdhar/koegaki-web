@@ -9,11 +9,11 @@ export const FAQS = [
   },
   {
     q: "What do I need to run it?",
-    a: `Mac: ${SITE.requirements}, where the model uses the Neural Engine. Windows: ${SITE.windowsRequirements}. One licence covers both.`,
+    a: `Mac: ${SITE.requirements}, where the model uses the Neural Engine. Windows: ${SITE.windowsRequirements}. One license covers both.`,
   },
   {
     q: "Does it need the internet?",
-    a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
+    a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
   },
   {
     q: "Can I add my own words?",
