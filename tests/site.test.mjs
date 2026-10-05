@@ -694,57 +694,123 @@ test("a page that promises a one-time model download also says how a new speech 
  * so there a phone hotspot waits only once the user marks it metered.
  *
  * The check fails closed, the lesson of the custom words check above: a
- * sentence about waiting, pausing or holding a download, or about a costly or
- * metered connection, passes only when listed here, however it is worded. A
- * listed sentence must appear on exactly the pages named, so a Mac sentence
- * cannot land on the Windows page and a sentence the site stops saying is
- * dropped.
+ * sentence that aboutWaiting() flags passes only when listed here. A listed
+ * sentence must appear on exactly the pages named, so a Mac sentence cannot land
+ * on the Windows page and a sentence the site stops saying is dropped. Where a
+ * sentence leans on the one before it ("That download"), `follows` says what
+ * that must be: SPEECH_UPDATE, the background speech update (through any
+ * "That download" sentences between), or an exact sentence. An honest sentence
+ * the check flags for another reason is reviewed and listed too, with `follows`
+ * null.
  */
+const SPEECH_UPDATE = "the background speech update";
 const MAC_WAIT =
   "That download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on.";
 const WINDOWS_WAIT =
-  "That download waits while your PC is on a metered connection, such as a cellular link or a network you have set as metered, as you can for a phone hotspot.";
+  "That download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot.";
 const BOTH_WAIT =
   "That download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.";
+const PRIVACY_WAIT =
+  "That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.";
 const REVIEWED_WAIT_SENTENCES = new Map([
   [MAC_WAIT, {
     where: ["/mac"],
+    follows: SPEECH_UPDATE,
     why: "the speech update on the Mac waits on an expensive path (Personal Hotspot) or a constrained one (Low Data Mode)",
   }],
   [WINDOWS_WAIT, {
     where: ["/windows"],
-    why: "the speech update on Windows waits on a metered cost; cellular is metered by default and Wi-Fi only once marked",
+    follows: SPEECH_UPDATE,
+    why: "the speech update on Windows waits on the cost Windows reports; cellular is metered by default and Wi-Fi only once marked",
   }],
   [BOTH_WAIT, {
     where: ["/", "/offline-dictation"],
+    follows: SPEECH_UPDATE,
     why: "the same rule for both platforms, each example under its own OS",
   }],
-  ["That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.", {
+  [PRIVACY_WAIT, {
     where: ["/privacy"],
+    follows: SPEECH_UPDATE,
     why: "names exactly the two downloads that wait, not every download the app starts by itself",
   }],
   ["On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.", {
     where: ["/privacy"],
+    follows: PRIVACY_WAIT,
     why: "each OS's own signal, and a Windows phone hotspot counts only once marked metered",
   }],
   ["A download you start yourself, and the first download after you install, go ahead on any connection.", {
     where: ["/privacy"],
+    follows: null,
     why: "a download the user starts and the first install have no gate on either platform",
+  }],
+  ["A newer cleanup model is offered on the Home screen, and nothing downloads until you choose to update it.", {
+    where: ["/privacy"],
+    follows: null,
+    why: "a newer cleanup model is the user's to accept; the launch download is of the model already chosen",
+  }],
+  ["When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background from our model mirror, a download of several hundred megabytes, and you keep dictating on your current model until the new one is ready.", {
+    where: ["/privacy"],
+    follows: null,
+    why: "the background speech update itself; its wait is the sentence after next",
+  }],
+  ["Lose the connection and they stop.", {
+    where: ["/offline-dictation"],
+    follows: null,
+    why: "about server dictation tools, which stop without a connection, not about a Koegaki download",
   }],
 ]);
 
-/** Whether a sentence speaks of a download waiting or of a costly connection. */
+/**
+ * Whether a sentence speaks of a costly connection, or of a download, model,
+ * update or connection being made to wait. A word list cannot see every
+ * wording, so it is wide on purpose and an honest sentence it flags is
+ * reviewed into REVIEWED_WAIT_SENTENCES.
+ */
 function aboutWaiting(sentence) {
-  const costly = /\b(?:costly|metered|unmetered|hotspots?|low data mode|cellular|roaming|data limit|ordinary connection)\b/i;
+  const costly =
+    /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|low data mode|cellular|mobile data|roaming|data (?:limit|plan|cap)s?|ordinary connection|wi-?fi)\b/i;
   const waiting =
-    /\b(?:wait(?:s|ed|ing)?|paus(?:e|es|ed|ing)|hold(?:s|ing)?|held|defer(?:s|red|ring)?|postpon(?:e|es|ed|ing)|delay(?:s|ed|ing)?|resum(?:e|es|ed|ing)|go(?:es)? ahead)\b/i;
-  return costly.test(sentence) || (waiting.test(sentence) && /\b(?:download|connection|network)/i.test(sentence));
+    /\b(?:wait\w*|paus\w*|held|hold(?:s|ing)? (?:back|off)|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:or|and)\s)later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*)\b/i;
+  const transfer = /\b(?:download\w*|connection\w*|network\w*|models?|updates?|transfer\w*|fetch\w*)\b/i;
+  return costly.test(sentence) || (waiting.test(sentence) && transfer.test(sentence));
 }
 
-/** Each sentence of a page about waiting, from the body and from what stands alone (meta and JSON-LD). */
-function waitSentences(doc) {
+/** Whether a sentence describes the background download of the speech model an update brings. */
+const namesSpeechUpdate = (sentence) =>
+  /\bbackground\b/i.test(sentence) && /\bspeech model\b/i.test(sentence) && /\bupdate brings\b/i.test(sentence);
+
+/**
+ * What is wrong with what a page says about waiting: each flagged sentence of
+ * every block, from the body and from what stands alone (meta and JSON-LD),
+ * that is unreviewed, or reviewed but after the wrong sentence. With the pages
+ * each reviewed sentence was found on, for the where check.
+ */
+function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const { body, standalone } = textBlocks(doc);
-  return [...body.map((b) => b.text), ...standalone].flatMap(sentencesOf).filter(aboutWaiting);
+  const problems = [];
+  const found = [];
+  for (const block of [...body.map((b) => b.text), ...standalone]) {
+    const sentences = sentencesOf(block);
+    sentences.forEach((sentence, i) => {
+      if (!aboutWaiting(sentence)) return;
+      const entry = reviewed.get(sentence);
+      if (!entry) {
+        problems.push(`says something unreviewed about a download waiting: "${sentence}"`);
+        return;
+      }
+      found.push(sentence);
+      if (entry.follows === SPEECH_UPDATE) {
+        let j = i - 1;
+        while (j >= 0 && sentences[j].startsWith("That download")) j--;
+        if (j < 0 || !namesSpeechUpdate(sentences[j])) {
+          problems.push(`"${sentence}" does not follow the background speech update: "${sentences[j] ?? ""}"`);
+        }
+      } else if (entry.follows !== null && sentences[i - 1] !== entry.follows) {
+        problems.push(`"${sentence}" does not follow "${entry.follows}"`);
+      }
+    });
+  }
+  return { problems, found };
 }
 
 test("every block that describes the background model download says when it waits", () => {
@@ -781,27 +847,25 @@ test("every block that describes the background model download says when it wait
   });
 });
 
-test("every sentence about a download waiting is one reviewed, on the pages it was reviewed for", () => {
+test("every sentence about a download waiting is one reviewed, after the sentence it leans on, on the pages it was reviewed for", () => {
   const seen = new Map();
   for (const path of ROUTES) {
-    for (const sentence of waitSentences(html(path))) {
-      assert.ok(
-        REVIEWED_WAIT_SENTENCES.has(sentence),
-        `${path} says something unreviewed about a download waiting: "${sentence}"`,
-      );
-      seen.set(sentence, new Set([...(seen.get(sentence) ?? []), path]));
-    }
+    const { problems, found } = waitProblems(html(path));
+    assert.deepEqual(problems, [], `${path} misdescribes when a download waits`);
+    for (const sentence of found) seen.set(sentence, new Set([...(seen.get(sentence) ?? []), path]));
   }
   for (const [sentence, { where }] of REVIEWED_WAIT_SENTENCES) {
     assert.deepEqual([...(seen.get(sentence) ?? [])].sort(), [...where].sort(), `pages that say "${sentence}"`);
   }
 });
 
-test("the wait check refuses an overclaim however it is worded", () => {
-  // Each a sentence a page must never say: every automatic download waits (a
+test("the wait check refuses each overclaim it is known to have to catch", () => {
+  // Each a block a page must never say: every automatic download waits (a
   // small repair and a set that will not load go ahead), a download the user
   // starts waits, the update waits, the first install waits, a Windows phone
-  // hotspot waits unmarked, Low Data Mode on Windows.
+  // hotspot waits unmarked, Low Data Mode on Windows, and a reviewed "That
+  // download" sentence after a download that is not the background speech
+  // update. A wording found to slip past is added here first.
   for (const wrong of [
     "All automatic model downloads wait on a phone hotspot.",
     "That download, and any model download you did not start yourself, waits while your computer is on a connection it treats as costly.",
@@ -810,11 +874,19 @@ test("the wait check refuses an overclaim however it is worded", () => {
     "The first download after you install is held until you are back on an ordinary connection.",
     "That download waits while your PC is on a phone hotspot or another connection it treats as metered.",
     "That download waits while your PC is in Low Data Mode.",
+    "Every download stops on an expensive connection.",
+    "The model you select waits until Wi-Fi is available.",
+    `You can download app updates from Settings. ${BOTH_WAIT}`,
+    `You can download app updates from Settings. That download is quick. ${BOTH_WAIT}`,
+    `${MAC_WAIT}`,
+    `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
     const doc = `<html><head></head><body><main><p>${wrong}</p></main></body></html>`;
-    const unreviewed = waitSentences(doc).filter((s) => !REVIEWED_WAIT_SENTENCES.has(s));
-    assert.deepEqual(unreviewed, [wrong], `the wait check let through: "${wrong}"`);
+    assert.notDeepEqual(waitProblems(doc).problems, [], `the wait check let through: "${wrong}"`);
   }
+  // And it passes the block the site says.
+  const right = `<html><head></head><body><main><p>When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. ${MAC_WAIT}</p></main></body></html>`;
+  assert.deepEqual(waitProblems(right).problems, []);
 });
 
 test("no page promises a change for an app version the site already serves", () => {

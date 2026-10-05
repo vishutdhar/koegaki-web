@@ -124,7 +124,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Transcription happens on your PC",
         paragraphs: [
-          `Koegaki transcribes with ${SITE.windowsEngine}. The model downloads once on first launch, and from then on dictation works with no internet connection at all. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That download waits while your PC is on a metered connection, such as a cellular link or a network you have set as metered, as you can for a phone hotspot. Your audio and your text stay on your machine. Nothing is uploaded and there is no server on our side to upload to.`,
+          `Koegaki transcribes with ${SITE.windowsEngine}. The model downloads once on first launch, and from then on dictation works with no internet connection at all. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot. Your audio and your text stay on your machine. Nothing is uploaded and there is no server on our side to upload to.`,
           "The voice typing built into Windows sends your speech to Microsoft's servers to be recognised. Koegaki does the recognition locally, which is why it can be used on documents you would never paste into a website. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your PC too.",
         ],
       },
@@ -161,7 +161,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it work without internet?",
-        a: "Yes. Once the speech model has downloaded, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That download waits while your PC is on a metered connection, such as a cellular link or a network you have set as metered, as you can for a phone hotspot. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
+        a: "Yes. Once the speech model has downloaded, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
       },
       {
         q: "Which versions of Windows are supported?",
