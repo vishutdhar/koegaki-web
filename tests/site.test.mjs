@@ -358,30 +358,39 @@ function exampleProblems(block) {
  */
 function customWordsProblems(doc) {
   const names = (sentence) => /\bcustom words?\b/i.test(sentence);
-  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/i;
+  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/gi;
   const absenceClaim =
     /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
   // A sentence about which letters or languages qualify states the script
   // limit (spec item 4); it does not say the feature is missing.
   const aboutScripts =
     /\b(?:latin|greek|cyrillic|japanese|chinese|korean|arabic|hebrew|hindi|thai|scripts?|letters|alphabets?|languages?)\b/i;
-  const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
-  // In a passage about custom words, a sentence led by a replacement is about
-  // Replacements, not custom words, unless it names them. The speech model
-  // does cover every language it supports, so that phrase in a sentence about
-  // the model is not a custom words promise.
-  const ledByReplacement = (sentence) => /^\W*(?:\S+\s+){0,3}replacements?\b/i.test(sentence);
-  const aboutModel = (sentence) => /\bmodel\b/i.test(sentence) && !names(sentence);
+  const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/gi;
+  // A sentence whose subject is a replacement is about Replacements, and one
+  // whose subject is the speech model may say it covers every language it
+  // supports; neither is a claim about custom words unless it names them.
+  // The subject is how the sentence starts, not a word anywhere in it.
+  const ledByReplacement = (sentence) =>
+    !names(sentence) && /^\W*(?:(?:with|use)\s+)?(?:an?\s+)?replacements?\b/i.test(sentence);
+  const ledByModel = (sentence) => !names(sentence) && /^\W*(?:and\s+)?the\s+(?:speech\s+)?model\b/i.test(sentence);
+  // A match counts unless its own clause negates it before the match ("never
+  // change what Koegaki recognises", "need no training", "don't work in every
+  // language"); a clause ends at a comma, semicolon, colon or parenthesis.
+  const asserted = (sentence, claim) =>
+    [...sentence.matchAll(claim)].some((m) => {
+      const clause = sentence.slice(0, m.index).split(/[,;:(]/).pop();
+      return !/\b(?:not|never|no|nothing|without|neither|nor)\b|n['’]t\b/i.test(clause);
+    });
   return customWordsMentions(doc).flatMap((block) =>
     block
       .split(/(?<=[.!?])\s+/)
-      .filter((sentence) => names(sentence) || !ledByReplacement(sentence))
+      .filter((sentence) => !ledByReplacement(sentence))
       .flatMap((sentence) => [
-        ...(recognitionClaim.test(sentence) ? [`describes custom words as recognition: "${sentence}"`] : []),
+        ...(asserted(sentence, recognitionClaim) ? [`describes custom words as recognition: "${sentence}"`] : []),
         ...(absenceClaim.test(sentence) && !aboutScripts.test(sentence)
           ? [`describes custom words as absent: "${sentence}"`]
           : []),
-        ...(everyScript.test(sentence) && !aboutModel(sentence)
+        ...(!ledByModel(sentence) && asserted(sentence, everyScript)
           ? [`promises custom words in every script, past the Latin, Greek and Cyrillic limit: "${sentence}"`]
           : []),
         ...exampleProblems(sentence).map((problem) => `${problem}, in "${sentence}"`),
@@ -500,6 +509,21 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     ["an unquoted example with is written", page("<p>Add Xcode as a custom word and x code is written Xcode.</p>"), /unquoted/],
     ["a model claim in the next sentence", page("<p>Custom words, spelled your way. Over time the model learns them.</p>"), /recognition/],
     [
+      "a promise of every language beside the model",
+      page("<p>Add your names and jargon as custom words. They work in every language the speech model supports.</p>"),
+      /script/,
+    ],
+    [
+      "a promise of every language beside replacements",
+      page("<p>Add your names and jargon as custom words. Like replacements, they work in every language.</p>"),
+      /script/,
+    ],
+    [
+      "a claim after a negated clause",
+      page("<p>No training needed: Koegaki learns your custom words instantly.</p>"),
+      /recognition/,
+    ],
+    [
       "a promise of every language in the next sentence",
       page("<p>Add your names and jargon as custom words. They work in every language.</p>"),
       /script/,
@@ -526,6 +550,10 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     page("<p>Add “PostHog” as a custom word and “post hog” becomes PostHog.</p>"),
     // Every language, said of the model, is not a promise about custom words.
     page("<p>Custom words and replacements. The model runs on your Mac, for every language it supports.</p>"),
+    // A negated claim states a limit.
+    page("<p>Custom words, spelled your way. They don’t work in every language: terms need Latin, Greek or Cyrillic letters.</p>"),
+    page("<p>Custom words never change what Koegaki recognises.</p>"),
+    page("<p>Custom words need no training.</p>"),
     // A sentence led by a replacement is about replacements, not custom words.
     page("<p>Custom words, spelled your way.</p><p>With a replacement, a short word becomes your full email address.</p>"),
     page("<p>Custom words, spelled your way.</p><p>Use a replacement for a name Koegaki keeps misspelling.</p>"),
