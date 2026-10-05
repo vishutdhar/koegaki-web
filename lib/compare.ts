@@ -34,7 +34,7 @@ const koegakiCommon = {
   price: `${price}, ${trial}. Every feature included, free updates for life.`,
   platforms: "macOS 14+ and Windows 10 & 11, one licence for both.",
   trigger: "Hold a shortcut you choose (push-to-talk), or toggle with one press.",
-  vocab: "Custom words, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This changes how a word is written, not what is heard. Replacements turn a phrase you say into the text you choose.",
+  vocab: "Custom words in Latin, Greek or Cyrillic letters, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This changes how a word is written, not what is heard. Replacements turn a phrase you say into the text you choose.",
   offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
 };
 
