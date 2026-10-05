@@ -3,19 +3,18 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.8.0</title>
-            <pubDate>Sun, 04 Oct 2026 20:15:23 -0400</pubDate>
-            <sparkle:version>23</sparkle:version>
-            <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
+            <title>1.8.1</title>
+            <pubDate>Mon, 05 Oct 2026 12:07:14 -0400</pubDate>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>1.8.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.8.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.8.1</h2>
 <ul>
-    <li>Custom words. Add the names and terms you use on the Vocabulary page, and Koegaki can write them the way you spelled them when it hears them split, hyphenated or in a different case: post hog becomes PostHog, X code becomes Xcode.</li>
-    <li>Replacements still run last and win where the two overlap. A word that differs only in case is changed only when your spelling is several words or has a capital inside a lowercase word, like PostHog or iPhone, so adding US never changes us.</li>
-    <li>Custom words change only how matching words are written, never what Koegaki hears, and they never leave your Mac. A term with punctuation other than hyphens and apostrophes, such as Node.js, or written outside the Latin, Greek and Cyrillic alphabets is left as heard.</li>
+    <li>The Custom words list now marks a word that will not be applied, such as a word written in Japanese, Node.js, the single letter x, or a word that a replacement already matches. One line under the word says why. It follows what you type, and the word is still saved.</li>
+    <li>When Koegaki restarts itself after a model update or to recover the microphone, a setting saved just before the restart is now kept. The window stops taking changes just before the new copy opens, and the new copy waits up to a few seconds for the old one to close before it reads your settings.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.8.0.dmg" length="31293492" type="application/octet-stream" sparkle:edSignature="7FjV2uCFvk7lKF1Z/uiRnrtyZzTbMohAQ86u2a/VnqLy9EEklz9cr2HFLPyxDB4oqWuCsiO5/N4ExTo4XXUzAQ=="/>
+            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.8.1.dmg" length="31320305" type="application/octet-stream" sparkle:edSignature="nuaXsb2EMxuNsuL7nIKSrL+IeugnTaAtFxXQvUVTWW6Ter9XanLQEPDvmZsYZwHS+wLiCYUAl2YSPAlKzt8aAg=="/>
         </item>
     </channel>
 </rss>

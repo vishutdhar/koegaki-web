@@ -1,11 +1,11 @@
 {
-  "version": "1.8.0",
-  "notes": "Custom words. Add the names and terms you use on the Vocabulary page, and Koegaki can write them the way you spelled them when it hears them split, hyphenated or in a different case: post hog becomes PostHog, X code becomes Xcode. Replacements still run last and win where the two overlap. A word that differs only in case is changed only when your spelling is several words or has a capital inside a lowercase word, like PostHog or iPhone, so adding US never changes us. Custom words change only how matching words are written, never what Koegaki hears, and Koegaki never sends them anywhere. A custom word with punctuation other than hyphens and apostrophes, such as Node.js, or written outside the Latin, Greek and Cyrillic alphabets is not applied.",
-  "pub_date": "2026-10-05T00:25:52Z",
+  "version": "1.8.1",
+  "notes": "Custom words now tell you when a word can never apply. A line under the word on the Vocabulary page says why, for example that the period in Node.js keeps it from applying, or that a replacement turns it off. The line updates as you type and when you add or remove a replacement, and it never stops a word from being saved. If a new English model downloading in the background became ready while you were switching to the Multilingual model, and you then pressed Stop the download or the switch failed, the old English model could stay in use until the next launch. Koegaki now tries the new one again in the background, so it can take over without a restart.",
+  "pub_date": "2026-10-05T16:40:12Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2tWYUhkK1lUZjFnNm4vM3podUlHQUltMmNwM21acmEwa1JoT0pNTGlwdnBHQ0RobTBLOTBvRVh5YmVSKzZhVEI3eWIyWWM0Snl1NERxaTdNOVhHZHc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMTU5ODUwCWZpbGU6S29lZ2FraV8xLjguMF94NjQtc2V0dXAuZXhlCkRJb2I3bmlBWFROMzdRWjdHOFhUQU9rSXkyRnNOM0NOb05PVE95TnJESUI1TU1TeEprZmdRanIySzArdjl4V1pBQnBBTExhaEtCSm1Mek5USHJnakFnPT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.8.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3Njd2UvcDdhblBiWG1OZCtQQmgxaW91Rk8zdHdpRXNiSmp0NTBsbHY0aUM0Rm5NTGMxaElIektjZHJ3RS9jNStPNjVKWG5wYXJaWDI4NTZwTldKOXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjE4MzA5CWZpbGU6S29lZ2FraV8xLjguMV94NjQtc2V0dXAuZXhlCmQ4WnJXTzJGMDNvSlZLYURDVXhBY0pXR2FuV2R0c0dXaDdERHJJSHNBS0JsN3Buc0JjRFMvUFUvUTlGb3FTYTQ3V05CSllSQUVFWUNNaTB0ZnFhWkFRPT0K",
+      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.8.1-setup.exe"
     }
   }
 }
