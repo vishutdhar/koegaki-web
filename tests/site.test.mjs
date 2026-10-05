@@ -305,14 +305,16 @@ const VERIFIED_EXAMPLES = new Map([
 ]);
 
 /**
- * Every quoted transcript example in a block, checked against
- * VERIFIED_EXAMPLES: "“heard” becomes Written", "“heard” is written Written",
- * "turns “heard” into Written", and "“heard” stays" (or "is left") for text
- * the rule does not touch. A quote in any other shape cannot be checked, so it
- * is a problem too: the check fails closed.
+ * Every transcript example in a block, checked against VERIFIED_EXAMPLES:
+ * "“heard” becomes Written", "“heard” is written Written", "turns “heard” into
+ * Written", and "“heard” stays" (or "is left") for text the rule does not
+ * touch. A quoted saved term ("“PostHog” as a custom word") is not an example.
+ * A quote in any other shape, or a "becomes" or "turns into" outside a quoted
+ * example, cannot be checked, so it is a problem too: the check fails closed.
  */
 function exampleProblems(block) {
   const end = String.raw`(?=[,.;:]|\s+(?:and|while|so|though|but)\s|$)`;
+  const savedTerm = /[“"]([^”"]+)[”"]\s+as\s+a\s+custom\s+word\b/dg;
   const shapes = [
     new RegExp(String.raw`[“"]([^”"]+)[”"]\s+(?:becomes|is written|turns into)\s+([^,.;:]+?)${end}`, "dg"),
     new RegExp(String.raw`\bturns?\s+[“"]([^”"]+)[”"]\s+into\s+([^,.;:]+?)${end}`, "dg"),
@@ -320,10 +322,14 @@ function exampleProblems(block) {
   ];
   const problems = [];
   const read = new Set();
+  const verbs = new Set();
+  for (const m of block.matchAll(savedTerm)) read.add(m.indices[1][0]);
   for (const shape of shapes) {
     for (const m of block.matchAll(shape)) {
       const [heard, written = heard] = [m[1], m[2]];
       read.add(m.indices[1][0]);
+      const verb = m[0].search(/\b(?:becomes|turns? into|into)\b/);
+      if (verb >= 0) verbs.add(m.index + verb);
       if (VERIFIED_EXAMPLES.get(heard) !== written) {
         problems.push(`quotes an example the app does not produce: “${heard}” written as ${written}`);
       }
@@ -331,6 +337,9 @@ function exampleProblems(block) {
   }
   for (const m of block.matchAll(/[“"]([^”"]+)[”"]/dg)) {
     if (!read.has(m.indices[1][0])) problems.push(`quotes an example the check cannot verify: “${m[1]}”`);
+  }
+  for (const m of block.matchAll(/\b(?:becomes|turns into)\b/g)) {
+    if (!verbs.has(m.index)) problems.push(`gives an unquoted example the check cannot verify: "${m[0]}"`);
   }
   return problems;
 }
@@ -350,9 +359,20 @@ function customWordsProblems(doc) {
   const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/i;
   const absenceClaim =
     /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
+  // A sentence about which letters or languages qualify states the script
+  // limit (spec item 4); it does not say the feature is missing.
+  const aboutScripts =
+    /\b(?:latin|greek|cyrillic|japanese|chinese|korean|arabic|hebrew|hindi|thai|scripts?|letters|alphabets?|languages?)\b/i;
+  const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
+  const sentences = (block) => block.split(/(?<=[.!?])\s+/);
   return customWordsMentions(doc).flatMap((block) => [
     ...(recognitionClaim.test(block) ? [`describes custom words as recognition: "${block}"`] : []),
-    ...(absenceClaim.test(block) ? [`describes custom words as absent: "${block}"`] : []),
+    ...sentences(block)
+      .filter((sentence) => absenceClaim.test(sentence) && !aboutScripts.test(sentence))
+      .map((sentence) => `describes custom words as absent: "${sentence}"`),
+    ...sentences(block)
+      .filter((sentence) => /\bcustom words?\b/i.test(sentence) && everyScript.test(sentence))
+      .map((sentence) => `promises custom words in every script, past the Latin, Greek and Cyrillic limit: "${sentence}"`),
     ...exampleProblems(block).map((problem) => `${problem}, in "${block}"`),
   ]);
 }
@@ -371,8 +391,8 @@ function decodeEntities(text) {
 /**
  * Every block of text on a page a visitor or a crawler reads, in order: each
  * paragraph, list item, table cell, heading and FAQ summary of the body (a
- * heading or summary is marked), then the page's description meta tags and
- * every string in its JSON-LD, which stand alone.
+ * heading or summary is marked, and so is a table cell), then the page's
+ * description meta tags and every string in its JSON-LD, which stand alone.
  */
 function textBlocks(doc) {
   const body = doc.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ");
@@ -381,12 +401,15 @@ function textBlocks(doc) {
   );
   const blocks = [];
   let inHeading = false;
+  let inCell = false;
   for (const part of parts) {
     if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
     else if (/^<\/(?:h[1-6]|summary)\b/i.test(part)) inHeading = false;
+    else if (/^<t[dh]\b/i.test(part)) inCell = true;
+    else if (/^<\/t[dh]\b/i.test(part)) inCell = false;
     else if (!part.startsWith("<")) {
       const text = decodeEntities(part.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
-      if (text) blocks.push({ text, heading: inHeading });
+      if (text) blocks.push({ text, heading: inHeading, cell: inCell });
     }
   }
   const standalone = [];
@@ -406,20 +429,31 @@ function textBlocks(doc) {
 }
 
 /**
- * Every block of a page about custom words: one that names them, and every
- * block under a heading or FAQ question that names them, up to the next one.
- * A claim is judged with the rest of its block, so a sentence cannot escape
- * the check by following the one that names the feature, or by sitting under
- * a heading that does.
+ * Every block of a page about custom words: one that names them, every block
+ * after it up to the next heading or FAQ question, and every block under a
+ * heading or FAQ question that names them, up to the next one. A table cell
+ * stands alone, since the next cell may be another product's. A claim is
+ * judged with the rest of its block, so a sentence cannot escape the check by
+ * following the one that names the feature, by sitting in a later paragraph
+ * of its section, or by sitting under a heading that names it.
  */
 function customWordsMentions(doc) {
   const names = (text) => /\bcustom words?\b/i.test(text);
   const { body, standalone } = textBlocks(doc);
   const mentions = [];
   let underHeading = false;
-  for (const { text, heading } of body) {
-    if (heading) underHeading = names(text);
-    if (underHeading || names(text)) mentions.push(text);
+  let afterMention = false;
+  for (const { text, heading, cell } of body) {
+    if (heading) {
+      underHeading = names(text);
+      afterMention = false;
+    }
+    if (cell) {
+      if (names(text)) mentions.push(text);
+      continue;
+    }
+    if (underHeading || afterMention || names(text)) mentions.push(text);
+    if (names(text)) afterMention = true;
   }
   return [...mentions, ...standalone.filter(names)];
 }
@@ -444,6 +478,13 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     ["a claim under a heading that names it", page("<h3>Custom words</h3><p>Koegaki learns your product names as you dictate.</p>"), /recognition/],
     ["an example the app does not produce", page("<p>Custom words turn “x code” into Xcode.</p>"), /example/],
     ["an example the case table does not prove", page("<p>Custom words fix “pozt hog” as well.</p>"), /example/],
+    [
+      "a claim in a later paragraph of its section",
+      page("<h2>Your words</h2><p>Custom words, spelled your way.</p><p>Koegaki learns your product names as you dictate.</p>"),
+      /recognition/,
+    ],
+    ["a promise of every language", page("<p>Custom words work in every language.</p>"), /script/],
+    ["an unquoted example", page("<p>Add Xcode as a custom word and x code becomes Xcode.</p>"), /unquoted/],
   ];
   for (const [what, doc, message] of caught) {
     const problems = customWordsProblems(doc);
@@ -458,8 +499,20 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     page("<p>Custom words leave a lone letter, as in “x code”, usually stays a word of its own.</p>"),
     // A heading's context ends at the next heading.
     page("<h3>Custom words</h3><p>Spelled your way.</p><h3>Accuracy</h3><p>The model recognises speech well.</p>"),
+    // A paragraph before the one that names custom words is not about them.
+    page("<h2>Changes</h2><p>The model recognises speech.</p><p>Custom words, spelled your way.</p>"),
+    // A limit on scripts is not the feature being absent.
+    page("<p>Custom words in Japanese are not supported.</p>"),
+    // A quoted saved term is not a transcript example.
+    page("<p>Add “PostHog” as a custom word and “post hog” becomes PostHog.</p>"),
+    // Every language, said of the model, is not a promise about custom words.
+    page("<p>Custom words and replacements. The model runs on your Mac, for every language it supports.</p>"),
+    // Each table cell stands alone, so the other product's cells are its own.
+    page(
+      "<h2>Compare</h2><table><tr><th>Custom vocabulary</th><td>Custom words, spelled your way.</td><td>Dictionary of terms it learns to recognise.</td></tr><tr><th>Where</th><td>Audio is uploaded for recognition.</td></tr></table>",
+    ),
   ];
-  for (const doc of honest) assert.deepEqual(customWordsProblems(doc), []);
+  for (const doc of honest) assert.deepEqual(customWordsProblems(doc), [], doc);
   assert.ok(customWordsMentions(page("<p>Custom words, spelled your way.</p>")).length > 0);
 });
 
