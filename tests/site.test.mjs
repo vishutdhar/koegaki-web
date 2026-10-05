@@ -704,10 +704,12 @@ test("a page that promises a one-time model download also says how a new speech 
  * "they") lists in `after` the exact sentences that may come right before it,
  * so it cannot be moved after a different download or subject; one whose
  * subject is its own has `after` null. A sentence that claims a wait lists in
- * `then` the exact sentences that may come right after it (END when it may end
- * its block), so a short continuation such as "The app update does too." cannot
- * carry the wait to another download; a sentence without `then` may be followed
- * by anything. An honest sentence the check flags for another reason is
+ * `then` the exact sentences that may come right after it, in its paragraph or
+ * the next one of its section (END when a heading or the end of the page or of
+ * its string follows), so a short continuation such as "The app update does
+ * too." cannot carry the wait to another download. Every entry states `after`
+ * and `then`, null where nothing is pinned, and an entry that says "wait" must
+ * list its `then`. An honest sentence the check flags for another reason is
  * reviewed and listed too.
  */
 const MAC_WAIT =
@@ -732,7 +734,7 @@ const PRIVACY_WAIT =
 const COSTLY_EXAMPLES =
   "Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.";
 const EACH_MODEL_ONCE = "Each model downloads once, and a cleanup model downloads only when you choose it.";
-/** What `then` names when a sentence ends its block. */
+/** What `then` names when a heading, or the end of the page or of a string, follows. */
 const END = "(the end of the block)";
 const REVIEWED_WAIT_SENTENCES = new Map([
   [MAC_WAIT, {
@@ -772,32 +774,68 @@ const REVIEWED_WAIT_SENTENCES = new Map([
   ["A download you start yourself, and the first download after you install, go ahead on any connection.", {
     where: ["/privacy"],
     after: null,
+    then: null,
     why: "a download the user starts and the first install have no gate on either platform",
   }],
   ["A newer cleanup model is offered on the Home screen, and nothing downloads until you choose to update it.", {
     where: ["/privacy"],
     after: null,
+    then: null,
     why: "a newer cleanup model is the user's to accept; the launch download is of the model already chosen",
+  }],
+  [PRIVACY_REQUEST, {
+    where: ["/privacy"],
+    after: [[PRIVACY_UPDATE]],
+    then: null,
+    why: "what the background request carries; \"only\" is about the connection it uses, not when",
+  }],
+  ["A new speech model arrives only with an app update.", {
+    where: ["/privacy"],
+    after: null,
+    then: null,
+    why: "a speech model is never offered on its own; it comes with an app update",
+  }],
+  ["The license and update checks carry only license and version metadata; the update download is the app itself.", {
+    where: ["/privacy"],
+    after: null,
+    then: null,
+    why: "what the checks carry; no wait claimed",
   }],
   [PRIVACY_UPDATE, {
     where: ["/privacy"],
     after: null,
+    then: null,
     why: "the background speech update itself; its wait is the sentence after next",
   }],
   [SPEECH_UPDATE[2][0], {
     where: ["/mac", "/windows"],
     after: null,
+    then: null,
     why: "the network FAQ's list: what the user chooses, and the background speech update, with no wait claimed",
   }],
   [SPEECH_UPDATE[3][0], {
     where: ["/offline-dictation"],
     after: null,
+    then: null,
     why: "the same list on the offline page",
   }],
   [EACH_MODEL_ONCE, {
     where: ["/mac", "/windows", "/offline-dictation"],
     after: null,
+    then: null,
     why: "a cleanup model is never downloaded unless the user chose it; no wait claimed",
+  }],
+  ["The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com.", {
+    where: ["/offline-dictation"],
+    after: null,
+    then: null,
+    why: "the hosts the app reaches, for a firewall allow list; \"only\" limits where, not when",
+  }],
+  ["That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.", {
+    where: ["/vs/wispr-flow"],
+    after: null,
+    then: null,
+    why: "about Wispr Flow's account and word cap, not about a Koegaki download",
   }],
   ["Lose the connection and they stop.", {
     where: ["/offline-dictation"],
@@ -805,6 +843,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
       "Most dictation tools are a microphone connected to a server.",
       "They record you, upload the audio, and wait for a transcript to come back.",
     ]],
+    then: null,
     why: "about server dictation tools, which stop without a connection, not about a Koegaki download",
   }],
 ]);
@@ -822,7 +861,7 @@ function aboutWaiting(sentence) {
   const costly =
     /\b(?:costly|expensive|constrained|metered|unmetered|hotspots?|tether\w*|phones?|mobile|low data mode|cellular|roaming|data (?:limit|plan|cap)s?|ordinary connection|wi-?fi)\b/i;
   const waiting =
-    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*)\b/i;
+    /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
   // user starts, which never wait.
@@ -849,8 +888,18 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const { body, standalone } = textBlocks(doc);
   const problems = [];
   const found = [];
-  for (const block of [...body.map((b) => b.text), ...standalone]) {
-    const sentences = sentencesOf(block);
+  const blocks = [
+    // A paragraph runs on into the next one of its section, so a continuation
+    // cannot hide behind a paragraph break; a heading or the end of the page
+    // ends it. A string that stands alone ends with itself.
+    ...body.map((b, k) => ({
+      text: b.text,
+      next: body[k + 1] && !body[k + 1].heading ? sentencesOf(body[k + 1].text)[0] : END,
+    })),
+    ...standalone.map((text) => ({ text, next: END })),
+  ];
+  for (const { text, next } of blocks) {
+    const sentences = sentencesOf(text);
     sentences.forEach((sentence, i) => {
       if (!aboutWaiting(sentence)) return;
       const entry = reviewed.get(sentence);
@@ -859,8 +908,9 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
         return;
       }
       found.push(sentence);
-      if (entry.then && !entry.then.includes(sentences[i + 1] ?? END)) {
-        problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${sentences[i + 1] ?? END}"`);
+      const following = i + 1 < sentences.length ? sentences[i + 1] : next;
+      if (entry.then !== null && !entry.then.includes(following)) {
+        problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${following}"`);
       }
       if (entry.after === null) return;
       const follows = entry.after.some(
@@ -906,7 +956,16 @@ test("every block that describes the background model download says when it wait
   });
 });
 
+/** Entries that leave `after` or `then` unstated, or say "wait" with nothing pinned after them. */
+function ledgerProblems(reviewed = REVIEWED_WAIT_SENTENCES) {
+  return [...reviewed].flatMap(([sentence, entry]) => [
+    ...(!("after" in entry) || !("then" in entry) ? [`states no after or then: "${sentence}"`] : []),
+    ...(/\bwait/i.test(sentence) && !Array.isArray(entry.then) ? [`says wait with no then: "${sentence}"`] : []),
+  ]);
+}
+
 test("every sentence about a download waiting is one reviewed, after the sentence it leans on, on the pages it was reviewed for", () => {
+  assert.deepEqual(ledgerProblems(), []);
   const seen = new Map();
   for (const path of ROUTES) {
     const { problems, found } = waitProblems(html(path));
@@ -954,6 +1013,8 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     `${SPEECH_UPDATE[0][0]} ${MAC_WAIT} This covers every automatic download.`,
     "This covers every automatic download.",
     `${PRIVACY_UPDATE} ${PRIVACY_REQUEST} ${PRIVACY_WAIT} So does the app update.`,
+    `${SPEECH_UPDATE[1][0]} ${BOTH_WAIT}</p><p>The app update does too.`,
+    "Koegaki only downloads models on an unlimited connection.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
     // In the body, and standing alone in a social title.
@@ -964,6 +1025,12 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
       assert.notDeepEqual(waitProblems(doc).problems, [], `the wait check let through: "${wrong}"`);
     }
   }
+  // A wait entry that leaves its followers unstated is refused too.
+  const unpinned = new Map(REVIEWED_WAIT_SENTENCES);
+  const withoutThen = { ...unpinned.get(MAC_WAIT) };
+  delete withoutThen.then;
+  unpinned.set(MAC_WAIT, withoutThen);
+  assert.notDeepEqual(ledgerProblems(unpinned), [], "a wait entry with no then passed");
   // And it passes the block the site says.
   const right = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]} ${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p></main></body></html>`;
   assert.deepEqual(waitProblems(right).problems, []);
