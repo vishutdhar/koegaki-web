@@ -381,10 +381,11 @@ const sentencesOf = (block) => block.split(/(?<=[.!?])\s+/);
  * listed in REVIEWED_SENTENCES instead.
  */
 function customWordsProblems(doc, reviewed = REVIEWED_SENTENCES) {
-  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/i;
+  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni|accura|understand|unknown|misspell)/i;
   const absenceClaim =
     /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
-  const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
+  // "every language", and with a qualifier between: "all supported languages".
+  const everyScript = /\b(?:every|any|all)\s+(?:\S+\s+){0,2}?(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
   return customWordsMentions(doc).flatMap((block) =>
     sentencesOf(block)
       .filter((sentence) => !reviewed.has(sentence))
@@ -424,16 +425,20 @@ function textBlocks(doc) {
   const blocks = [];
   let inHeading = false;
   let inCell = false;
-  for (const part of parts) {
-    if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
-    else if (/^<\/(?:h[1-6]|summary)\b/i.test(part)) inHeading = false;
-    else if (/^<t[dh]\b/i.test(part)) inCell = true;
-    else if (/^<\/t[dh]\b/i.test(part)) inCell = false;
-    else if (!part.startsWith("<")) {
-      const text = decodeEntities(part.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
-      if (text) blocks.push({ text, heading: inHeading, cell: inCell });
+  // split() with a capturing group alternates text (even index) and the
+  // block tag that ended it (odd index). Telling them apart by position keeps
+  // a text piece that itself opens with an inline tag such as <strong>.
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
+      else if (/^<\/(?:h[1-6]|summary)\b/i.test(part)) inHeading = false;
+      else if (/^<t[dh]\b/i.test(part)) inCell = true;
+      else if (/^<\/t[dh]\b/i.test(part)) inCell = false;
+      return;
     }
-  }
+    const text = decodeEntities(part.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+    if (text) blocks.push({ text, heading: inHeading, cell: inCell });
+  });
   const standalone = [];
   for (const [key, value] of [
     ["name", "description"],
@@ -528,6 +533,13 @@ test("the custom words check catches an overclaim or an absence wherever a page 
       "a promise of every language in the next sentence",
       page("<p>Add your names and jargon as custom words. They work in every language.</p>"),
       /script/,
+    ],
+    ["recognition as a noun", page("<p>Custom words improve recognition.</p>"), /recognition/],
+    ["a promise of every supported language", page("<p>Custom words work in all supported languages.</p>"), /script/],
+    [
+      "a claim in a paragraph that opens with inline formatting",
+      page("<h3>Custom words</h3><p><strong>Improve accuracy</strong> for names and jargon.</p>"),
+      /recognition/,
     ],
     [
       "a promise behind an unrelated negation",
