@@ -29,7 +29,7 @@ Set in Vercel project settings; env changes need a redeploy to take effect.
 ```sh
 npm install
 npm run dev      # local dev server
-npm run build    # production build (also what Vercel runs)
+npm run build    # production build (Vercel runs next build via vercel.json, see next.config.ts)
 ```
 
 This is a current Next.js major — check `node_modules/next/dist/docs/` before assuming
