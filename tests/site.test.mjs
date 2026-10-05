@@ -418,8 +418,8 @@ function decodeEntities(text) {
  * paragraph, list item, table cell, heading and FAQ summary of the body (a
  * heading or summary is marked, and so is a table cell, and a block a
  * container ends after is marked closed), then the page's
- * description and social title meta tags and every string in its JSON-LD,
- * which stand alone.
+ * description and social title meta tags, every string in its JSON-LD, and
+ * every alt text and aria-label, which stand alone.
  */
 function textBlocks(doc) {
   const body = doc.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ");
@@ -479,6 +479,8 @@ function textBlocks(doc) {
     else if (v && typeof v === "object") Object.values(v).forEach(walk);
   };
   walk(jsonLd(doc));
+  // Text alternatives and accessible labels are copy a screen reader reads.
+  for (const [, value] of body.matchAll(/\s(?:alt|aria-label)="([^"]*)"/g)) standalone.push(decodeEntities(value));
   return { body: blocks, standalone: standalone.filter(Boolean) };
 }
 
@@ -715,9 +717,10 @@ test("a page that promises a one-time model download also says how a new speech 
  * the next one of its section (END when a heading or the end of the page or of
  * its string follows), so a short continuation such as "The app update does
  * too." cannot carry the wait to another download. Every entry states `after`
- * and `then`, null where nothing is pinned, and an entry that says "wait" must
- * list its `then`. A sentence whose subject is the question it answers names
- * that heading in `under`. An honest sentence the check flags for another
+ * and `then`, null where nothing is pinned, and an entry that claims a wait
+ * (waits, pauses, is held, blocked, deferred) must list its `then`. A sentence
+ * whose subject is the question it answers names that heading in `under`, and
+ * must open the first paragraph under it (or the JSON-LD answer to it). An honest sentence the check flags for another
  * reason is reviewed and listed too.
  */
 const MAC_WAIT =
@@ -832,7 +835,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
     where: ["/mac", "/windows", "/offline-dictation"],
     after: null,
     then: null,
-    why: "a cleanup model is never downloaded unless the user chose it; no wait claimed",
+    why: "pre-existing: a cleanup model downloads only once the user chose it; \"once\" is the normal case, as a missing file is fetched again; no wait claimed",
   }],
   ["The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com.", {
     where: ["/offline-dictation"],
@@ -891,7 +894,7 @@ function aboutWaiting(sentence) {
     /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped)\b/i;
   // A promise about data or money ("never cost you extra"), next to a download
   // or a connection rather than a model, which the comparison pages name freely.
-  const promise = /\b(?:never|extra|charges?|bill\w*)\b/i;
+  const promise = /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared)\b/i;
   const transferOrData = /\b(?:download\w*|connection\w*|network\w*|data)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
@@ -920,22 +923,49 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   const { body, standalone } = textBlocks(doc);
   const problems = [];
   const found = [];
+  // A paragraph runs on into the next one of its section, so neither a
+  // continuation nor an antecedent hides behind a paragraph break; a heading, a
+  // table cell, the end of a container (a FAQ answer, a section) or of the page
+  // ends the run. A string that stands alone is its own run, and a JSON-LD
+  // answer sits under its question.
+  const runsOn = (a, b) => !a.closed && !a.cell && !a.heading && !b.heading && !b.cell;
+  const blocks = [];
   let heading = null;
-  const blocks = [
-    // A paragraph runs on into the next one of its section, so a continuation
-    // cannot hide behind a paragraph break; a heading, a table cell, the end of
-    // a container (a FAQ answer, a section) or of the page ends it. A string
-    // that stands alone ends with itself.
-    ...body.map((b, k) => {
-      if (b.heading) heading = b.text;
-      const after = body[k + 1];
-      const runsOn = after && !b.closed && !b.cell && !after.heading && !after.cell;
-      return { text: b.text, next: runsOn ? sentencesOf(after.text)[0] : END, heading };
-    }),
-    ...standalone.map((text) => ({ text, next: END, heading: null })),
-  ];
-  for (const { text, next, heading: under } of blocks) {
+  let sinceHeading = 0;
+  let run = [];
+  body.forEach((b, k) => {
+    if (k === 0 || !runsOn(body[k - 1], b)) run = [];
+    if (b.heading) {
+      heading = b.text;
+      sinceHeading = 0;
+    } else {
+      sinceHeading += 1;
+    }
+    const after = body[k + 1];
+    blocks.push({
+      text: b.text,
+      before: run,
+      next: after && runsOn(b, after) ? sentencesOf(after.text)[0] : END,
+      heading,
+      firstUnderHeading: !b.heading && sinceHeading === 1,
+    });
+    run = [...run, ...sentencesOf(b.text)];
+    if (b.closed) heading = null;
+  });
+  const questionOf = new Map();
+  const walkQuestions = (v) => {
+    if (!v || typeof v !== "object") return;
+    if (v["@type"] === "Question" && typeof v.acceptedAnswer?.text === "string") questionOf.set(v.acceptedAnswer.text, v.name);
+    Object.values(v).forEach(walkQuestions);
+  };
+  jsonLd(doc).forEach(walkQuestions);
+  for (const text of standalone) {
+    const question = questionOf.get(text) ?? null;
+    blocks.push({ text, before: [], next: END, heading: question, firstUnderHeading: question !== null });
+  }
+  for (const { text, before, next, heading: under, firstUnderHeading } of blocks) {
     const sentences = sentencesOf(text);
+    const context = [...before, ...sentences];
     sentences.forEach((sentence, i) => {
       if (!aboutWaiting(sentence)) return;
       const entry = reviewed.get(sentence);
@@ -944,18 +974,20 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
         return;
       }
       found.push(sentence);
-      if (entry.under && entry.under !== under) {
-        problems.push(`"${sentence}" is not under the heading it was reviewed under: "${under}"`);
+      // An answer to a heading opens the first paragraph under it.
+      if (entry.under && (entry.under !== under || !firstUnderHeading || i !== 0)) {
+        problems.push(`"${sentence}" does not open the answer to the heading it was reviewed under: "${under}"`);
       }
       const following = i + 1 < sentences.length ? sentences[i + 1] : next;
       if (entry.then !== null && !entry.then.includes(following)) {
         problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${following}"`);
       }
       if (entry.after === null) return;
+      const at = before.length + i;
       const follows = entry.after.some(
-        (before) => i >= before.length && before.every((b, k) => sentences[i - before.length + k] === b),
+        (seq) => at >= seq.length && seq.every((b, k) => context[at - seq.length + k] === b),
       );
-      if (!follows) problems.push(`"${sentence}" does not come right after a sentence it was reviewed to follow: "${sentences[i - 1] ?? ""}"`);
+      if (!follows) problems.push(`"${sentence}" does not come right after a sentence it was reviewed to follow: "${context[at - 1] ?? ""}"`);
     });
   }
   return { problems, found };
@@ -995,11 +1027,13 @@ test("every block that describes the background model download says when it wait
   });
 });
 
-/** Entries that leave `after` or `then` unstated, or say "wait" with nothing pinned after them. */
+/** Entries that leave `after` or `then` unstated, or claim a wait with nothing pinned after them. */
 function ledgerProblems(reviewed = REVIEWED_WAIT_SENTENCES) {
+  const deferral =
+    /\b(?:wait\w*|paus\w*|held|on hold|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*)\b/i;
   return [...reviewed].flatMap(([sentence, entry]) => [
     ...(!("after" in entry) || !("then" in entry) ? [`states no after or then: "${sentence}"`] : []),
-    ...(/\bwait/i.test(sentence) && !Array.isArray(entry.then) ? [`says wait with no then: "${sentence}"`] : []),
+    ...(deferral.test(sentence) && !Array.isArray(entry.then) ? [`claims a wait with no then: "${sentence}"`] : []),
   ]);
 }
 
@@ -1061,23 +1095,46 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     `</p><h2>What waits?</h2><p>${SPEECH_UPDATE[3][0]}`,
     `Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. ${SPEECH_UPDATE[2][0]}`,
     `Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back. ${PRIVACY_UPDATE}`,
+    `</p><h2>What still uses the network</h2><p>What is held back?</p><p>${SPEECH_UPDATE[3][0]}`,
+    `<img alt="All downloads wait on metered connections."/>`,
+    `<button aria-label="All downloads wait on metered connections.">Download</button>`,
+    "Model downloads spare your data.",
+    "Downloads respect your connection budget.",
+    "Downloads are free of surprise fees.",
     "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
-    // In the body, and standing alone in a social title.
-    for (const doc of [
-      `<html><head></head><body><main><p>${wrong}</p></main></body></html>`,
-      `<html><head><meta property="og:title" content="${wrong.replace(/"/g, "&quot;")}"/></head><body></body></html>`,
-    ]) {
+    // In the body, and, for plain text, standing alone in a social title (a
+    // fixture with markup cannot sit inside an attribute).
+    const docs = [`<html><head></head><body><main><p>${wrong}</p></main></body></html>`];
+    if (!wrong.includes("<")) {
+      docs.push(`<html><head><meta property="og:title" content="${wrong.replace(/"/g, "&quot;")}"/></head><body></body></html>`);
+    }
+    for (const doc of docs) {
       assert.notDeepEqual(waitProblems(doc).problems, [], `the wait check let through: "${wrong}"`);
     }
   }
-  // A wait entry that leaves its followers unstated is refused too.
+  // A wait entry that leaves its followers unstated is refused too, however it
+  // words the wait.
   const unpinned = new Map(REVIEWED_WAIT_SENTENCES);
   const withoutThen = { ...unpinned.get(MAC_WAIT) };
   delete withoutThen.then;
   unpinned.set(MAC_WAIT, withoutThen);
   assert.notDeepEqual(ledgerProblems(unpinned), [], "a wait entry with no then passed");
+  const pauses = new Map([["The background speech update pauses on costly connections.", { where: ["/"], after: null, then: null }]]);
+  assert.notDeepEqual(ledgerProblems(pauses), [], "a pause entry with no then passed");
+  // Honest layouts pass: the reviewed sentences split across two paragraphs,
+  // and the answer to a question in JSON-LD.
+  for (const fine of [
+    `<p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p>`,
+    `<h2>What still uses the network</h2><p>${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE}</p>`,
+  ]) {
+    const doc = `<html><head></head><body><main>${fine}</main></body></html>`;
+    assert.deepEqual(waitProblems(doc).problems, [], `the wait check refused honest copy: ${fine}`);
+  }
+  const faq = JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: [{ "@type": "Question", name: "What still uses the network", acceptedAnswer: { "@type": "Answer", text: SPEECH_UPDATE[3][0] } }] });
+  const faqDoc = `<html><head></head><body><script type="application/ld+json">${faq}</script></body></html>`;
+  assert.deepEqual(waitProblems(faqDoc).problems, [], "the wait check refused a JSON-LD answer under its question");
   // A wait sentence that ends a table cell or a FAQ answer is not continued by
   // the next cell or what follows the answer.
   for (const fine of [
