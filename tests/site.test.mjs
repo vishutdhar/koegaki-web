@@ -677,6 +677,113 @@ test("a page that promises a one-time model download also says how a new speech 
   }
 });
 
+/**
+ * The wait for an unmetered connection (Koegaki spec
+ * 2026-10-05-metered-connection-deferral, 1.9.0 on both platforms). The speech
+ * model an app update brings, and a cleanup model the app fetches at launch,
+ * wait while the computer is on a connection it treats as costly; a download
+ * the user starts, the first download after an install, a repair of a damaged
+ * file and the app update go ahead on any connection. Apple documents its
+ * expensive path as cellular or a Personal Hotspot and Low Data Mode as its
+ * constrained one; Microsoft documents cellular as metered by default and Wi-Fi
+ * as unmetered until the user marks it. Each sentence the site says about it,
+ * with the pages it was reviewed for and why it is true.
+ */
+const MAC_WAIT =
+  "That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on.";
+const WINDOWS_WAIT =
+  "That background download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot.";
+const BOTH_WAIT =
+  "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.";
+const PRIVACY_WAIT =
+  "That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.";
+const REVIEWED_WAIT_SENTENCES = new Map([
+  [MAC_WAIT, { where: ["/mac"], why: "the Mac waits on an expensive path (Personal Hotspot) or a constrained one (Low Data Mode)" }],
+  [WINDOWS_WAIT, { where: ["/windows"], why: "Windows waits on the cost it reports; Wi-Fi counts only once marked metered" }],
+  [BOTH_WAIT, { where: ["/", "/offline-dictation"], why: "the same rule for both platforms, each example under its own OS" }],
+  [PRIVACY_WAIT, { where: ["/privacy"], why: "names the two downloads that wait, not every download the app starts" }],
+  [
+    "Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.",
+    { where: ["/privacy"], why: "each OS's own signal" },
+  ],
+  [
+    "A download you start yourself, and the first download after you install, go ahead on any connection.",
+    { where: ["/privacy"], why: "a download the user starts and the first install have no gate on either platform" },
+  ],
+]);
+/** The sentences that state the wait itself. */
+const WAIT_CLAIMS = [MAC_WAIT, WINDOWS_WAIT, BOTH_WAIT, PRIVACY_WAIT];
+
+/**
+ * A page's text in runs: paragraphs run on into one another until a heading or
+ * a table cell, so a wait said in the next paragraph of a section still counts.
+ * Each string that stands alone (meta tags, JSON-LD) is its own run.
+ */
+function runsOf(doc) {
+  const { body, standalone } = textBlocks(doc);
+  const runs = [];
+  let open = null;
+  for (const { text, heading, cell } of body) {
+    if (heading || cell || !open) {
+      open = { part: "body", texts: [] };
+      runs.push(open);
+    }
+    open.texts.push(text);
+    if (heading || cell) open = null;
+  }
+  for (const text of standalone) runs.push({ part: "standalone", texts: [text] });
+  return runs;
+}
+
+test("every page that describes the background model download says when it waits, in its text and its JSON-LD", () => {
+  const described = new Set();
+  for (const path of ROUTES) {
+    for (const { part, texts } of runsOf(html(path))) {
+      const describing = texts.find((t) => /\bbackground\b/i.test(t) && /\bdownloads?\b/i.test(t));
+      if (!describing) continue;
+      described.add(`${path} ${part}`);
+      const sentences = texts.flatMap(sentencesOf);
+      assert.ok(
+        WAIT_CLAIMS.some((claim) => sentences.includes(claim)),
+        `${path} describes the background download without its wait: "${describing}"`,
+      );
+    }
+  }
+  // Where it is described today: the privacy page, and the home and landing
+  // page prose and network FAQs, each FAQ in its JSON-LD (standalone) too, so
+  // the visible answer and the structured data cannot disagree.
+  assert.deepEqual([...described].sort(), [
+    "/ body",
+    "/ standalone",
+    "/mac body",
+    "/mac standalone",
+    "/offline-dictation body",
+    "/privacy body",
+    "/windows body",
+    "/windows standalone",
+  ]);
+});
+
+test("every sentence that names a costly connection is a reviewed one, on exactly the pages it was reviewed for", () => {
+  // The feature's own terms. A new sentence that uses them is reviewed into
+  // REVIEWED_WAIT_SENTENCES before it ships.
+  const namesCost = /\b(?:costly|metered|low data mode|hotspots?)\b/i;
+  const pagesOf = new Map([...REVIEWED_WAIT_SENTENCES.keys()].map((sentence) => [sentence, []]));
+  for (const path of ROUTES) {
+    const sentences = new Set(runsOf(html(path)).flatMap(({ texts }) => texts.flatMap(sentencesOf)));
+    for (const sentence of sentences) {
+      assert.ok(
+        !namesCost.test(sentence) || REVIEWED_WAIT_SENTENCES.has(sentence),
+        `${path} says something unreviewed about a costly connection: "${sentence}"`,
+      );
+      pagesOf.get(sentence)?.push(path);
+    }
+  }
+  for (const [sentence, { where }] of REVIEWED_WAIT_SENTENCES) {
+    assert.deepEqual(pagesOf.get(sentence).sort(), [...where].sort(), `pages that say "${sentence}"`);
+  }
+});
+
 test("no page promises a change for an app version the site already serves", () => {
   // Copy written ahead of a release ("the Windows app gains this in version
   // 1.7.0") is a promise, and it turns false the day that version ships. Each

@@ -9,7 +9,7 @@ import { COMPARISONS } from "@/lib/compare";
  * landing and comparison pages carry theirs in lib/pages.ts and lib/compare.ts.
  */
 const HOME_LAST_MODIFIED = "2026-10-05";
-const PRIVACY_LAST_MODIFIED = "2026-10-03";
+const PRIVACY_LAST_MODIFIED = "2026-10-05";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
