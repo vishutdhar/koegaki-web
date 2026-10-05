@@ -677,16 +677,83 @@ test("a page that promises a one-time model download also says how a new speech 
   }
 });
 
+/**
+ * Every sentence the site says about a download waiting on the connection,
+ * reviewed against the Koegaki spec 2026-10-05-metered-connection-deferral and
+ * both implementations, with the pages it may appear on and why it is true.
+ *
+ * What waits: the speech model an app update brings (with the repair it leaves
+ * for the next launch on the Mac), and the cleanup model the app fetches at
+ * launch for the style the user turned on. What goes ahead on any connection: a
+ * download the user starts, the first download after an install, a set that will
+ * not load, a repair of a damaged file of a megabyte or two, and the app update
+ * itself. Which connections: a Mac waits while its path is expensive (cellular
+ * or a Personal Hotspot, in Apple's own words) or constrained (Low Data Mode);
+ * Windows waits on a metered cost (cellular by default, a network the user set
+ * as metered, roaming, a data limit). Windows sets Wi-Fi unmetered by default,
+ * so there a phone hotspot waits only once the user marks it metered.
+ *
+ * The check fails closed, the lesson of the custom words check above: a
+ * sentence about waiting, pausing or holding a download, or about a costly or
+ * metered connection, passes only when listed here, however it is worded. A
+ * listed sentence must appear on exactly the pages named, so a Mac sentence
+ * cannot land on the Windows page and a sentence the site stops saying is
+ * dropped.
+ */
+const MAC_WAIT =
+  "That download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on.";
+const WINDOWS_WAIT =
+  "That download waits while your PC is on a metered connection, such as a cellular link or a network you have set as metered, as you can for a phone hotspot.";
+const BOTH_WAIT =
+  "That download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.";
+const REVIEWED_WAIT_SENTENCES = new Map([
+  [MAC_WAIT, {
+    where: ["/mac"],
+    why: "the speech update on the Mac waits on an expensive path (Personal Hotspot) or a constrained one (Low Data Mode)",
+  }],
+  [WINDOWS_WAIT, {
+    where: ["/windows"],
+    why: "the speech update on Windows waits on a metered cost; cellular is metered by default and Wi-Fi only once marked",
+  }],
+  [BOTH_WAIT, {
+    where: ["/", "/offline-dictation"],
+    why: "the same rule for both platforms, each example under its own OS",
+  }],
+  ["That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.", {
+    where: ["/privacy"],
+    why: "names exactly the two downloads that wait, not every download the app starts by itself",
+  }],
+  ["On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.", {
+    where: ["/privacy"],
+    why: "each OS's own signal, and a Windows phone hotspot counts only once marked metered",
+  }],
+  ["A download you start yourself, and the first download after you install, go ahead on any connection.", {
+    where: ["/privacy"],
+    why: "a download the user starts and the first install have no gate on either platform",
+  }],
+]);
+
+/** Whether a sentence speaks of a download waiting or of a costly connection. */
+function aboutWaiting(sentence) {
+  const costly = /\b(?:costly|metered|unmetered|hotspots?|low data mode|cellular|roaming|data limit|ordinary connection)\b/i;
+  const waiting =
+    /\b(?:wait(?:s|ed|ing)?|paus(?:e|es|ed|ing)|hold(?:s|ing)?|held|defer(?:s|red|ring)?|postpon(?:e|es|ed|ing)|delay(?:s|ed|ing)?|resum(?:e|es|ed|ing)|go(?:es)? ahead)\b/i;
+  return costly.test(sentence) || (waiting.test(sentence) && /\b(?:download|connection|network)/i.test(sentence));
+}
+
+/** Each sentence of a page about waiting, from the body and from what stands alone (meta and JSON-LD). */
+function waitSentences(doc) {
+  const { body, standalone } = textBlocks(doc);
+  return [...body.map((b) => b.text), ...standalone].flatMap(sentencesOf).filter(aboutWaiting);
+}
+
 test("every block that describes the background model download says when it waits", () => {
   // The speech model an app update brings downloads in the background, and it
-  // waits while the computer is on a connection it treats as costly (Koegaki
-  // spec 2026-10-05-metered-connection-deferral). A paragraph, FAQ answer or
-  // JSON-LD string that describes the background download without that wait
-  // tells a visitor on a phone hotspot that several hundred megabytes go ahead.
-  // Each block is judged alone, so a FAQ's JSON-LD answer cannot drift from
-  // the visible one.
-  const waits =
-    /\bwaits while your (?:computer|Mac|PC) is on (?:a phone hotspot or another connection|a connection) it treats as (?:costly|metered)\b/i;
+  // waits while the computer is on a connection it treats as costly. A
+  // paragraph, FAQ answer or JSON-LD string that describes the background
+  // download without that wait tells a visitor on a hotspot that several
+  // hundred megabytes go ahead. Each block is judged alone, so a FAQ's JSON-LD
+  // answer cannot drift from the visible one.
   const described = new Map();
   for (const path of ROUTES) {
     const { body, standalone } = textBlocks(html(path));
@@ -694,7 +761,8 @@ test("every block that describes the background model download says when it wait
       for (const text of texts) {
         if (!/\bbackground\b/i.test(text) || !/\bdownloads?\b/i.test(text)) continue;
         described.set(`${path} ${where}`, (described.get(`${path} ${where}`) ?? 0) + 1);
-        assert.match(text, waits, `${path} describes the background download without its wait: "${text}"`);
+        const says = sentencesOf(text).some((s) => s.startsWith("That download") && REVIEWED_WAIT_SENTENCES.has(s));
+        assert.ok(says, `${path} describes the background download without its wait: "${text}"`);
       }
     }
   }
@@ -713,43 +781,39 @@ test("every block that describes the background model download says when it wait
   });
 });
 
-test("the privacy page says which model downloads wait for an ordinary connection and which go ahead", () => {
-  const text = pageText(html("/privacy"));
-  for (const [rule, pattern] of [
-    ["the speech update waits on a costly connection", /That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly/],
-    // Each example under the name each OS gives it: Low Data Mode is the Mac's
-    // setting (NWPath isConstrained), a metered network is Windows' (the
-    // connection cost API); a hotspot and a cellular link read costly on both.
-    ["the costly connections, named per OS", /such as a phone hotspot, a cellular link, a network you marked as metered in Windows, or Low Data Mode on a Mac,/],
-    ["the wait ends by itself", /and starts by itself once you are back on an ordinary connection\./],
-    // A download the user starts, and the first install with nothing to
-    // dictate with, have no gate on either platform.
-    ["what goes ahead", /A download you start yourself, and the first download after you install, go ahead on any connection\./],
-  ]) {
-    assert.match(text, pattern, `privacy page lost: ${rule}`);
+test("every sentence about a download waiting is one reviewed, on the pages it was reviewed for", () => {
+  const seen = new Map();
+  for (const path of ROUTES) {
+    for (const sentence of waitSentences(html(path))) {
+      assert.ok(
+        REVIEWED_WAIT_SENTENCES.has(sentence),
+        `${path} says something unreviewed about a download waiting: "${sentence}"`,
+      );
+      seen.set(sentence, new Set([...(seen.get(sentence) ?? []), path]));
+    }
+  }
+  for (const [sentence, { where }] of REVIEWED_WAIT_SENTENCES) {
+    assert.deepEqual([...(seen.get(sentence) ?? [])].sort(), [...where].sort(), `pages that say "${sentence}"`);
   }
 });
 
-test("no page says every download the app starts by itself waits, or that an update waits", () => {
-  // Only the speech update and the cleanup model fetched at launch wait.
-  // A repair of a damaged file of a megabyte or two, a set that will not load,
-  // and the app update itself go ahead on any connection on both platforms, so a
-  // blanket claim, or a wait claimed for the update download, is an overclaim.
-  for (const path of ROUTES) {
-    const text = pageText(html(path));
-    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
-      if (!/\bwaits?\b/i.test(sentence)) continue;
-      assert.doesNotMatch(
-        sentence,
-        /\b(?:any|every|all)\b[^.]*\bdownloads?\b[^.]*\b(?:did not|didn't|do not|don't) start\b/i,
-        `${path} claims every automatic download waits: "${sentence.trim()}"`,
-      );
-      assert.doesNotMatch(
-        sentence,
-        /\b(?:update|app package)\b[^.,]*\bwaits?\b|\bwaits?\b[^.,]*\b(?:update download|app package)\b/i,
-        `${path} claims the update download waits: "${sentence.trim()}"`,
-      );
-    }
+test("the wait check refuses an overclaim however it is worded", () => {
+  // Each a sentence a page must never say: every automatic download waits (a
+  // small repair and a set that will not load go ahead), a download the user
+  // starts waits, the update waits, the first install waits, a Windows phone
+  // hotspot waits unmarked, Low Data Mode on Windows.
+  for (const wrong of [
+    "All automatic model downloads wait on a phone hotspot.",
+    "That download, and any model download you did not start yourself, waits while your computer is on a connection it treats as costly.",
+    "A download you start yourself waits while your computer is on a phone hotspot or another connection it treats as costly.",
+    "The app update download pauses on a phone hotspot.",
+    "The first download after you install is held until you are back on an ordinary connection.",
+    "That download waits while your PC is on a phone hotspot or another connection it treats as metered.",
+    "That download waits while your PC is in Low Data Mode.",
+  ]) {
+    const doc = `<html><head></head><body><main><p>${wrong}</p></main></body></html>`;
+    const unreviewed = waitSentences(doc).filter((s) => !REVIEWED_WAIT_SENTENCES.has(s));
+    assert.deepEqual(unreviewed, [wrong], `the wait check let through: "${wrong}"`);
   }
 });
 

@@ -58,9 +58,10 @@ export default function PrivacyPage() {
                 dictations, and uses only the internet connection you already have. That
                 download, and the download of a cleanup model you turned on when the app has to
                 fetch it at launch, waits while your computer is on a connection it treats as
-                costly, such as a phone hotspot, a cellular link, a network you marked as metered in
-                Windows, or Low Data Mode on a Mac, and starts by itself once you are back on an
-                ordinary connection. A download you start yourself, and the first download after
+                costly, and starts by itself once you are back on an ordinary connection. On a Mac,
+                that includes an iPhone&apos;s Personal Hotspot and Low Data Mode; in Windows, a
+                cellular link and any network you marked as metered, which you can do for a phone
+                hotspot. A download you start yourself, and the first download after
                 you install, go ahead on any connection. The license and update checks carry only
                 license and version metadata; the update download is the app itself. None of this
                 ever includes audio or transcripts.
