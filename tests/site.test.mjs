@@ -677,6 +677,82 @@ test("a page that promises a one-time model download also says how a new speech 
   }
 });
 
+test("every block that describes the background model download says when it waits", () => {
+  // The speech model an app update brings downloads in the background, and it
+  // waits while the computer is on a connection it treats as costly (Koegaki
+  // spec 2026-10-05-metered-connection-deferral). A paragraph, FAQ answer or
+  // JSON-LD string that describes the background download without that wait
+  // tells a visitor on a phone hotspot that several hundred megabytes go ahead.
+  // Each block is judged alone, so a FAQ's JSON-LD answer cannot drift from
+  // the visible one.
+  const waits =
+    /\bwaits while your (?:computer|Mac|PC) is on (?:a phone hotspot or another connection|a connection) it treats as (?:costly|metered)\b/i;
+  const described = new Map();
+  for (const path of ROUTES) {
+    const { body, standalone } = textBlocks(html(path));
+    for (const [where, texts] of [["body", body.map((b) => b.text)], ["JSON-LD", standalone]]) {
+      for (const text of texts) {
+        if (!/\bbackground\b/i.test(text) || !/\bdownloads?\b/i.test(text)) continue;
+        described.set(`${path} ${where}`, (described.get(`${path} ${where}`) ?? 0) + 1);
+        assert.match(text, waits, `${path} describes the background download without its wait: "${text}"`);
+      }
+    }
+  }
+  // Where the background download is described today: the privacy page, the
+  // home FAQ, and each landing page's prose and network FAQ, each FAQ in its
+  // JSON-LD too. A check that finds none of them checks nothing.
+  assert.deepEqual(Object.fromEntries([...described].sort()), {
+    "/ JSON-LD": 1,
+    "/ body": 1,
+    "/mac JSON-LD": 1,
+    "/mac body": 2,
+    "/offline-dictation body": 2,
+    "/privacy body": 1,
+    "/windows JSON-LD": 1,
+    "/windows body": 2,
+  });
+});
+
+test("the privacy page says which model downloads wait for an ordinary connection and which go ahead", () => {
+  const text = pageText(html("/privacy"));
+  for (const [rule, pattern] of [
+    ["the speech update waits on a costly connection", /That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly/],
+    // Each example under the name each OS gives it: Low Data Mode is the Mac's
+    // setting (NWPath isConstrained), a metered network is Windows' (the
+    // connection cost API); a hotspot and a cellular link read costly on both.
+    ["the costly connections, named per OS", /such as a phone hotspot, a cellular link, a network you marked as metered in Windows, or Low Data Mode on a Mac,/],
+    ["the wait ends by itself", /and starts by itself once you are back on an ordinary connection\./],
+    // A download the user starts, and the first install with nothing to
+    // dictate with, have no gate on either platform.
+    ["what goes ahead", /A download you start yourself, and the first download after you install, go ahead on any connection\./],
+  ]) {
+    assert.match(text, pattern, `privacy page lost: ${rule}`);
+  }
+});
+
+test("no page says every download the app starts by itself waits, or that an update waits", () => {
+  // Only the speech update and the cleanup model fetched at launch wait.
+  // A repair of a damaged file of a megabyte or two, a set that will not load,
+  // and the app update itself go ahead on any connection on both platforms, so a
+  // blanket claim, or a wait claimed for the update download, is an overclaim.
+  for (const path of ROUTES) {
+    const text = pageText(html(path));
+    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+      if (!/\bwaits?\b/i.test(sentence)) continue;
+      assert.doesNotMatch(
+        sentence,
+        /\b(?:any|every|all)\b[^.]*\bdownloads?\b[^.]*\b(?:did not|didn't|do not|don't) start\b/i,
+        `${path} claims every automatic download waits: "${sentence.trim()}"`,
+      );
+      assert.doesNotMatch(
+        sentence,
+        /\b(?:update|app package)\b[^.,]*\bwaits?\b|\bwaits?\b[^.,]*\b(?:update download|app package)\b/i,
+        `${path} claims the update download waits: "${sentence.trim()}"`,
+      );
+    }
+  }
+});
+
 test("no page promises a change for an app version the site already serves", () => {
   // Copy written ahead of a release ("the Windows app gains this in version
   // 1.7.0") is a promise, and it turns false the day that version ships. Each

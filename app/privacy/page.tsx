@@ -55,10 +55,15 @@ export default function PrivacyPage() {
                 the background from our model mirror, a download of several hundred megabytes, and
                 you keep dictating on your current model until the new one is ready. That download
                 is a plain request for the model files, carries nothing about you or your
-                dictations, and uses only the internet connection you already have. The license
-                and update checks carry only license and version metadata; the update download is
-                the app itself. None of this ever includes
-                audio or transcripts.
+                dictations, and uses only the internet connection you already have. That
+                download, and the download of a cleanup model you turned on when the app has to
+                fetch it at launch, waits while your computer is on a connection it treats as
+                costly, such as a phone hotspot, a cellular link, a network you marked as metered in
+                Windows, or Low Data Mode on a Mac, and starts by itself once you are back on an
+                ordinary connection. A download you start yourself, and the first download after
+                you install, go ahead on any connection. The license and update checks carry only
+                license and version metadata; the update download is the app itself. None of this
+                ever includes audio or transcripts.
               </p>
             </section>
 
