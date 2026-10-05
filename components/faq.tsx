@@ -17,7 +17,7 @@ export const FAQS = [
   },
   {
     q: "Can I add my own words?",
-    a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
+    a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
   },
   {
     q: "How does the free trial work?",

@@ -61,7 +61,8 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Your words, spelled your way",
         paragraphs: [
-          "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog. It also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
+          "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog.",
+          "A lone lowercase letter stays a word of its own unless your spelling keeps it apart or every word is a single letter, so “x code” stays as it is, while “X code” becomes Xcode and “a w s” becomes AWS. Koegaki also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
           "Replacements turn a phrase you say into the text you choose, such as a short word for your email address. They run last, so where both lists match the same words, the replacement wins. Both lists are rules applied on your Mac, the same way every time. They change how words are written, not what Koegaki hears: a custom word fixes a term Koegaki already hears in some form, and a word it hears as something else needs a replacement.",
         ],
       },
@@ -89,7 +90,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I add my own words?",
-        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
+        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
       },
       {
         q: "Does it need an internet connection?",
@@ -130,7 +131,8 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Your words, spelled your way",
         paragraphs: [
-          "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog. It also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
+          "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog.",
+          "A lone lowercase letter stays a word of its own unless your spelling keeps it apart or every word is a single letter, so “x code” stays as it is, while “X code” becomes Xcode and “a w s” becomes AWS. Koegaki also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
           "Replacements turn a phrase you say into the text you choose, such as a short word for your email address. They run last, so where both lists match the same words, the replacement wins. Both lists are rules applied on your PC, the same way every time. They change how words are written, not what Koegaki hears: a custom word fixes a term Koegaki already hears in some form, and a word it hears as something else needs a replacement.",
         ],
       },
@@ -151,11 +153,11 @@ export const LANDING_PAGES: LandingPage[] = [
     faqs: [
       {
         q: "Is this different from Windows voice typing (Win+H)?",
-        a: "Yes. Windows voice typing sends your speech to Microsoft's online speech service and is toggled on and off. Koegaki recognises speech on your PC and is push-to-talk with a shortcut you choose. It also lets you add custom words and replacements. The full comparison is on the Koegaki vs Windows Voice Typing page.",
+        a: "Yes. Windows voice typing sends your speech to Microsoft's online speech service and is toggled on and off. Koegaki transcribes speech on your PC and is push-to-talk with a shortcut you choose. It also lets you add custom words and replacements. The full comparison is on the Koegaki vs Windows Voice Typing page.",
       },
       {
         q: "Can I add my own words?",
-        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
+        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. It changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
       },
       {
         q: "Does it work without internet?",

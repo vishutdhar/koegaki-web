@@ -271,27 +271,111 @@ test("the Mac, Windows and home pages answer whether you can add your own words"
     assert.ok(faq, `${path} has no FAQPage`);
     const entry = faq.mainEntity.find((e) => e.name === question);
     assert.ok(entry, `${path} does not answer "${question}"`);
+    assert.match(entry.acceptedAnswer.text, /^Yes\. /, `${path} answer does not say yes`);
     assert.match(entry.acceptedAnswer.text, /\bCustom words\b/, `${path} answer does not name Custom words`);
     assert.match(entry.acceptedAnswer.text, /\bVocabulary page\b/, `${path} answer does not say where the list is`);
     assert.ok(pageText(doc).includes(question), `${path} does not show "${question}"`);
   }
 });
 
-test("custom words are described as a spelling rule, never as recognition", () => {
-  // A custom word changes how a run of words the recognizer already heard is
-  // written, never what Koegaki hears (Koegaki spec 2026-10-04, item 2), and
-  // recognizer biasing is out of that spec's scope. So no sentence about custom
-  // words may say the app learns, is trained or taught, is biased toward or
-  // recognises them, or that they improve accuracy; the copy says "hears" and
-  // "written" for what does and does not change.
-  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura)/i;
+/**
+ * What a page says about custom words that the app does not do (Koegaki spec
+ * 2026-10-04). A custom word changes how a run of words the recognizer already
+ * heard is written, never what Koegaki hears (item 2), and recognizer biasing
+ * is out of that spec's scope, so the site may not say the app learns, is
+ * trained or taught, is biased toward, recognises or better understands them,
+ * or that they fix any misspelling; the copy says "hears" and "written" for
+ * what does and does not change.
+ */
+function customWordsProblems(doc) {
+  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/i;
+  const absenceClaim = /\b(?:unavailable|not available|no longer|removed|coming soon|not yet)\b/i;
+  return customWordsMentions(doc).flatMap((block) => [
+    ...(recognitionClaim.test(block) ? [`describes custom words as recognition: "${block}"`] : []),
+    ...(absenceClaim.test(block) ? [`describes custom words as absent: "${block}"`] : []),
+  ]);
+}
+
+/** Decode the entities React and the meta tags write. */
+function decodeEntities(text) {
+  return text
+    .replace(/&#x27;|&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Every block of text on a page a visitor or a crawler reads: each paragraph,
+ * list item, table cell, heading and FAQ summary of the body, the page's
+ * description meta tags, and every string in its JSON-LD. A claim is judged
+ * with the rest of its block, so a sentence cannot escape the check by
+ * following the one that names the feature.
+ */
+function textBlocks(doc) {
+  const body = doc.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ");
+  const blocks = body
+    .split(/<\/?(?:p|li|td|th|h[1-6]|summary|details|div|section|article|header|footer|main|nav|ul|ol|table|tr|thead|tbody|dl|dt|dd|title)\b[^>]*>/i)
+    .map((piece) => decodeEntities(piece.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim());
+  for (const [key, value] of [
+    ["name", "description"],
+    ["property", "og:description"],
+    ["name", "twitter:description"],
+  ]) {
+    for (const tag of headTags(doc, key, value)) blocks.push(decodeEntities(attr(tag, "content") ?? ""));
+  }
+  const walk = (v) => {
+    if (typeof v === "string") blocks.push(v);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(jsonLd(doc));
+  return blocks.filter(Boolean);
+}
+
+/** Every block of a page that names custom words. */
+function customWordsMentions(doc) {
+  return textBlocks(doc).filter((block) => /\bcustom words?\b/i.test(block));
+}
+
+test("the custom words check catches an overclaim or an absence wherever a page says it", () => {
+  const page = (body, head = "") => `<html><head>${head}</head><body>${body}</body></html>`;
+  const ld = (text) =>
+    `<script type="application/ld+json">${JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [{ "@type": "Question", name: "Q", acceptedAnswer: { "@type": "Answer", text } }],
+    })}</script>`;
+  const caught = [
+    // The claim in the sentence after the one that names custom words.
+    ["a claim in the next sentence", page("<p>Custom words. It learns unknown names.</p>"), /recognition/],
+    ["a promise to fix any misspelling", page("<p>Custom words fix every misspelling.</p>"), /recognition/],
+    ["custom words described as absent", page("<p>Custom words are unavailable on the Vocabulary page.</p>"), /absent/],
+    ["a claim in the meta description", page("<p>Hi.</p>", '<meta name="description" content="Custom words Koegaki learns."/>'), /recognition/],
+    ["a claim in the Open Graph description", page("<p>Hi.</p>", '<meta property="og:description" content="Custom words improve accuracy."/>'), /recognition/],
+    ["a claim in the FAQPage data", page(`<p>Hi.</p>${ld("Custom words are trained into the model.")}`), /recognition/],
+  ];
+  for (const [what, doc, message] of caught) {
+    const problems = customWordsProblems(doc);
+    assert.equal(problems.length, 1, `${what}: ${JSON.stringify(problems)}`);
+    assert.match(problems[0], message, what);
+  }
+  const honest = [
+    page("<p>Custom words change how a word is written, not what is heard.</p>"),
+    // The other product's cell is its own block, so its wording is its own.
+    page("<table><tr><td>Custom words, spelled your way.</td><td>Dictionary of terms it learns to recognise.</td></tr></table>"),
+  ];
+  for (const doc of honest) assert.deepEqual(customWordsProblems(doc), []);
+  assert.ok(customWordsMentions(page("<p>Custom words, spelled your way.</p>")).length > 0);
+});
+
+test("custom words are described as a spelling rule, never as recognition or as absent", () => {
   let described = 0;
   for (const path of ROUTES) {
-    for (const sentence of pageText(html(path)).split(/(?<=[.!?])\s+/)) {
-      if (!/\bcustom words?\b/i.test(sentence)) continue;
-      described++;
-      assert.doesNotMatch(sentence, recognitionClaim, `${path} describes custom words as recognition: "${sentence.trim()}"`);
-    }
+    const doc = html(path);
+    described += customWordsMentions(doc).length;
+    assert.deepEqual(customWordsProblems(doc), [], `${path} misdescribes custom words`);
   }
   assert.ok(described > 0, "no page describes custom words");
 });

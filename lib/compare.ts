@@ -34,7 +34,7 @@ const koegakiCommon = {
   price: `${price}, ${trial}. Every feature included, free updates for life.`,
   platforms: "macOS 14+ and Windows 10 & 11, one licence for both.",
   trigger: "Hold a shortcut you choose (push-to-talk), or toggle with one press.",
-  vocab: "Custom words, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe; this changes how a word is written, not what is heard. Replacements turn a phrase you say into the text you choose.",
+  vocab: "Custom words, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This changes how a word is written, not what is heard. Replacements turn a phrase you say into the text you choose.",
   offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
 };
 
@@ -153,7 +153,7 @@ export const COMPARISONS: Comparison[] = [
         paragraphs: [
           "Hold-to-talk. You hold a key while you speak and let go when you are done, the way you would use a walkie-talkie. Releasing the key ends capture; Koegaki then transcribes and inserts what you said.",
           "The same behaviour across apps. Koegaki inserts text where the cursor is, using one shortcut, in Mail, Slack, a terminal, a browser form; the rare app that refuses insertion gets the text on the clipboard instead.",
-          "Custom words and replacements. Add a product name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe. Say a short word and a replacement types the full phrase: an email address, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
+          "Custom words and replacements. Add a product name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. Say a short word and a replacement types the full phrase: an email address, a signature. And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
         ],
       },
     ],
@@ -195,7 +195,7 @@ export const COMPARISONS: Comparison[] = [
         paragraphs: [
           "Your voice stays on your PC. Windows voice typing sends your speech to Microsoft's servers to be recognised. Koegaki runs the speech model locally, so it works on a plane, behind a corporate firewall, and on documents you are not allowed to send anywhere.",
           "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open; releasing the key ends capture, and Koegaki then transcribes and inserts what you said. A program running as administrator is the exception: Windows does not let an ordinary app type into it, so Koegaki copies the text for you to paste.",
-          "Custom words and replacements. Add a name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe; say a short word and a replacement types the full phrase. Both are rules applied on your PC, with nothing to train.",
+          "Custom words and replacements. Add a name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. Say a short word and a replacement types the full phrase. Both are rules applied on your PC, the same way every time.",
         ],
       },
     ],
