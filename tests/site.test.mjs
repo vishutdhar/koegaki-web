@@ -50,7 +50,8 @@ const canonical = (doc) => one(doc, "rel", "canonical", "href");
 const og = (doc, prop) => one(doc, "property", `og:${prop}`, "content");
 
 function jsonLd(doc) {
-  return [...doc.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) =>
+  // Any attributes may sit beside the type, so an id or a nonce cannot hide a graph.
+  return [...doc.matchAll(/<script\b[^>]*\btype="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) =>
     JSON.parse(m[1]),
   );
 }
@@ -369,7 +370,7 @@ const sentencesOf = (block) => block.split(/(?<=[.!?])\s+/);
  * heard is written, never what Koegaki hears (item 2), and recognizer biasing
  * is out of that spec's scope, so no sentence about custom words may use the
  * words of learning, training, teaching, biasing, recognition, understanding,
- * accuracy, unknown words or misspellings. They ship on both platforms, so
+ * accuracy, unknown words or misspellings, in any form of those words. They ship on both platforms, so
  * none may call them missing; they apply only to Latin, Greek and Cyrillic
  * terms (item 4), so none may promise every language or script; and every
  * example it quotes must be one the app's case table proves.
@@ -381,7 +382,8 @@ const sentencesOf = (block) => block.split(/(?<=[.!?])\s+/);
  * listed in REVIEWED_SENTENCES instead.
  */
 function customWordsProblems(doc, reviewed = REVIEWED_SENTENCES) {
-  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni|accura|understand|unknown|misspell)/i;
+  // Stems, with the irregular forms spelled out: taught, understood, misspelt.
+  const recognitionClaim = /\b(?:learn|train|teach|taught|bias|recogni|accura|understand|understood|unknown|misspel)/i;
   const absenceClaim =
     /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
   // "every language", and with a qualifier between: "all supported languages".
@@ -428,17 +430,32 @@ function textBlocks(doc) {
   // split() with a capturing group alternates text (even index) and the
   // block tag that ended it (odd index). Telling them apart by position keeps
   // a text piece that itself opens with an inline tag such as <strong>.
+  // A table cell is one block however many paragraphs it holds, since the
+  // next cell may be another product's.
+  let cellText = [];
+  const endCell = () => {
+    if (cellText.length) blocks.push({ text: cellText.join(" "), heading: false, cell: true });
+    cellText = [];
+  };
   parts.forEach((part, i) => {
     if (i % 2 === 1) {
       if (/^<(?:h[1-6]|summary)\b/i.test(part)) inHeading = true;
       else if (/^<\/(?:h[1-6]|summary)\b/i.test(part)) inHeading = false;
-      else if (/^<t[dh]\b/i.test(part)) inCell = true;
-      else if (/^<\/t[dh]\b/i.test(part)) inCell = false;
+      else if (/^<t[dh]\b/i.test(part)) {
+        endCell();
+        inCell = true;
+      } else if (/^<\/t[dh]\b/i.test(part)) {
+        endCell();
+        inCell = false;
+      }
       return;
     }
     const text = decodeEntities(part.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
-    if (text) blocks.push({ text, heading: inHeading, cell: inCell });
+    if (!text) return;
+    if (inCell) cellText.push(text);
+    else blocks.push({ text, heading: inHeading, cell: false });
   });
+  endCell();
   const standalone = [];
   for (const [key, value] of [
     ["name", "description"],
@@ -539,6 +556,23 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     [
       "a claim in a paragraph that opens with inline formatting",
       page("<h3>Custom words</h3><p><strong>Improve accuracy</strong> for names and jargon.</p>"),
+      /recognition/,
+    ],
+    ["an irregular form of misspell", page("<p>Custom words fix misspelt names.</p>"), /recognition/],
+    ["an irregular form of understand", page("<p>Custom words ensure your jargon is understood.</p>"), /recognition/],
+    [
+      "an irregular form of teach",
+      page("<p>Once you’ve taught Koegaki your custom words, it gets them right every time.</p>"),
+      /recognition/,
+    ],
+    [
+      "a claim in a later paragraph of the same table cell",
+      page("<table><tr><td><p>Custom words, spelled your way.</p><p>Improves recognition of names and jargon.</p></td></tr></table>"),
+      /recognition/,
+    ],
+    [
+      "a claim in JSON-LD whose script tag carries another attribute",
+      page(`<p>Hi.</p>${ld("Custom words improve recognition.").replace("<script ", '<script id="vocabulary-faq" ')}`),
       /recognition/,
     ],
     [
