@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
    * and a URL on the publisher domain that serves the bytes first hand.
    * Versioned filenames stay immutable: each release adds a new file, and a
    * manifest's recorded hash keeps matching what its URL serves.
+   *
+   * Preview deployments carry none of these files, on purpose. Every
+   * deployment stores its own copy of the build output, and the installers in
+   * every preview filled the team's deployment storage, so vercel.json runs
+   * scripts/strip-preview-installers.mjs before the build to remove them from
+   * a preview built on Vercel's own build machine. Every other build keeps
+   * them all and fails if the installer the site offers is missing, so a
+   * /downloads 404 on a preview URL is expected and can never reach production.
    */
 };
 
