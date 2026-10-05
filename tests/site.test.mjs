@@ -346,51 +346,52 @@ function exampleProblems(block) {
 }
 
 /**
+ * Sentences in a passage about custom words that use a word the check refuses
+ * but were reviewed against the app (Koegaki spec 2026-10-04 and the code at
+ * afd62e12) and say nothing it does not do, each with the reason. The check
+ * fails closed: an honest sentence that trips it is reviewed and added here;
+ * there is no other way past it. The route test drops an entry the site no
+ * longer says.
+ */
+const REVIEWED_SENTENCES = new Map([
+  [
+    "And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
+    "about the speech model, which does run on the Mac for every language it supports, not about custom words",
+  ],
+]);
+
+/** A block's sentences, split where a sentence ends. */
+const sentencesOf = (block) => block.split(/(?<=[.!?])\s+/);
+
+/**
  * What a page says about custom words that the app does not do (Koegaki spec
  * 2026-10-04). A custom word changes how a run of words the recognizer already
  * heard is written, never what Koegaki hears (item 2), and recognizer biasing
- * is out of that spec's scope, so the site may not say the app learns, is
- * trained or taught, is biased toward, recognises or better understands them,
- * or that they fix any misspelling; the copy says "hears" and "written" for
- * what does and does not change. They ship on both platforms, so no page may
- * call them missing, and every example it quotes must be one the app's case
- * table proves. Each sentence of a passage about custom words is judged.
+ * is out of that spec's scope, so no sentence about custom words may use the
+ * words of learning, training, teaching, biasing, recognition, understanding,
+ * accuracy, unknown words or misspellings. They ship on both platforms, so
+ * none may call them missing; they apply only to Latin, Greek and Cyrillic
+ * terms (item 4), so none may promise every language or script; and every
+ * example it quotes must be one the app's case table proves.
+ *
+ * Every sentence of a passage about custom words is judged, with no guess at
+ * negation or at what the sentence is about: those guesses let overclaims
+ * through or refused honest limits, one way or the other, in every version
+ * that tried them. An honest sentence the check refuses is reviewed and
+ * listed in REVIEWED_SENTENCES instead.
  */
-function customWordsProblems(doc) {
-  const names = (sentence) => /\bcustom words?\b/i.test(sentence);
-  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/gi;
+function customWordsProblems(doc, reviewed = REVIEWED_SENTENCES) {
+  const recognitionClaim = /\b(?:learn|train|teach|bias|recogni[sz]|accura|understand|unknown|misspell)/i;
   const absenceClaim =
     /\b(?:unavailable|not available|unsupported|not supported|no longer|removed|coming soon|not yet|only on)\b/i;
-  // A sentence about which letters or languages qualify states the script
-  // limit (spec item 4); it does not say the feature is missing.
-  const aboutScripts =
-    /\b(?:latin|greek|cyrillic|japanese|chinese|korean|arabic|hebrew|hindi|thai|scripts?|letters|alphabets?|languages?)\b/i;
-  const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/gi;
-  // A sentence whose subject is a replacement is about Replacements, and one
-  // whose subject is the speech model may say it covers every language it
-  // supports; neither is a claim about custom words unless it names them.
-  // The subject is how the sentence starts, not a word anywhere in it.
-  const ledByReplacement = (sentence) =>
-    !names(sentence) && /^\W*(?:(?:with|use)\s+)?(?:an?\s+)?replacements?\b/i.test(sentence);
-  const ledByModel = (sentence) => !names(sentence) && /^\W*(?:and\s+)?the\s+(?:speech\s+)?model\b/i.test(sentence);
-  // A match counts unless its own clause negates it before the match ("never
-  // change what Koegaki recognises", "need no training", "don't work in every
-  // language"); a clause ends at a comma, semicolon, colon or parenthesis.
-  const asserted = (sentence, claim) =>
-    [...sentence.matchAll(claim)].some((m) => {
-      const clause = sentence.slice(0, m.index).split(/[,;:(]/).pop();
-      return !/\b(?:not|never|no|nothing|without|neither|nor)\b|n['’]t\b/i.test(clause);
-    });
+  const everyScript = /\b(?:every|any|all)\s+(?:languages?|scripts?|alphabets?|writing systems?)\b/i;
   return customWordsMentions(doc).flatMap((block) =>
-    block
-      .split(/(?<=[.!?])\s+/)
-      .filter((sentence) => !ledByReplacement(sentence))
+    sentencesOf(block)
+      .filter((sentence) => !reviewed.has(sentence))
       .flatMap((sentence) => [
-        ...(asserted(sentence, recognitionClaim) ? [`describes custom words as recognition: "${sentence}"`] : []),
-        ...(absenceClaim.test(sentence) && !aboutScripts.test(sentence)
-          ? [`describes custom words as absent: "${sentence}"`]
-          : []),
-        ...(!ledByModel(sentence) && asserted(sentence, everyScript)
+        ...(recognitionClaim.test(sentence) ? [`describes custom words as recognition: "${sentence}"`] : []),
+        ...(absenceClaim.test(sentence) ? [`describes custom words as absent: "${sentence}"`] : []),
+        ...(everyScript.test(sentence)
           ? [`promises custom words in every script, past the Latin, Greek and Cyrillic limit: "${sentence}"`]
           : []),
         ...exampleProblems(sentence).map((problem) => `${problem}, in "${sentence}"`),
@@ -528,6 +529,11 @@ test("the custom words check catches an overclaim or an absence wherever a page 
       page("<p>Add your names and jargon as custom words. They work in every language.</p>"),
       /script/,
     ],
+    [
+      "a promise behind an unrelated negation",
+      page("<p>Custom words never leave your device and work in every language.</p>"),
+      /script/,
+    ],
   ];
   for (const [what, doc, message] of caught) {
     const problems = customWordsProblems(doc);
@@ -544,19 +550,8 @@ test("the custom words check catches an overclaim or an absence wherever a page 
     page("<h3>Custom words</h3><p>Spelled your way.</p><h3>Accuracy</h3><p>The model recognises speech well.</p>"),
     // A paragraph before the one that names custom words is not about them.
     page("<h2>Changes</h2><p>The model recognises speech.</p><p>Custom words, spelled your way.</p>"),
-    // A limit on scripts is not the feature being absent.
-    page("<p>Custom words in Japanese are not supported.</p>"),
     // A quoted saved term is not a transcript example.
     page("<p>Add “PostHog” as a custom word and “post hog” becomes PostHog.</p>"),
-    // Every language, said of the model, is not a promise about custom words.
-    page("<p>Custom words and replacements. The model runs on your Mac, for every language it supports.</p>"),
-    // A negated claim states a limit.
-    page("<p>Custom words, spelled your way. They don’t work in every language: terms need Latin, Greek or Cyrillic letters.</p>"),
-    page("<p>Custom words never change what Koegaki recognises.</p>"),
-    page("<p>Custom words need no training.</p>"),
-    // A sentence led by a replacement is about replacements, not custom words.
-    page("<p>Custom words, spelled your way.</p><p>With a replacement, a short word becomes your full email address.</p>"),
-    page("<p>Custom words, spelled your way.</p><p>Use a replacement for a name Koegaki keeps misspelling.</p>"),
     // Each table cell stands alone, so the other product's cells are its own.
     page(
       "<h2>Compare</h2><table><tr><th>Custom vocabulary</th><td>Custom words, spelled your way.</td><td>Dictionary of terms it learns to recognise.</td></tr><tr><th>Where</th><td>Audio is uploaded for recognition.</td></tr></table>",
@@ -566,14 +561,46 @@ test("the custom words check catches an overclaim or an absence wherever a page 
   assert.ok(customWordsMentions(page("<p>Custom words, spelled your way.</p>")).length > 0);
 });
 
+test("the custom words check fails closed: an honest sentence it refuses passes only once reviewed", () => {
+  // Honest limits a copywriter might write that use a refused word. The check
+  // does not guess at negation or a sentence's subject, which every earlier
+  // attempt got wrong one way or the other; each such sentence is reviewed
+  // against the app and listed in REVIEWED_SENTENCES before it can ship.
+  const page = (body) => `<html><head></head><body>${body}</body></html>`;
+  const limits = [
+    "Custom words in Japanese are not supported.",
+    "They don’t work in every language: terms need Latin, Greek or Cyrillic letters.",
+    "Custom words never change what Koegaki recognises.",
+    "Custom words need no training.",
+    "Use a replacement for a name Koegaki keeps misspelling.",
+    "Add a replacement for a name Koegaki keeps misspelling.",
+    "With a replacement, a short word becomes your full email address.",
+    "The model runs on your Mac, for every language it supports.",
+  ];
+  for (const sentence of limits) {
+    const doc = page(`<p>Custom words, spelled your way.</p><p>${sentence}</p>`);
+    assert.notDeepEqual(customWordsProblems(doc), [], `passed without review: ${sentence}`);
+    assert.deepEqual(customWordsProblems(doc, new Map([[sentence, "reviewed in this probe"]])), [], sentence);
+  }
+});
+
 test("custom words are described as a spelling rule, never as recognition or as absent", () => {
   let described = 0;
+  const onSite = new Set();
   for (const path of ROUTES) {
     const doc = html(path);
-    described += customWordsMentions(doc).length;
+    for (const block of customWordsMentions(doc)) {
+      described++;
+      for (const sentence of sentencesOf(block)) onSite.add(sentence);
+    }
     assert.deepEqual(customWordsProblems(doc), [], `${path} misdescribes custom words`);
   }
   assert.ok(described > 0, "no page describes custom words");
+  // A reviewed sentence the site no longer says is dropped from the list, so
+  // the list only ever names copy someone checked.
+  for (const sentence of REVIEWED_SENTENCES.keys()) {
+    assert.ok(onSite.has(sentence), `REVIEWED_SENTENCES lists a sentence the site no longer says: "${sentence}"`);
+  }
 });
 
 test("each platform's engine copy names the English model the model index serves", () => {
