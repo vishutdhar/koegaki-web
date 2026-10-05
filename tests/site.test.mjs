@@ -785,86 +785,86 @@ const REVIEWED_WAIT_SENTENCES = new Map([
   ["A download you start yourself, and the first download after you install, go ahead on any connection.", {
     where: ["/privacy"],
     after: null,
-    then: null,
+    then: ["The license and update checks carry only license and version metadata; the update download is the app itself."],
     why: "a download the user starts and the first install have no gate on either platform",
   }],
   ["A newer cleanup model is offered on the Home screen, and nothing downloads until you choose to update it.", {
     where: ["/privacy"],
     after: null,
-    then: null,
+    then: ["A new speech model arrives only with an app update."],
     why: "a newer cleanup model is the user's to accept; the launch download is of the model already chosen",
   }],
   [PRIVACY_REQUEST, {
     where: ["/privacy"],
     after: [[PRIVACY_UPDATE]],
-    then: null,
+    then: [PRIVACY_WAIT],
     why: "what the background request carries; \"only\" is about the connection it uses, not when",
   }],
   ["A new speech model arrives only with an app update.", {
     where: ["/privacy"],
     after: null,
-    then: null,
+    then: [PRIVACY_UPDATE],
     why: "a speech model is never offered on its own; it comes with an app update",
   }],
   ["The license and update checks carry only license and version metadata; the update download is the app itself.", {
     where: ["/privacy"],
     after: null,
-    then: null,
+    then: ["None of this ever includes audio or transcripts."],
     why: "what the checks carry; no wait claimed",
   }],
   [PRIVACY_UPDATE, {
     where: ["/privacy"],
     after: [["A new speech model arrives only with an app update."]],
-    then: null,
+    then: [PRIVACY_REQUEST],
     why: "the background speech update itself; its wait is the sentence after next",
   }],
   [SPEECH_UPDATE[2][0], {
     where: ["/mac", "/windows"],
     after: [["Dictation itself never touches the network."]],
-    then: null,
+    then: [MAC_WAIT, WINDOWS_WAIT],
     why: "the network FAQ's list: what the user chooses, and the background speech update, with no wait claimed",
   }],
   [SPEECH_UPDATE[3][0], {
     where: ["/offline-dictation"],
     under: "What still uses the network",
     after: null,
-    then: null,
+    then: [BOTH_WAIT],
     why: "the same list on the offline page",
   }],
   [EACH_MODEL_ONCE, {
     where: ["/mac", "/windows", "/offline-dictation"],
     after: null,
-    then: null,
+    then: ["Being offline never locks a paid licence out.", "If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline."],
     why: "pre-existing: a cleanup model downloads only once the user chose it; \"once\" is the normal case, as a missing file is fetched again; no wait claimed",
   }],
   ["The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com.", {
     where: ["/offline-dictation"],
     after: [["First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once."]],
-    then: null,
+    then: ["On Mac every model file comes from our model mirror at koegaki-models.vishutdhar.workers.dev and nowhere else."],
     why: "the hosts the app reaches, for a firewall allow list; \"only\" limits where, not when",
   }],
   ["That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.", {
     where: ["/vs/wispr-flow"],
     after: [["Wispr Flow is good at what it does, and what it does is send your voice to a server, recognise it there, tidy it with a language model, and send text back."]],
-    then: null,
+    then: ["Koegaki makes the opposite trade."],
     why: "about Wispr Flow's account and word cap, not about a Koegaki download",
   }],
   ["Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.", {
     where: ["/"],
     after: null,
-    then: null,
+    then: [END],
     why: "the licence checks, which never lock an offline user out; no download claimed",
   }],
   ["Dictation itself never touches the network.", {
     where: ["/mac", "/windows"],
     after: null,
-    then: null,
+    then: [SPEECH_UPDATE[2][0]],
     why: "dictation runs on the computer; the downloads are named in the sentence after",
   }],
   ["The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text.", {
     where: ["/offline-dictation"],
     after: null,
-    then: null,
+    then: [SPEECH_UPDATE[1][0]],
     why: "recognition never needs the network; the background update and its wait follow",
   }],
   ["Lose the connection and they stop.", {
@@ -873,7 +873,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
       "Most dictation tools are a microphone connected to a server.",
       "They record you, upload the audio, and wait for a transcript to come back.",
     ]],
-    then: null,
+    then: ["Keep the connection and every word you say passes through someone else's computer."],
     why: "about server dictation tools, which stop without a connection, not about a Koegaki download",
   }],
 ]);
@@ -894,7 +894,8 @@ function aboutWaiting(sentence) {
     /\b(?:wait\w*|paus\w*|on hold|held|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*|resum\w*|stop|stops|stopped|stopping|until|(?<!\b(?:M\d+|\d+(?:\.\d+)*) (?:or|and) )later|queue\w*|skip\w*|go(?:es)? ahead|proceed\w*|only|(?:un)?limited|(?:un)?capped)\b/i;
   // A promise about data or money ("never cost you extra"), next to a download
   // or a connection rather than a model, which the comparison pages name freely.
-  const promise = /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared)\b/i;
+  const promise =
+    /\b(?:never|extra|charges?|bill\w*|fees?|surprise\w*|budget\w*|spares?|spared|incur\w*|costs?|additional|eat(?:s|ing)? (?:into|up)|use(?:s|d)? up|won't|cannot|can't)\b/i;
   const transferOrData = /\b(?:download\w*|connection\w*|network\w*|data)\b/i;
   // A sentence that carries a wait over from another ("the same rule
   // applies"), speaks of every download at once, or speaks of the downloads a
@@ -919,15 +920,18 @@ function aboutWaiting(sentence) {
  * sequences or not right before one of its `then` sentences. With the reviewed
  * sentences found, for the where check.
  */
-function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
+/**
+ * A page's text as it reads: each block with the sentences of its run before
+ * it (`before`), the first sentence of its run after it (`next`, END when none),
+ * the rest of its run (`rest`), and the heading it sits under. A paragraph runs
+ * on into the next one of its section, so neither a continuation nor an
+ * antecedent hides behind a paragraph break; a heading, a table cell, the end
+ * of a container (a FAQ answer, a section) or of the page ends the run. A
+ * string that stands alone is its own run, and a JSON-LD answer sits under its
+ * question.
+ */
+function readingBlocks(doc) {
   const { body, standalone } = textBlocks(doc);
-  const problems = [];
-  const found = [];
-  // A paragraph runs on into the next one of its section, so neither a
-  // continuation nor an antecedent hides behind a paragraph break; a heading, a
-  // table cell, the end of a container (a FAQ answer, a section) or of the page
-  // ends the run. A string that stands alone is its own run, and a JSON-LD
-  // answer sits under its question.
   const runsOn = (a, b) => !a.closed && !a.cell && !a.heading && !b.heading && !b.cell;
   const blocks = [];
   let heading = null;
@@ -936,16 +940,20 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   body.forEach((b, k) => {
     if (k === 0 || !runsOn(body[k - 1], b)) run = [];
     if (b.heading) {
-      heading = b.text;
+      // The FAQ marks each question with a "+" it draws, not part of the question.
+      heading = b.text.replace(/\s*\+$/, "");
       sinceHeading = 0;
     } else {
       sinceHeading += 1;
     }
-    const after = body[k + 1];
+    const rest = [];
+    for (let j = k; j + 1 < body.length && runsOn(body[j], body[j + 1]); j++) rest.push(...sentencesOf(body[j + 1].text));
     blocks.push({
       text: b.text,
+      body: true,
       before: run,
-      next: after && runsOn(b, after) ? sentencesOf(after.text)[0] : END,
+      next: rest[0] ?? END,
+      rest,
       heading,
       firstUnderHeading: !b.heading && sinceHeading === 1,
     });
@@ -961,9 +969,22 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   jsonLd(doc).forEach(walkQuestions);
   for (const text of standalone) {
     const question = questionOf.get(text) ?? null;
-    blocks.push({ text, before: [], next: END, heading: question, firstUnderHeading: question !== null });
+    blocks.push({ text, body: false, before: [], next: END, rest: [], heading: question, firstUnderHeading: question !== null });
   }
-  for (const { text, before, next, heading: under, firstUnderHeading } of blocks) {
+  return blocks;
+}
+
+/**
+ * What is wrong with what a page says about waiting: each flagged sentence of
+ * every block that is unreviewed, or reviewed but not where it was reviewed to
+ * be (after one of its `after` sequences, before one of its `then` sentences,
+ * opening the answer to its `under` heading). With the reviewed sentences
+ * found, for the where check.
+ */
+function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
+  const problems = [];
+  const found = [];
+  for (const { text, before, next, heading: under, firstUnderHeading } of readingBlocks(doc)) {
     const sentences = sentencesOf(text);
     const context = [...before, ...sentences];
     sentences.forEach((sentence, i) => {
@@ -979,7 +1000,7 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
         problems.push(`"${sentence}" does not open the answer to the heading it was reviewed under: "${under}"`);
       }
       const following = i + 1 < sentences.length ? sentences[i + 1] : next;
-      if (entry.then !== null && !entry.then.includes(following)) {
+      if (!entry.then.includes(following)) {
         problems.push(`"${sentence}" is followed by a sentence it was not reviewed with: "${following}"`);
       }
       if (entry.after === null) return;
@@ -993,24 +1014,38 @@ function waitProblems(doc, reviewed = REVIEWED_WAIT_SENTENCES) {
   return { problems, found };
 }
 
+/**
+ * Blocks that describe the background speech download with no reviewed wait
+ * sentence in their run, keyed by page part ("body" or "JSON-LD") with how many
+ * describe it, for the coverage check.
+ */
+function backgroundCoverage(doc) {
+  const missing = [];
+  const described = new Map();
+  for (const { text, body, rest } of readingBlocks(doc)) {
+    if (!/\bbackground\b/i.test(text) || !/\bdownloads?\b/i.test(text)) continue;
+    const where = body ? "body" : "JSON-LD";
+    described.set(where, (described.get(where) ?? 0) + 1);
+    const says = [...sentencesOf(text), ...rest].some(
+      (s) => /^That (?:background )?download\b/.test(s) && REVIEWED_WAIT_SENTENCES.has(s),
+    );
+    if (!says) missing.push(text);
+  }
+  return { missing, described };
+}
+
 test("every block that describes the background model download says when it waits", () => {
   // The speech model an app update brings downloads in the background, and it
   // waits while the computer is on a connection it treats as costly. A
   // paragraph, FAQ answer or JSON-LD string that describes the background
-  // download without that wait tells a visitor on a hotspot that several
-  // hundred megabytes go ahead. Each block is judged alone, so a FAQ's JSON-LD
-  // answer cannot drift from the visible one.
+  // download with no wait in its run tells a visitor on a hotspot that several
+  // hundred megabytes go ahead. Each JSON-LD string is judged alone, so a FAQ's
+  // JSON-LD answer cannot drift from the visible one.
   const described = new Map();
   for (const path of ROUTES) {
-    const { body, standalone } = textBlocks(html(path));
-    for (const [where, texts] of [["body", body.map((b) => b.text)], ["JSON-LD", standalone]]) {
-      for (const text of texts) {
-        if (!/\bbackground\b/i.test(text) || !/\bdownloads?\b/i.test(text)) continue;
-        described.set(`${path} ${where}`, (described.get(`${path} ${where}`) ?? 0) + 1);
-        const says = sentencesOf(text).some((s) => /^That (?:background )?download\b/.test(s) && REVIEWED_WAIT_SENTENCES.has(s));
-        assert.ok(says, `${path} describes the background download without its wait: "${text}"`);
-      }
-    }
+    const coverage = backgroundCoverage(html(path));
+    assert.deepEqual(coverage.missing, [], `${path} describes the background download without its wait`);
+    for (const [where, n] of coverage.described) described.set(`${path} ${where}`, n);
   }
   // Where the background download is described today: the privacy page, the
   // home FAQ, and each landing page's prose and network FAQ, each FAQ in its
@@ -1027,13 +1062,15 @@ test("every block that describes the background model download says when it wait
   });
 });
 
-/** Entries that leave `after` or `then` unstated, or claim a wait with nothing pinned after them. */
+/**
+ * Entries that leave `after` unstated or pin nothing after them. Every reviewed
+ * sentence pins what follows it, since a continuation can carry any claim on
+ * ("The speech model has the same approval step."), whatever the claim's words.
+ */
 function ledgerProblems(reviewed = REVIEWED_WAIT_SENTENCES) {
-  const deferral =
-    /\b(?:wait\w*|paus\w*|held|on hold|hold(?:s|ing)? (?:back|off)|block(?:s|ed|ing)?|suspend\w*|defer\w*|postpon\w*|delay\w*)\b/i;
   return [...reviewed].flatMap(([sentence, entry]) => [
     ...(!("after" in entry) || !("then" in entry) ? [`states no after or then: "${sentence}"`] : []),
-    ...(deferral.test(sentence) && !Array.isArray(entry.then) ? [`claims a wait with no then: "${sentence}"`] : []),
+    ...(!Array.isArray(entry.then) ? [`pins nothing after it: "${sentence}"`] : []),
   ]);
 }
 
@@ -1101,6 +1138,9 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
     "Model downloads spare your data.",
     "Downloads respect your connection budget.",
     "Downloads are free of surprise fees.",
+    "A newer cleanup model is offered on the Home screen, and nothing downloads until you choose to update it. The speech model has the same approval step.",
+    "Model downloads cannot incur additional costs.",
+    "Model downloads won't eat into your data.",
     "Koegaki makes the opposite trade. That is why it needs an account and an internet connection, why the free tier is capped at a weekly word count on desktop with a paid plan above it, and why every sentence you dictate passes through a company's infrastructure.",
     `When an update brings a new version of the speech model you use, the updated app downloads it automatically in the background. On a Mac, that includes an iPhone's Personal Hotspot and Low Data Mode; in Windows, a cellular link and any network you marked as metered, which you can do for a phone hotspot.`,
   ]) {
@@ -1127,14 +1167,21 @@ test("the wait check refuses each overclaim it is known to have to catch", () =>
   // and the answer to a question in JSON-LD.
   for (const fine of [
     `<p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p>`,
-    `<h2>What still uses the network</h2><p>${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE}</p>`,
+    `<h2>What still uses the network</h2><p>${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE} If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.</p>`,
+    // The FAQ draws a "+" beside each question; the answer is still under it.
+    `<details><summary>What still uses the network<span>+</span></summary><p>${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE} If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.</p></details>`,
   ]) {
     const doc = `<html><head></head><body><main>${fine}</main></body></html>`;
     assert.deepEqual(waitProblems(doc).problems, [], `the wait check refused honest copy: ${fine}`);
   }
-  const faq = JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: [{ "@type": "Question", name: "What still uses the network", acceptedAnswer: { "@type": "Answer", text: SPEECH_UPDATE[3][0] } }] });
+  const faq = JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: [{ "@type": "Question", name: "What still uses the network", acceptedAnswer: { "@type": "Answer", text: `${SPEECH_UPDATE[3][0]} ${BOTH_WAIT} ${EACH_MODEL_ONCE} If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.` } }] });
   const faqDoc = `<html><head></head><body><script type="application/ld+json">${faq}</script></body></html>`;
   assert.deepEqual(waitProblems(faqDoc).problems, [], "the wait check refused a JSON-LD answer under its question");
+  // The coverage check reads the same runs, so a split paragraph keeps its wait.
+  const split = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]}</p><p>${MAC_WAIT} Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.</p></main></body></html>`;
+  assert.deepEqual(backgroundCoverage(split).missing, [], "the coverage check refused a split paragraph");
+  const lost = `<html><head></head><body><main><p>${SPEECH_UPDATE[0][0]}</p></main></body></html>`;
+  assert.notDeepEqual(backgroundCoverage(lost).missing, [], "the coverage check missed a background download with no wait");
   // A wait sentence that ends a table cell or a FAQ answer is not continued by
   // the next cell or what follows the answer.
   for (const fine of [
