@@ -1496,19 +1496,18 @@ const feedRefusal = (message) => Object.assign(new Error(message), { refusal: tr
 
 /**
  * An XML document as a tree of elements, each { name, uri, local,
- * attributes, text, children }, read by a conformant parser (saxes) with
- * namespaces, so
- * the checks see the elements, attribute values and text an XML reader such
- * as Sparkle's does: comments dropped, CDATA and character references read as
- * text, and names matched by namespace, whatever the prefix. Throws on any
- * well formedness error, and on a DOCTYPE or a processing instruction, which
- * no feed needs and which Sparkle's reader treats in ways these checks do not
- * follow. An element's text is its own, so markup inside it is seen as
- * children rather than read past.
+ * attributes, text, children, comments }, read by a conformant parser (saxes)
+ * with namespaces, so the checks see the elements, attribute values and text
+ * an XML reader such as Sparkle's does: CDATA and character references read
+ * as text, and each name with its namespace and its name as written. Throws on
+ * any well formedness error, and on a DOCTYPE or a processing instruction,
+ * which no feed needs and which Sparkle's reader treats in ways these checks
+ * do not follow. An element's text is its own, so markup inside it is seen as
+ * children, and a comment inside it is counted, rather than read past.
  */
 function xmlTree(xml) {
   const parser = new SaxesParser({ xmlns: true });
-  const root = { name: "", uri: "", local: "", attributes: [], text: "", children: [] };
+  const root = { name: "", uri: "", local: "", attributes: [], text: "", children: [], comments: 0 };
   const open = [root];
   parser.on("doctype", () => {
     throw feedRefusal("holds a DOCTYPE, which a Sparkle feed never needs");
@@ -1518,13 +1517,16 @@ function xmlTree(xml) {
   });
   parser.on("opentag", (tag) => {
     const attributes = Object.values(tag.attributes).map(({ name, uri, local, value }) => ({ name, uri, local, value }));
-    const element = { name: tag.name, uri: tag.uri, local: tag.local, attributes, text: "", children: [] };
+    const element = { name: tag.name, uri: tag.uri, local: tag.local, attributes, text: "", children: [], comments: 0 };
     open.at(-1).children.push(element);
     open.push(element);
   });
   parser.on("closetag", () => open.pop());
   parser.on("text", (text) => (open.at(-1).text += text));
   parser.on("cdata", (text) => (open.at(-1).text += text));
+  // Foundation's reader, which Sparkle uses, counts a comment's text in its
+  // element's string value.
+  parser.on("comment", () => (open.at(-1).comments += 1));
   parser.write(xml).close();
   return root;
 }
@@ -1550,10 +1552,10 @@ const sparkleAttribute = (element, name) => element.attributes.find((a) => spark
  * The enclosures of the items Sparkle reads, /rss/channel/item, each with what
  * its item says of its short version: the version when the item holds exactly
  * one child Sparkle reads as sparkle:shortVersionString (null otherwise), how
- * many it holds, whether that element holds markup, and whether the enclosure
- * gives a version of its own. An item's enclosures are the children Sparkle
- * reads as enclosure, and `stray` counts every other element named enclosure
- * in the document, in any namespace. Throws when the appcast cannot be read
+ * many it holds, whether that element holds markup or a comment, and whether
+ * the enclosure gives a version of its own. An item's enclosures are the
+ * children Sparkle reads as enclosure, and `stray` counts every other element
+ * named enclosure in the document, in any namespace. Throws when the appcast cannot be read
  * (see xmlTree).
  */
 function appcastEnclosures(xml) {
@@ -1567,7 +1569,7 @@ function appcastEnclosures(xml) {
     return sparkleChildren(item, "enclosure").map((enclosure) => ({
       version: only ? only.text : null,
       versions: versions.length,
-      markup: Boolean(only?.children.length),
+      markup: Boolean(only?.children.length || only?.comments),
       enclosureVersion: enclosure.attributes.some((a) => a.local === "shortVersionString"),
       url: sparkleAttribute(enclosure, "url"),
       length: sparkleAttribute(enclosure, "length"),
@@ -1723,6 +1725,13 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     [
       "a version holding an element",
       { xml: appcastOf(version, github, size).replace(`<sparkle:shortVersionString>${version}<`, `<sparkle:shortVersionString>${version}<b>9</b><`) },
+      /short version holds markup/,
+    ],
+    [
+      // Foundation's XML reader, which Sparkle uses, includes a comment's text in
+      // the element's string value, so this reads as 1.9.09 there.
+      "a comment inside the version",
+      { xml: appcastOf(version, github, size).replace(`<sparkle:shortVersionString>${version}<`, `<sparkle:shortVersionString>${version}<!--9--><`) },
       /short version holds markup/,
     ],
     [
