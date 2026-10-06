@@ -1,9 +1,21 @@
 // Checks the BUILT site (the prerendered HTML and sitemap in .next), not the
 // source, so what is pinned here is exactly what a crawler is served. Run with
 // `npm test`, which builds first.
+//
+// One test needs the network and runs only when asked to. With RELEASE_FETCH=1
+// it downloads from GitHub both assets of every release the update manifest,
+// the appcast and the download links serve from there, holds each to its
+// record in releases/ (size, SHA-256 and BLAKE2b-512), and verifies the Windows
+// updater signature and the appcast's Sparkle signature over the downloaded
+// bytes. Without RELEASE_FETCH=1 it is reported as skipped, never as passed.
+// Run it alone with
+//
+//   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub" tests/site.test.mjs
+//
+// or with the whole suite as `RELEASE_FETCH=1 npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { SaxesParser } from "saxes";
 import { SITE } from "../lib/site.ts";
@@ -948,9 +960,11 @@ test("the model index check refuses what the app readers refuse", () => {
  * BLAKE2b-512 digest and so ties the record to the signed installer. That
  * digest is the only field the checks here can authenticate; the sizes, the
  * SHA-256 digests and the disk image's BLAKE2b-512 are held to their shape,
- * and to the bytes where public/downloads still holds the installer, but
- * otherwise rest on the publishing tool, which measured them on the files it
- * downloaded back from the release.
+ * to each other where the manifest and the appcast repeat them, and to the
+ * bytes where public/downloads still holds the installer. Otherwise they rest
+ * on the publishing tool, which measured them on the files it downloaded back
+ * from the release, and on the test that downloads the release again
+ * (RELEASE_FETCH=1, see the top of this file).
  */
 const RELEASES = new URL("../releases/", import.meta.url);
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
@@ -2187,5 +2201,152 @@ test("the download link check refuses a recorded release off GitHub, a link on a
   const missed = refused.filter(([, args, expected]) => !check(args).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const wronglyRefused = accepted.map(([name, args]) => [name, check(args)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+});
+
+/**
+ * The key the Mac app checks every update against, copied from the Koegaki
+ * repo (SUPublicEDKey in apps/KoegakiMac/project.yml and
+ * apps/KoegakiMac/Resources/Info.plist): a raw 32 byte Ed25519 key as base64.
+ * Sparkle verifies an enclosure's sparkle:edSignature over the whole disk
+ * image with it before it opens the image.
+ */
+const MAC_SPARKLE_PUBKEY = "2SAX2B+giN1G9pZlqlTMOA/Es0PWh1wPj+M3Et6WZVw=";
+
+/**
+ * What differs between a release as downloaded and its record, which the
+ * offline checks can hold only to its shape and to the signed installer
+ * digest. `assets` holds the downloaded disk image and installer by kind
+ * ("dmg", "exe"); each must have the size, SHA-256 and BLAKE2b-512 the record
+ * states. The record's updater signature, which the manifest must carry, must
+ * verify over the downloaded installer and name its file, and every Sparkle
+ * signature in `signatures`, what the appcast gives for this disk image, must
+ * verify over the downloaded disk image. `keys` holds the updater's key
+ * (`updater`, as WINDOWS_UPDATER_PUBKEY) and Sparkle's (`sparkle`, as
+ * MAC_SPARKLE_PUBKEY).
+ */
+function downloadedReleaseProblems(record, assets, signatures, keys) {
+  const problems = [];
+  for (const kind of ["dmg", "exe"]) {
+    const artifact = record.artifacts[kind];
+    const bytes = assets[kind];
+    if (!bytes) {
+      problems.push(`${kind}: nothing was downloaded`);
+      continue;
+    }
+    if (bytes.length !== artifact.size) problems.push(`${kind}: ${bytes.length} bytes, not the ${artifact.size} the record states`);
+    for (const digest of ["sha256", "blake2b512"]) {
+      const actual = createHash(digest).update(bytes).digest("hex");
+      if (actual !== artifact[digest]) problems.push(`${kind}: ${digest} ${actual} is not ${artifact[digest]}, the digest the record states`);
+    }
+  }
+  if (assets.exe) {
+    const digest = createHash("blake2b512").update(assets.exe).digest();
+    const { problems: signatureProblems, trusted } = updaterSignatureProblems(digest, record.artifacts.exe.signature, keys.updater);
+    problems.push(...signatureProblems.map((problem) => `exe: ${problem}`));
+    if (!trusted?.split("\t").includes(`file:Koegaki_${record.version}_x64-setup.exe`)) {
+      problems.push(`exe: the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${record.version}_x64-setup.exe`);
+    }
+  }
+  if (assets.dmg && signatures.length > 0) {
+    const key = canonicalBase64(keys.sparkle);
+    if (key?.length !== 32) return [...problems, "dmg: the Sparkle key is not 32 bytes as canonical base64"];
+    const publicKey = createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, key]), format: "der", type: "spki" });
+    for (const signature of signatures) {
+      const bytes = canonicalBase64(signature);
+      if (bytes?.length !== 64 || !verify(null, assets.dmg, publicKey, bytes)) {
+        problems.push(`dmg: the Sparkle signature ${JSON.stringify(signature)} does not verify over the downloaded disk image`);
+      }
+    }
+  }
+  return problems;
+}
+
+test(
+  "the release assets downloaded from GitHub match their records and signatures",
+  { skip: process.env.RELEASE_FETCH === "1" ? false : "needs the network: run with RELEASE_FETCH=1, as the top of this file says" },
+  async (t) => {
+    const manifest = publicJson("windows-updates.json");
+    const enclosures = enclosuresOf(appcastItems(readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8")).items);
+    const served = [manifest.platforms?.["windows-x86_64"]?.url, ...enclosures.map(({ url }) => url), SITE.downloadUrl, SITE.windowsDownloadUrl];
+    const versions = new Set(served.filter((url) => hostOf(url) === "github.com").map((url) => url.match(/\/releases\/download\/v(\d+\.\d+\.\d+)\//)?.[1]));
+    assert.ok(versions.size > 0, "the site serves nothing from GitHub");
+    for (const version of versions) {
+      const record = releaseRecord(version);
+      assert.ok(record, `no releases/${version}.json records ${version}, which the site serves from GitHub`);
+      const assets = {};
+      for (const kind of ["dmg", "exe"]) {
+        const { url } = record.artifacts[kind];
+        const response = await fetch(url, { signal: AbortSignal.timeout(10 * 60_000) });
+        assert.ok(response.ok, `${url} answered HTTP ${response.status}`);
+        assets[kind] = Buffer.from(await response.arrayBuffer());
+        t.diagnostic(`${url} (served from ${new URL(response.url).host}): ${assets[kind].length} bytes, sha256 ${createHash("sha256").update(assets[kind]).digest("hex")}`);
+      }
+      const signatures = enclosures.filter(({ url }) => url === record.artifacts.dmg.url).flatMap((enclosure) => enclosure.signatures);
+      if (signatures.length === 0) t.diagnostic(`no appcast item offers ${record.artifacts.dmg.url}, so no Sparkle signature of it is checked`);
+      const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: MAC_SPARKLE_PUBKEY };
+      assert.deepEqual(downloadedReleaseProblems(record, assets, signatures, keys), [], `${version} as GitHub serves it`);
+      t.diagnostic(
+        `${version}: both assets match releases/${version}.json in size, SHA-256 and BLAKE2b-512; the updater signature and ${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"} verify over the downloaded bytes`,
+      );
+    }
+  },
+);
+
+test("the download check refuses bytes that differ from the record and signatures that do not verify over them", () => {
+  // The 1.9.0 installer public/downloads holds stands in for a downloaded one,
+  // with its real record and updater signature. No disk image is here, so one
+  // is made up, recorded, and signed with a key made for this test.
+  const record = structuredClone(releaseRecord("1.9.0"));
+  const exe = RELEASE_SOURCES.installer("1.9.0");
+  assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
+  const hex = (digest, bytes) => createHash(digest).update(bytes).digest("hex");
+  const dmg = createHash("sha512").update("a disk image made for this test").digest();
+  Object.assign(record.artifacts.dmg, { size: dmg.length, sha256: hex("sha256", dmg), blake2b512: hex("blake2b512", dmg) });
+  const rawKey = (key) => key.export({ format: "der", type: "spki" }).subarray(ED25519_SPKI_PREFIX.length).toString("base64");
+  const sparkle = generateKeyPairSync("ed25519");
+  const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: rawKey(sparkle.publicKey) };
+  const edSignature = sign(null, dmg, sparkle.privateKey).toString("base64");
+  const otherSignature = releaseRecords().find(({ version }) => version && version !== "1.9.0")?.record.artifacts.exe.signature;
+  assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
+  const flipped = (bytes, at) => {
+    const copy = Buffer.from(bytes);
+    copy[at] ^= 0x01;
+    return copy;
+  };
+  const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
+  const check = (change) => {
+    const { assets = { dmg, exe }, signatures = [edSignature], key = keys, edit } = change;
+    const copy = structuredClone(record);
+    edit?.(copy);
+    return downloadedReleaseProblems(copy, assets, signatures, key);
+  };
+  const refused = [
+    ["an installer one byte off", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: sha256 .* is not/],
+    ["an installer one byte off, by its BLAKE2b-512", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: blake2b512 .* is not/],
+    ["an installer one byte off, by its updater signature", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: the installer signature does not verify/],
+    ["an installer one byte short", { assets: { dmg, exe: exe.subarray(0, -1) } }, /exe: \d+ bytes, not the \d+ the record states/],
+    ["a record whose installer size is one byte off", { edit: (r) => (r.artifacts.exe.size += 1) }, /exe: \d+ bytes, not the \d+ the record states/],
+    ["a record whose installer SHA-256 is wrong", { edit: (r) => (r.artifacts.exe.sha256 = flippedHex(r.artifacts.exe.sha256)) }, /exe: sha256 .* is not/],
+    ["a record whose installer BLAKE2b-512 is wrong", { edit: (r) => (r.artifacts.exe.blake2b512 = flippedHex(r.artifacts.exe.blake2b512)) }, /exe: blake2b512 .* is not/],
+    ["a record whose disk image size is one byte off", { edit: (r) => (r.artifacts.dmg.size -= 1) }, /dmg: \d+ bytes, not the \d+ the record states/],
+    ["a record whose disk image SHA-256 is wrong", { edit: (r) => (r.artifacts.dmg.sha256 = flippedHex(r.artifacts.dmg.sha256)) }, /dmg: sha256 .* is not/],
+    ["a record whose disk image BLAKE2b-512 is wrong", { edit: (r) => (r.artifacts.dmg.blake2b512 = flippedHex(r.artifacts.dmg.blake2b512)) }, /dmg: blake2b512 .* is not/],
+    ["an updater signature of another release", { edit: (r) => (r.artifacts.exe.signature = otherSignature) }, /exe: the installer signature does not verify/],
+    ["a record of another version than the file its updater signature names", { edit: (r) => (r.version = "1.9.9") }, /exe: the trusted comment .* does not name Koegaki_1\.9\.9_x64-setup\.exe/],
+    ["a disk image one byte off", { assets: { dmg: flipped(dmg, 0), exe } }, /dmg: the Sparkle signature .* does not verify/],
+    ["a Sparkle signature by another key", { key: { ...keys, sparkle: rawKey(generateKeyPairSync("ed25519").publicKey) } }, /dmg: the Sparkle signature .* does not verify/],
+    ["a Sparkle signature cut short", { signatures: [edSignature.slice(0, -4)] }, /dmg: the Sparkle signature .* does not verify/],
+    ["a second Sparkle signature that does not verify", { signatures: [edSignature, SIGNATURE_1_9_0] }, /dmg: the Sparkle signature .* does not verify/],
+    ["no disk image downloaded", { assets: { exe } }, /dmg: nothing was downloaded/],
+    ["no installer downloaded", { assets: { dmg } }, /exe: nothing was downloaded/],
+  ];
+  const accepted = [
+    ["the release as recorded and signed", {}],
+    ["a disk image no appcast item offers, so with no Sparkle signature to check", { signatures: [] }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
   assert.deepEqual(wronglyRefused, [], "these were refused");
 });
