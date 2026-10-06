@@ -6,10 +6,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { stripPreviewInstallers } from "../scripts/strip-preview-installers.mjs";
+import { FROZEN_INSTALLERS, stripPreviewInstallers } from "../scripts/strip-preview-installers.mjs";
 
 /** Installer bytes of the given size; a Windows executable starts with "MZ". */
 const installer = (size) => Buffer.concat([Buffer.from("MZ"), Buffer.alloc(size - 2)]);
@@ -175,6 +175,206 @@ test("run as a script, a production build of a copy a preview stripped fails ins
   assert.equal(production.status, 1, "a production build without its installers did not fail");
   assert.equal(production.stdout, "");
   assert.match(production.stderr, /Koegaki-1\.1\.0-setup\.exe, the installer public\/windows-updates\.json offers, is missing/);
+});
+
+// From 1.9.1 the installer the manifest offers is a GitHub release asset, not a
+// file in public/downloads, and releases/<version>.json beside public/ records
+// what was published. A copy of the repository's shape: public/ holding the
+// installers already published, and releases/ beside it.
+const GITHUB_URL = "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.2.0/Koegaki-1.2.0-setup.exe";
+const GITHUB_MANIFEST = { version: "1.2.0", platforms: { "windows-x86_64": { url: GITHUB_URL, signature: "signature" } } };
+/** A record as the publishing tool writes it, with made up sizes and digests of the right shape. */
+const GITHUB_RECORD = {
+  version: "1.2.0",
+  artifacts: {
+    dmg: { url: GITHUB_URL.replace(/[^/]+$/, "Koegaki-1.2.0.dmg"), size: 3, sha256: "a".repeat(64), blake2b512: "b".repeat(128) },
+    exe: { url: GITHUB_URL, size: 4, sha256: "c".repeat(64), blake2b512: "d".repeat(128), signature: "signature" },
+  },
+};
+const GITHUB_CHECKED = "the GitHub release record releases/1.2.0.json checked";
+// The installers this fixture says were published before releases moved to
+// GitHub: the two directly in its downloads folder.
+const FIXTURE_FROZEN = ["Koegaki-1.0.0-setup.exe", "Koegaki-1.1.0-setup.exe"];
+
+/** A repository shaped copy whose manifest offers 1.2.0 from GitHub, with its record; returns its public folder. */
+function withGithubFixture(root) {
+  const publicDir = withFixture(join(root, "public"));
+  writeFileSync(join(publicDir, "windows-updates.json"), JSON.stringify(GITHUB_MANIFEST));
+  mkdirSync(join(root, "releases"));
+  writeFileSync(join(root, "releases", "1.2.0.json"), JSON.stringify(GITHUB_RECORD));
+  return publicDir;
+}
+
+test("a manifest offering a GitHub release asset needs that release's record, not an installer in public/downloads", (t) => {
+  for (const [env, message] of [
+    [PRODUCTION, `VERCEL_ENV="production": installers kept, ${GITHUB_CHECKED}`],
+    [LOCAL_PREVIEW, `VERCEL_ENV="preview" but VERCEL_DEPLOYMENT_ID is not set, so this is not Vercel's build machine: installers kept, ${GITHUB_CHECKED}`],
+    [CLOUD_PREVIEW, STRIPPED_LINE],
+  ]) {
+    const root = tempDir(t);
+    const publicDir = withGithubFixture(root);
+    const before = listing(publicDir);
+    const result = stripPreviewInstallers(env, publicDir, FIXTURE_FROZEN);
+    assert.equal(result.message, message, JSON.stringify(env));
+    const removed = env === CLOUD_PREVIEW ? STRIPPED : [];
+    assert.deepEqual(listing(publicDir), before.filter((p) => !removed.includes(p)), JSON.stringify(env));
+    assert.deepEqual(readdirSync(join(root, "releases")), ["1.2.0.json"], "the record was touched");
+  }
+});
+
+test("a build fails, removing nothing, when the GitHub release the manifest offers is not the exact asset or has no matching record", (t) => {
+  const record = (dir) => join(dir, "..", "releases", "1.2.0.json");
+  const recordWith = (change) => {
+    const copy = structuredClone(GITHUB_RECORD);
+    change(copy);
+    return copy;
+  };
+  const writeRecord = (change) => (dir) => writeFileSync(record(dir), JSON.stringify(recordWith(change)));
+  const incomplete = /releases\/1\.2\.0\.json is not the record the publishing tool writes/;
+  const manifestWithUrl = (url) => (dir) =>
+    writeFileSync(join(dir, "windows-updates.json"), JSON.stringify({ ...GITHUB_MANIFEST, platforms: { "windows-x86_64": { url, signature: "signature" } } }));
+  const notTheAsset = /offers https:\/\/github\.com\/\S+, which is not the GitHub release asset https:\/\/github\.com\/vishutdhar\/koegaki-releases\/releases\/download\/v1\.2\.0\/Koegaki-1\.2\.0-setup\.exe/;
+  const damage = [
+    ["no record", (dir) => rmSync(record(dir)), /releases\/1\.2\.0\.json, the record of the GitHub release public\/windows-updates\.json offers, cannot be read/],
+    ["no releases folder", (dir) => rmSync(join(dir, "..", "releases"), { recursive: true }), /releases\/1\.2\.0\.json, the record .* cannot be read/],
+    ["a record that is not JSON", (dir) => writeFileSync(record(dir), "{"), /releases\/1\.2\.0\.json, the record .* cannot be read/],
+    [
+      "a folder in the record's place",
+      (dir) => {
+        rmSync(record(dir));
+        mkdirSync(record(dir));
+      },
+      /releases\/1\.2\.0\.json, the record .* cannot be read/,
+    ],
+    ["a record of another version", (dir) => writeFileSync(record(dir), JSON.stringify({ ...GITHUB_RECORD, version: "1.1.0" })), /names version "1\.1\.0", not 1\.2\.0/],
+    ["a record that is null", (dir) => writeFileSync(record(dir), "null"), /names version undefined, not 1\.2\.0/],
+    [
+      "a record of another installer",
+      (dir) => writeFileSync(record(dir), JSON.stringify(recordWith((r) => (r.artifacts.exe.url = GITHUB_URL.replace("/v1.2.0/", "/v1.1.0/"))))),
+      /records the installer at "https:\/\/github\.com\/\S+v1\.1\.0\S+", not https:\/\/github\.com\/\S+, the url public\/windows-updates\.json offers/,
+    ],
+    ["a url on another tag", manifestWithUrl(GITHUB_URL.replace("/v1.2.0/", "/v1.2.1/")), notTheAsset],
+    ["a url in another repo", manifestWithUrl(GITHUB_URL.replace("/koegaki-releases/", "/koegaki/")), notTheAsset],
+    ["a url of another owner", manifestWithUrl(GITHUB_URL.replace("/vishutdhar/", "/someone/")), notTheAsset],
+    ["a url with another asset name", manifestWithUrl(GITHUB_URL.replace(/[^/]+$/, "Koegaki_1.2.0_x64-setup.exe")), notTheAsset],
+    ["a url with a query", manifestWithUrl(`${GITHUB_URL}?raw=1`), notTheAsset],
+    [
+      // releases/1.9.0.json exists for the site tests, but 1.9.0 shipped from
+      // public/downloads and was never a GitHub release.
+      "a release published from public/downloads, with a record of it",
+      (dir) => {
+        const url = GITHUB_URL.replaceAll("1.2.0", "1.1.0");
+        writeFileSync(join(dir, "windows-updates.json"), JSON.stringify({ version: "1.1.0", platforms: { "windows-x86_64": { url, signature: "signature" } } }));
+        writeFileSync(join(dir, "..", "releases", "1.1.0.json"), JSON.stringify(JSON.parse(JSON.stringify(GITHUB_RECORD).replaceAll("1.2.0", "1.1.0"))));
+      },
+      /Koegaki-1\.1\.0-setup\.exe was published from public\/downloads, so 1\.1\.0 shipped before releases moved to GitHub and no GitHub release of it exists/,
+    ],
+    [
+      "the same, with its installer deleted from public/downloads",
+      (dir) => {
+        const url = GITHUB_URL.replaceAll("1.2.0", "1.1.0");
+        writeFileSync(join(dir, "windows-updates.json"), JSON.stringify({ version: "1.1.0", platforms: { "windows-x86_64": { url, signature: "signature" } } }));
+        writeFileSync(join(dir, "..", "releases", "1.1.0.json"), JSON.stringify(JSON.parse(JSON.stringify(GITHUB_RECORD).replaceAll("1.2.0", "1.1.0"))));
+        rmSync(join(dir, CURRENT));
+      },
+      /Koegaki-1\.1\.0-setup\.exe was published from public\/downloads, so 1\.1\.0 shipped before releases moved to GitHub/,
+    ],
+    [
+      "an installer that is not frozen but sits in public/downloads",
+      (dir) => writeFileSync(join(dir, "downloads", "Koegaki-1.2.0-setup.exe"), installer(10)),
+      /public\/downloads\/Koegaki-1\.2\.0-setup\.exe is there, but nothing new lands in public\/downloads/,
+    ],
+    // A copy a preview stripped must not become production because the offered
+    // installer lives on GitHub: the installers published before it still have
+    // to be served from here.
+    ["another new installer in public/downloads", (dir) => writeFileSync(join(dir, "downloads", "Koegaki-1.2.5-setup.exe"), installer(10)), /public\/downloads\/Koegaki-1\.2\.5-setup\.exe is there, but nothing new lands in public\/downloads/],
+    [
+      "another new installer in public/downloads, as a symbolic link",
+      (dir) => symlinkSync("Koegaki-1.1.0-setup.exe", join(dir, "downloads", "Koegaki-1.2.5-setup.exe")),
+      /public\/downloads\/Koegaki-1\.2\.5-setup\.exe is there, but nothing new lands in public\/downloads/,
+    ],
+    ["a frozen installer deleted", (dir) => rmSync(join(dir, "downloads", "Koegaki-1.0.0-setup.exe")), /public\/downloads\/Koegaki-1\.0\.0-setup\.exe, published before releases moved to GitHub, is missing/],
+    ["a frozen installer replaced by a Git LFS pointer", (dir) => writeFileSync(join(dir, CURRENT), "version https://git-lfs.github.com/spec/v1\n"), /Koegaki-1\.1\.0-setup\.exe, published before releases moved to GitHub, is not a Windows executable/],
+    ["a record with no installer sha256", writeRecord((r) => delete r.artifacts.exe.sha256), incomplete],
+    ["a record whose installer size is text", writeRecord((r) => (r.artifacts.exe.size = "4")), incomplete],
+    ["a record whose installer digest is short", writeRecord((r) => (r.artifacts.exe.blake2b512 = "d".repeat(127))), incomplete],
+    ["a record with no disk image", writeRecord((r) => delete r.artifacts.dmg), incomplete],
+    ["a record whose disk image is on another tag", writeRecord((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace("/v1.2.0/", "/v1.1.0/"))), incomplete],
+    ["a record whose disk image digest is uppercase", writeRecord((r) => (r.artifacts.dmg.sha256 = "A".repeat(64))), incomplete],
+    ["a record with no installer signature", writeRecord((r) => delete r.artifacts.exe.signature), /records another installer signature than public\/windows-updates\.json carries/],
+    ["a record of another installer signature", writeRecord((r) => (r.artifacts.exe.signature = "another")), /records another installer signature than public\/windows-updates\.json carries/],
+  ];
+  for (const env of [PRODUCTION, LOCAL_PREVIEW, {}, CLOUD_PREVIEW]) {
+    for (const [what, harm, message] of damage) {
+      const root = tempDir(t);
+      const publicDir = withGithubFixture(root);
+      harm(publicDir);
+      const before = listing(root);
+      assert.throws(() => stripPreviewInstallers(env, publicDir, FIXTURE_FROZEN), message, `${what}, ${JSON.stringify(env)}`);
+      assert.deepEqual(listing(root), before, `${what}, ${JSON.stringify(env)} changed the folder`);
+    }
+  }
+});
+
+test("a manifest offering an installer from any other host still needs it in public/downloads, whatever records exist", (t) => {
+  // A record proves what was published on GitHub; it says nothing of a file
+  // this deployment would have to serve itself.
+  for (const url of [
+    "https://koegaki.com/downloads/Koegaki-1.1.0-setup.exe",
+    "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.1.0-setup.exe",
+    "https://www.github.com/vishutdhar/koegaki-releases/releases/download/v1.1.0/Koegaki-1.1.0-setup.exe",
+    "not a url",
+  ]) {
+    for (const env of [PRODUCTION, CLOUD_PREVIEW]) {
+      const root = tempDir(t);
+      const publicDir = withFixture(join(root, "public"));
+      writeFileSync(join(publicDir, "windows-updates.json"), JSON.stringify({ version: "1.1.0", platforms: { "windows-x86_64": { url, signature: "signature" } } }));
+      mkdirSync(join(root, "releases"));
+      writeFileSync(join(root, "releases", "1.1.0.json"), JSON.stringify({ version: "1.1.0", artifacts: { exe: { url } } }));
+      const checked = stripPreviewInstallers(PRODUCTION, publicDir);
+      assert.equal(checked.message, 'VERCEL_ENV="production": installers kept, Koegaki-1.1.0-setup.exe checked', url);
+      rmSync(join(publicDir, CURRENT));
+      const before = listing(root);
+      assert.throws(() => stripPreviewInstallers(env, publicDir), /Koegaki-1\.1\.0-setup\.exe, the installer public\/windows-updates\.json offers, is missing/, `${url}, ${JSON.stringify(env)}`);
+      assert.deepEqual(listing(root), before, `${url}, ${JSON.stringify(env)} changed the folder`);
+    }
+  }
+});
+
+test("run as a script, a production build finds releases/ beside public/ and fails when the offered GitHub release has no record", (t) => {
+  const root = tempDir(t);
+  const script = join(root, "scripts", "strip-preview-installers.mjs");
+  mkdirSync(dirname(script));
+  copyFileSync(new URL("../scripts/strip-preview-installers.mjs", import.meta.url), script);
+  const publicDir = withGithubFixture(root);
+  // Run as a script it checks the real frozen list, so the copy's installers
+  // are exactly those names, as the repository's are.
+  for (const name of FIXTURE_FROZEN) rmSync(join(publicDir, "downloads", name));
+  for (const name of FROZEN_INSTALLERS) writeFileSync(join(publicDir, "downloads", name), installer(10));
+  const elsewhere = tempDir(t);
+  const base = { ...process.env };
+  for (const name of ["VERCEL_ENV", "VERCEL_DEPLOYMENT_ID", "NODE_TEST_CONTEXT"]) delete base[name];
+  const run = (env) => spawnSync(process.execPath, [script], { cwd: elsewhere, env: { ...base, ...env }, encoding: "utf8" });
+  const ok = run(PRODUCTION);
+  assert.deepEqual({ status: ok.status, stdout: ok.stdout }, { status: 0, stdout: `VERCEL_ENV="production": installers kept, ${GITHUB_CHECKED}\n` });
+  const withoutRecord = join(tempDir(t), "1.2.0.json");
+  copyFileSync(join(root, "releases", "1.2.0.json"), withoutRecord);
+  rmSync(join(root, "releases", "1.2.0.json"));
+  const noRecord = run(PRODUCTION);
+  assert.equal(noRecord.status, 1, "a production build without the record did not fail");
+  assert.equal(noRecord.stdout, "");
+  assert.match(noRecord.stderr, /releases\/1\.2\.0\.json, the record of the GitHub release public\/windows-updates\.json offers, cannot be read/);
+  copyFileSync(withoutRecord, join(root, "releases", "1.2.0.json"));
+  // A preview strips the copy; the same copy deployed to production must fail.
+  assert.equal(run(CLOUD_PREVIEW).status, 0, "the preview build failed");
+  const stripped = run(PRODUCTION);
+  assert.equal(stripped.status, 1, "a production build of a stripped copy did not fail");
+  assert.equal(stripped.stdout, "");
+  assert.match(stripped.stderr, /public\/downloads\/Koegaki-\S+-setup\.exe, published before releases moved to GitHub, is missing/);
+});
+
+test("the build's frozen installers are exactly the files public/downloads holds", () => {
+  assert.deepEqual([...FROZEN_INSTALLERS].sort(), readdirSync(new URL("../public/downloads/", import.meta.url)).sort());
 });
 
 test("Vercel strips the installers before next build, and npm run build and npm test never do", () => {
