@@ -126,8 +126,8 @@ function incompleteRecord(record, version) {
  * For an installer offered from GitHub: the url is exactly that release's
  * installer asset; the release is not one that shipped from public/downloads
  * (those predate GitHub hosting, so no GitHub release of them exists, although
- * the site tests keep a record of 1.9.0), and no new installer sits there;
- * every installer in `frozen` is still in public/downloads; and
+ * the site tests keep a record of 1.9.0); every installer in `frozen` is still
+ * in public/downloads and no other installer sits there; and
  * releases/<version>.json beside publicDir is a whole record of that version
  * whose installer url and signature are the manifest's. Throws otherwise.
  */
@@ -138,11 +138,17 @@ function checkRecordedRelease(publicDir, version, name, target, frozen) {
   if (frozen.includes(name)) {
     throw new Error(`${name} was published from public/downloads, so ${version} shipped before releases moved to GitHub and no GitHub release of it exists`);
   }
-  if (statSync(join(publicDir, "downloads", name), { throwIfNoEntry: false })) {
-    throw new Error(`public/downloads/${name} is there, but nothing new lands in public/downloads once releases are on GitHub; remove it`);
-  }
+  const downloads = join(publicDir, "downloads");
   for (const published of frozen) {
-    checkInstallerFile(join(publicDir, "downloads", published), `public/downloads/${published}, published before releases moved to GitHub,`);
+    checkInstallerFile(join(downloads, published), `public/downloads/${published}, published before releases moved to GitHub,`);
+  }
+  // Every installer directly in public/downloads, and anything at all under
+  // the offered installer's name.
+  const present = readdirSync(downloads, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".exe")).map((e) => e.name);
+  if (statSync(join(downloads, name), { throwIfNoEntry: false })) present.push(name);
+  const added = present.find((entry) => !frozen.includes(entry));
+  if (added) {
+    throw new Error(`public/downloads/${added} is there, but nothing new lands in public/downloads once releases are on GitHub; remove it`);
   }
   const at = `releases/${version}.json`;
   let record;

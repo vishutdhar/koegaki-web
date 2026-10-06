@@ -953,6 +953,8 @@ test("the model index check refuses what the app readers refuse", () => {
  */
 const RELEASES = new URL("../releases/", import.meta.url);
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
+/** The Vercel Blob host the disk images and the updater's installers through 1.9.0 were served from. */
+const BLOB_HOST = "npdal36mxz3kcwxv.public.blob.vercel-storage.com";
 const ASSET_NAME = { dmg: (version) => `Koegaki-${version}.dmg`, exe: (version) => `Koegaki-${version}-setup.exe` };
 /** The one url a GitHub release asset of this version and kind ("dmg" or "exe") is served from. */
 const githubAssetUrl = (version, kind) => `${GITHUB_DOWNLOAD}/v${version}/${ASSET_NAME[kind](version)}`;
@@ -1201,9 +1203,10 @@ function frozenReleaseProblem(version, sources) {
  * stops it being known. A url on github.com must be exactly the release asset
  * of this version, of a release that did not ship from public/downloads, and
  * the digest is the one its record states, which the signature check then
- * holds to the signed installer. A url on any other
- * host is an installer shipped from this repository, so its bytes are read
- * from public/downloads, and a record never stands in for them.
+ * holds to the signed installer. Otherwise the url must be on the Blob host,
+ * where the updater fetched every installer shipped from this repository
+ * through 1.9.0, so its bytes are read from public/downloads, and a record
+ * never stands in for them.
  */
 function installerDigest(target, version, sources) {
   const problems = [];
@@ -1226,6 +1229,7 @@ function installerDigest(target, version, sources) {
   }
   const urlProblem = updaterUrlProblem(target.url, version);
   if (urlProblem) problems.push(urlProblem);
+  if (hostOf(target.url) !== BLOB_HOST) problems.push(`the url ${target.url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
   const file = sources.installer(version);
   if (!file) return { problems: [...problems, `public/downloads/${ASSET_NAME.exe(version)}, the installer the url names, is missing`] };
   return { problems, digest: createHash("blake2b512").update(file).digest() };
@@ -1390,6 +1394,8 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["a character after the key", { key: `${WINDOWS_UPDATER_PUBKEY}!` }, /key is not canonical base64/],
     ["a character after the key line", { key: encoded(keyLines.map((l, i) => (i === 1 ? `${l}!` : l))) }, /key line is not canonical base64/],
     ["a url with no host", { href: `https://?/Koegaki-${version}-setup.exe` }, /url/],
+    ["a url on a host that is neither GitHub nor the Blob", { href: url.replace(BLOB_HOST, "github.invalid") }, /is on neither github\.com nor the Blob host/],
+    ["a url on koegaki.com", { href: `https://koegaki.com/Koegaki-${version}-setup.exe` }, /is on neither github\.com nor the Blob host/],
     ["a url whose fragment names the installer", { href: `https://example.com/wrong.exe#/Koegaki-${version}-setup.exe` }, /url/],
     ["a url with a query", { href: `${url}?v=1` }, /url/],
     ["a url over http", { href: url.replace(/^https:/, "http:") }, /url/],
@@ -1481,16 +1487,13 @@ test("every release record states the installer digest its updater signature cov
   }
 });
 
-/** Every enclosure in an appcast, with the short version of the item that holds it. */
+/** Every enclosure in an appcast's items, with the short version of the item that holds it. */
 function appcastEnclosures(xml) {
-  return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].flatMap(([, item]) => {
+  return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/g)].flatMap(([, item]) => {
     const version = item.match(/<sparkle:shortVersionString>([^<]*)<\/sparkle:shortVersionString>/)?.[1];
     return (item.match(/<enclosure\s[^>]*>/g) ?? []).map((tag) => ({ version, url: attr(tag, "url"), length: attr(tag, "length") }));
   });
 }
-
-/** The Vercel Blob host every disk image through 1.9.0 was served from. */
-const BLOB_HOST = "npdal36mxz3kcwxv.public.blob.vercel-storage.com";
 
 /**
  * What is wrong with the disk images an appcast offers, given `sources` (see
@@ -1504,7 +1507,12 @@ const BLOB_HOST = "npdal36mxz3kcwxv.public.blob.vercel-storage.com";
  */
 function appcastProblems(xml, sources) {
   const problems = [];
-  for (const { version, url, length } of appcastEnclosures(xml)) {
+  const enclosures = appcastEnclosures(xml);
+  // Every enclosure in the file is one checked below, so none escapes the
+  // checks by sitting where the item pattern does not look.
+  const stray = (xml.match(/<enclosure\b/g) ?? []).length - enclosures.length;
+  if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
+  for (const { version, url, length } of enclosures) {
     const at = `item ${version}`;
     const host = hostOf(url);
     if (host !== "github.com") {
@@ -1575,10 +1583,17 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   // A release on GitHub has no installer in public/downloads, so the sources
   // find none there unless a case names `file`.
   const check = (change) => {
-    const { url = github, length = size, file } = change;
+    const { url = github, length = size, file, xml = appcastOf(version, url, length) } = change;
     const recorded = "record" in change ? change.record : record;
-    return appcastProblems(appcastOf(version, url, length), { installer: () => file, record: () => recorded });
+    return appcastProblems(xml, { installer: () => file, record: () => recorded });
   };
+  // A second item, newer and broken, beside the good one.
+  const withSecondItem = (open, enclosure) =>
+    appcastOf(version, github, size).replace(
+      "    </channel>",
+      `        ${open}\n            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>\n            ${enclosure}\n        </item>\n    </channel>`,
+    );
+  const brokenEnclosure = '<enclosure url="https://github.invalid/Koegaki-1.9.1.dmg" length="1" type="application/octet-stream"/>';
   const refused = [
     ["another tag", { url: github.replace(`/v${version}/`, "/v1.9.1/") }, notGithub],
     ["another repo", { url: github.replace("/koegaki-releases/", "/koegaki/") }, notGithub],
@@ -1587,6 +1602,12 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     ["the Windows installer's asset", { url: githubAssetUrl(version, "exe") }, notGithub],
     ["a query", { url: `${github}?raw=1` }, notGithub],
     ["a misspelled GitHub host", { url: github.replace("//github.com/", "//githb.com/"), record: undefined }, /is on neither github\.com nor the Blob host/],
+    ["a newer item with an attribute on its tag", { xml: withSecondItem('<item xml:lang="en">', brokenEnclosure) }, /item 1\.9\.1: the enclosure url https:\/\/github\.invalid/],
+    [
+      "an enclosure outside any item",
+      { xml: appcastOf(version, github, size).replace("    </channel>", `        ${brokenEnclosure}\n    </channel>`) },
+      /enclosures? outside the items/,
+    ],
     ["a Blob host one character off", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.co/Koegaki-${version}.dmg`, record: undefined }, /is on neither github\.com nor the Blob host/],
     ["a length one byte longer", { length: size + 1 }, /enclosure length/],
     ["a length that is not a whole number", { length: `${size}.0` }, /enclosure length/],
@@ -1601,6 +1622,7 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   ];
   const accepted = [
     ["the release asset with its recorded size", {}],
+    ["an item tag with an attribute", { xml: appcastOf(version, github, size).replace("<item>", '<item xml:lang="en">') }],
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
@@ -1634,11 +1656,13 @@ test("public/downloads holds exactly the 12 installers published before GitHub r
   assert.deepEqual(readdirSync(new URL("../public/downloads/", import.meta.url)).sort(), FROZEN_DOWNLOADS);
 });
 
-test("a download link on koegaki.com names a file this deployment serves", () => {
-  // From 1.9.1 public/downloads gains nothing, so a link left on koegaki.com
-  // when its release moves to GitHub would serve a 404 there.
+test("every download link is on GitHub, koegaki.com or the Blob host, and one on koegaki.com names a file this deployment serves", () => {
+  // The GitHub links are held to their release elsewhere. From 1.9.1
+  // public/downloads gains nothing, so a link left on koegaki.com when its
+  // release moves to GitHub would serve a 404 there.
   for (const [what, link] of [["Mac", SITE.downloadUrl], ["Windows", SITE.windowsDownloadUrl]]) {
     const { hostname, pathname } = new URL(link);
+    assert.ok(["github.com", "koegaki.com", BLOB_HOST].includes(hostname), `the ${what} download link ${link} is on ${hostname}, which serves no release`);
     if (hostname !== "koegaki.com") continue;
     assert.ok(existsSync(new URL(`../public${pathname}`, import.meta.url)), `the ${what} download link ${link} names no file in public/`);
   }

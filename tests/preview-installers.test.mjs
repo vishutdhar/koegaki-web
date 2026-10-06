@@ -287,6 +287,7 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     // A copy a preview stripped must not become production because the offered
     // installer lives on GitHub: the installers published before it still have
     // to be served from here.
+    ["another new installer in public/downloads", (dir) => writeFileSync(join(dir, "downloads", "Koegaki-1.2.5-setup.exe"), installer(10)), /public\/downloads\/Koegaki-1\.2\.5-setup\.exe is there, but nothing new lands in public\/downloads/],
     ["a frozen installer deleted", (dir) => rmSync(join(dir, "downloads", "Koegaki-1.0.0-setup.exe")), /public\/downloads\/Koegaki-1\.0\.0-setup\.exe, published before releases moved to GitHub, is missing/],
     ["a frozen installer replaced by a Git LFS pointer", (dir) => writeFileSync(join(dir, CURRENT), "version https://git-lfs.github.com/spec/v1\n"), /Koegaki-1\.1\.0-setup\.exe, published before releases moved to GitHub, is not a Windows executable/],
     ["a record with no installer sha256", writeRecord((r) => delete r.artifacts.exe.sha256), incomplete],
@@ -341,7 +342,9 @@ test("run as a script, a production build finds releases/ beside public/ and fai
   mkdirSync(dirname(script));
   copyFileSync(new URL("../scripts/strip-preview-installers.mjs", import.meta.url), script);
   const publicDir = withGithubFixture(root);
-  // Run as a script it checks the real frozen list, so the copy holds those names.
+  // Run as a script it checks the real frozen list, so the copy's installers
+  // are exactly those names, as the repository's are.
+  for (const name of FIXTURE_FROZEN) rmSync(join(publicDir, "downloads", name));
   for (const name of FROZEN_INSTALLERS) writeFileSync(join(publicDir, "downloads", name), installer(10));
   const elsewhere = tempDir(t);
   const base = { ...process.env };
