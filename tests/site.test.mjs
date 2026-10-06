@@ -1549,34 +1549,40 @@ const sparkleChildren = (element, name) => element.children.filter((child) => sp
 const sparkleAttribute = (element, name) => element.attributes.find((a) => sparkleName(a) === name)?.value;
 
 /**
- * The enclosures of the items Sparkle reads, /rss/channel/item, each with what
- * its item says of its short version: the version when the item holds exactly
- * one child Sparkle reads as sparkle:shortVersionString (null otherwise), how
- * many it holds, whether that element holds markup or a comment, and whether
- * the enclosure gives a version of its own. An item's enclosures are the
- * children Sparkle reads as enclosure, and `stray` counts every other element
- * named enclosure in the document, in any namespace. Throws when the appcast cannot be read
- * (see xmlTree).
+ * The items Sparkle reads, /rss/channel/item, each with what it says of its
+ * short version (the version when it holds exactly one child Sparkle reads as
+ * sparkle:shortVersionString, null otherwise; how many it holds; whether that
+ * element holds markup or a comment) and its enclosures, the children Sparkle
+ * reads as enclosure, each with its url, its length and whether it gives a
+ * version of its own. `stray` counts every other element named enclosure in
+ * the document, in any namespace. Throws when the appcast cannot be read (see
+ * xmlTree).
  */
-function appcastEnclosures(xml) {
+function appcastItems(xml) {
   const root = xmlTree(xml);
   const items = childrenNamed(root, "", "rss")
     .flatMap((rss) => childrenNamed(rss, "", "channel"))
-    .flatMap((channel) => childrenNamed(channel, "", "item"));
-  const enclosures = items.flatMap((item) => {
-    const versions = sparkleChildren(item, "sparkle:shortVersionString");
-    const [only] = versions.length === 1 ? versions : [];
-    return sparkleChildren(item, "enclosure").map((enclosure) => ({
-      version: only ? only.text : null,
-      versions: versions.length,
-      markup: Boolean(only?.children.length || only?.comments),
-      enclosureVersion: enclosure.attributes.some((a) => a.local === "shortVersionString"),
-      url: sparkleAttribute(enclosure, "url"),
-      length: sparkleAttribute(enclosure, "length"),
-    }));
-  });
-  return { enclosures, stray: descendants(root).filter((element) => element.local === "enclosure").length - enclosures.length };
+    .flatMap((channel) => childrenNamed(channel, "", "item"))
+    .map((item) => {
+      const versions = sparkleChildren(item, "sparkle:shortVersionString");
+      const [only] = versions.length === 1 ? versions : [];
+      return {
+        version: only ? only.text : null,
+        versions: versions.length,
+        markup: Boolean(only?.children.length || only?.comments),
+        enclosures: sparkleChildren(item, "enclosure").map((enclosure) => ({
+          versioned: enclosure.attributes.some((a) => a.local === "shortVersionString"),
+          url: sparkleAttribute(enclosure, "url"),
+          length: sparkleAttribute(enclosure, "length"),
+        })),
+      };
+    });
+  const read = items.reduce((count, item) => count + item.enclosures.length, 0);
+  return { items, stray: descendants(root).filter((element) => element.local === "enclosure").length - read };
 }
+
+/** Every enclosure of these items, each with its item's short version. */
+const enclosuresOf = (items) => items.flatMap(({ version, enclosures }) => enclosures.map((enclosure) => ({ ...enclosure, version })));
 
 /**
  * What is wrong with the disk images an appcast offers, given `sources` (see
@@ -1595,20 +1601,26 @@ function appcastProblems(xml, sources) {
   const problems = [];
   let read;
   try {
-    read = appcastEnclosures(xml);
+    read = appcastItems(xml);
   } catch (error) {
     return [error.refusal ? `the appcast ${error.message}` : `the appcast is not well formed XML, so Sparkle cannot read it: ${error.message}`];
   }
   // Every enclosure in the file is one checked below, so none escapes the
   // checks by sitting anywhere but directly in an item.
-  const { enclosures, stray } = read;
+  const { items, stray } = read;
   if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
-  for (const { version, versions, markup, enclosureVersion, url, length } of enclosures) {
+  // Every item's version is checked, an item without a disk image included,
+  // since Sparkle shows that version too.
+  for (const { version, versions, markup, enclosures } of items) {
     const at = `item ${version}`;
     if (version === null) problems.push(`an item holds ${versions} short versions, not one`);
-    if (markup) problems.push(`${at}: its short version holds markup, not only text`);
-    else if (version !== null && !/^\d+\.\d+\.\d+$/.test(version)) problems.push(`${at}: the short version ${JSON.stringify(version)} is not a plain version`);
-    if (enclosureVersion) problems.push(`${at}: the enclosure gives a short version on its enclosure, which Sparkle would show instead of the item's`);
+    else if (markup) problems.push(`${at}: its short version holds markup, not only text`);
+    else if (!/^\d+\.\d+\.\d+$/.test(version)) problems.push(`${at}: the short version ${JSON.stringify(version)} is not a plain version`);
+    if (enclosures.length === 0) problems.push(`${at}: it offers no disk image, and every item in this feed must`);
+  }
+  for (const { version, versioned, url, length } of enclosuresOf(items)) {
+    const at = `item ${version}`;
+    if (versioned) problems.push(`${at}: the enclosure gives a short version on its enclosure, which Sparkle would show instead of the item's`);
     const host = hostOf(url);
     if (host !== "github.com") {
       if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
@@ -1650,7 +1662,7 @@ const appcastOf = (version, url, length) => `<?xml version="1.0" standalone="yes
 
 test("the appcast offers a GitHub hosted disk image only at its release asset url, with the size its record states", () => {
   const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
-  const { enclosures } = appcastEnclosures(xml);
+  const enclosures = enclosuresOf(appcastItems(xml).items);
   assert.ok(enclosures.length > 0 && enclosures.every((e) => e.version && e.url && e.length), `the appcast enclosures did not parse: ${JSON.stringify(enclosures)}`);
   assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), []);
   // The site's Mac download link, once it moves to GitHub, is the same asset.
@@ -1733,6 +1745,26 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       "a comment inside the version",
       { xml: appcastOf(version, github, size).replace(`<sparkle:shortVersionString>${version}<`, `<sparkle:shortVersionString>${version}<!--9--><`) },
       /short version holds markup/,
+    ],
+    [
+      "a second item with no enclosure and a comment in its version",
+      {
+        xml: appcastOf(version, github, size).replace(
+          "    </channel>",
+          "        <item>\n            <sparkle:shortVersionString>1.9.1<!--9--></sparkle:shortVersionString>\n            <link>https://koegaki.com/</link>\n        </item>\n    </channel>",
+        ),
+      },
+      /item 1\.9\.1<!--9-->|short version holds markup/,
+    ],
+    [
+      "a second item with no enclosure",
+      {
+        xml: appcastOf(version, github, size).replace(
+          "    </channel>",
+          "        <item>\n            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>\n            <link>https://koegaki.com/</link>\n        </item>\n    </channel>",
+        ),
+      },
+      /item 1\.9\.1: it offers no disk image/,
     ],
     [
       "a second version under another prefix for the same namespace",
