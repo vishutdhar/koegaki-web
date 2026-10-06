@@ -241,6 +241,17 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     ["a url of another owner", manifestWithUrl(GITHUB_URL.replace("/vishutdhar/", "/someone/")), notTheAsset],
     ["a url with another asset name", manifestWithUrl(GITHUB_URL.replace(/[^/]+$/, "Koegaki_1.2.0_x64-setup.exe")), notTheAsset],
     ["a url with a query", manifestWithUrl(`${GITHUB_URL}?raw=1`), notTheAsset],
+    [
+      // releases/1.9.0.json exists for the site tests, but 1.9.0 shipped from
+      // public/downloads and was never a GitHub release.
+      "a release public/downloads holds, with a record of it",
+      (dir) => {
+        const url = GITHUB_URL.replaceAll("1.2.0", "1.1.0");
+        writeFileSync(join(dir, "windows-updates.json"), JSON.stringify({ version: "1.1.0", platforms: { "windows-x86_64": { url, signature: "signature" } } }));
+        writeFileSync(join(dir, "..", "releases", "1.1.0.json"), JSON.stringify({ version: "1.1.0", artifacts: { exe: { url } } }));
+      },
+      /public\/downloads\/Koegaki-1\.1\.0-setup\.exe is there, so 1\.1\.0 shipped before releases moved to GitHub and no GitHub release of it exists/,
+    ],
   ];
   for (const env of [PRODUCTION, LOCAL_PREVIEW, {}, CLOUD_PREVIEW]) {
     for (const [what, harm, message] of damage) {

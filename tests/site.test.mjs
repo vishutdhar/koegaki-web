@@ -1180,11 +1180,23 @@ function updaterUrlProblem(url, version) {
 const hostOf = (url) => (typeof url === "string" && URL.canParse(url) ? new URL(url).hostname : undefined);
 
 /**
+ * Why a release cannot be on GitHub, or undefined. public/downloads holds the
+ * installers of every release that shipped before releases moved to GitHub,
+ * and nothing new lands there, so a GitHub url never names one of those; this
+ * keeps releases/1.9.0.json, which exists for the self tests, from letting a
+ * manifest or appcast point at a v1.9.0 release that was never published.
+ */
+function frozenReleaseProblem(version, sources) {
+  if (!sources.installer(version)) return undefined;
+  return `${ASSET_NAME.exe(version)} is in public/downloads, so ${version} shipped before releases moved to GitHub and no GitHub release of it exists`;
+}
+
+/**
  * The BLAKE2b-512 digest of the installer the manifest's url serves, and what
  * stops it being known. A url on github.com must be exactly the release asset
- * of this version, and the digest is the one its record states, which the
- * signature check then holds to the signed installer; an installer in
- * public/downloads never stands in for a missing record. A url on any other
+ * of this version, of a release that did not ship from public/downloads, and
+ * the digest is the one its record states, which the signature check then
+ * holds to the signed installer. A url on any other
  * host is an installer shipped from this repository, so its bytes are read
  * from public/downloads, and a record never stands in for them.
  */
@@ -1193,6 +1205,8 @@ function installerDigest(target, version, sources) {
   if (hostOf(target.url) === "github.com") {
     const asset = githubAssetUrl(version, "exe");
     if (target.url !== asset) problems.push(`the url ${target.url} is not ${asset}, the GitHub release asset of ${version}`);
+    const frozen = frozenReleaseProblem(version, sources);
+    if (frozen) problems.push(frozen);
     const record = sources.record(version);
     const at = `releases/${version}.json`;
     if (!record) return { problems: [...problems, `no ${at} records the GitHub release the url names`] };
@@ -1342,7 +1356,9 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     edit?.(copy);
     return windowsUpdateProblems(copy, { installer: () => file, record: () => recorded }, key);
   };
-  // The same installer as a GitHub release asset, and its record changed one way.
+  // The same installer as a GitHub release asset, and its record changed one
+  // way. A release on GitHub has no installer in public/downloads, so those
+  // cases find none there.
   const githubUrl = githubAssetUrl(version, "exe");
   const notGithubUrl = new RegExp(`the url .* is not ${escaped(githubUrl)}`);
   const recordWith = (change) => {
@@ -1396,29 +1412,34 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["a GitHub url with a query", { href: `${githubUrl}?raw=1` }, notGithubUrl],
     ["a GitHub url over http", { href: githubUrl.replace(/^https:/, "http:") }, notGithubUrl],
     [
-      "a GitHub url with no record, though public/downloads holds the installer",
-      { href: githubUrl, record: undefined },
+      "a GitHub url for a release public/downloads holds, though a record of it exists",
+      { href: githubUrl },
+      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
+    ],
+    [
+      "a GitHub url with no record",
+      { href: githubUrl, file: undefined, record: undefined },
       new RegExp(`no releases/${escaped(version)}\\.json records the GitHub release`),
     ],
     [
       "a recorded digest one byte off",
-      { href: githubUrl, record: recordWith((r) => (r.artifacts.exe.blake2b512 = flipped(Buffer.from(r.artifacts.exe.blake2b512, "hex"), 0).toString("hex"))) },
+      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.blake2b512 = flipped(Buffer.from(r.artifacts.exe.blake2b512, "hex"), 0).toString("hex"))) },
       /installer signature does not verify/,
     ],
     [
       "a recorded digest that is not lowercase hex",
-      { href: githubUrl, record: recordWith((r) => (r.artifacts.exe.blake2b512 = r.artifacts.exe.blake2b512.toUpperCase())) },
+      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.blake2b512 = r.artifacts.exe.blake2b512.toUpperCase())) },
       /releases\/.*: exe: blake2b512/,
     ],
-    ["a record of another version", { href: githubUrl, record: recordWith((r) => (r.version = otherRelease)) }, /names version/],
+    ["a record of another version", { href: githubUrl, file: undefined, record: recordWith((r) => (r.version = otherRelease)) }, /names version/],
     [
       "a record whose signature is not the manifest's",
-      { href: githubUrl, record: recordWith((r) => (r.artifacts.exe.signature = encoded(decoded(signature), "\r\n"))) },
+      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.signature = encoded(decoded(signature), "\r\n"))) },
       /records another signature/,
     ],
     [
       "a record whose installer url is another release's",
-      { href: githubUrl, record: recordWith((r) => (r.artifacts.exe.url = r.artifacts.exe.url.replace(`/v${version}/`, `/v${otherRelease}/`))) },
+      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.url = r.artifacts.exe.url.replace(`/v${version}/`, `/v${otherRelease}/`))) },
       /records the installer at/,
     ],
   ];
@@ -1427,8 +1448,7 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["the signature text with CRLF line ends", { sig: encoded(decoded(signature), "\r\n") }],
     ["a pub_date with an offset", { date: "2026-10-03T17:26:44+02:00" }],
     ["another well formed platform", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "https://example.com/Koegaki.app.tar.gz", signature: "x" }) }],
-    ["the GitHub release url with its record", { href: githubUrl }],
-    ["the GitHub release url with no installer in public/downloads", { href: githubUrl, file: undefined }],
+    ["the GitHub release url with its record, and no installer in public/downloads", { href: githubUrl, file: undefined }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -1464,20 +1484,23 @@ function appcastEnclosures(xml) {
 }
 
 /**
- * What is wrong with the disk images an appcast offers, given `records`, which
- * finds a release's record (records(version)). An enclosure on github.com must
- * be exactly the release asset of its item's version, and the length Sparkle is
- * told must be the size that release's record states. An enclosure on any other
- * host, as every one was through 1.9.0, is left as it is.
+ * What is wrong with the disk images an appcast offers, given `sources` (see
+ * windowsUpdateProblems). An enclosure on github.com must be exactly the
+ * release asset of its item's version, of a release that did not ship from
+ * public/downloads, and the length Sparkle is told must be the size that
+ * release's record states. An enclosure on any other host, as every one was
+ * through 1.9.0, is left as it is.
  */
-function appcastProblems(xml, records) {
+function appcastProblems(xml, sources) {
   const problems = [];
   for (const { version, url, length } of appcastEnclosures(xml)) {
     if (hostOf(url) !== "github.com") continue;
     const at = `item ${version}`;
     const asset = githubAssetUrl(version, "dmg");
     if (url !== asset) problems.push(`${at}: the enclosure url ${url} is not ${asset}, the GitHub release asset of ${version}`);
-    const record = records(version);
+    const frozen = frozenReleaseProblem(version, sources);
+    if (frozen) problems.push(`${at}: ${frozen}`);
+    const record = sources.record(version);
     if (!record) {
       problems.push(`${at}: no releases/${version}.json records the GitHub release the enclosure names`);
       continue;
@@ -1511,7 +1534,7 @@ test("the appcast offers a GitHub hosted disk image only at its release asset ur
   const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
   const enclosures = appcastEnclosures(xml);
   assert.ok(enclosures.length > 0 && enclosures.every((e) => e.version && e.url && e.length), `the appcast enclosures did not parse: ${JSON.stringify(enclosures)}`);
-  assert.deepEqual(appcastProblems(xml, releaseRecord), []);
+  assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), []);
   // The site's Mac download link, once it moves to GitHub, is the same asset.
   if (hostOf(SITE.downloadUrl) === "github.com") {
     const offered = enclosures.find((e) => SITE.downloadUrl === githubAssetUrl(e.version, "dmg"));
@@ -1533,10 +1556,12 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     change(copy);
     return copy;
   };
+  // A release on GitHub has no installer in public/downloads, so the sources
+  // find none there unless a case names `file`.
   const check = (change) => {
-    const { url = github, length = size } = change;
+    const { url = github, length = size, file } = change;
     const recorded = "record" in change ? change.record : record;
-    return appcastProblems(appcastOf(version, url, length), () => recorded);
+    return appcastProblems(appcastOf(version, url, length), { installer: () => file, record: () => recorded });
   };
   const refused = [
     ["another tag", { url: github.replace(`/v${version}/`, "/v1.9.1/") }, notGithub],
@@ -1549,6 +1574,11 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     ["a length that is not a whole number", { length: `${size}.0` }, /enclosure length/],
     ["no record", { record: undefined }, new RegExp(`no releases/${escaped(version)}\\.json records`)],
     ["a record of another version", { record: recordWith((r) => (r.version = "1.9.1")) }, /names version/],
+    [
+      "a release public/downloads holds, though a record of it exists",
+      { file: Buffer.from("MZ") },
+      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
+    ],
     ["a record of another disk image", { record: recordWith((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki.dmg"))) }, /records the disk image at/],
   ];
   const accepted = [

@@ -17,10 +17,11 @@
 // From 1.9.1 the installer the manifest offers is a GitHub release asset in
 // vishutdhar/koegaki-releases, and public/downloads holds only the installers
 // published before it. For a manifest url on github.com the build checks
-// instead that the url is exactly that release's installer asset and that
-// releases/<version>.json, which the publishing tool writes after uploading
-// the release and downloading it back, records that same installer. A url on
-// any other host still needs the installer in public/downloads.
+// instead that the url is exactly that release's installer asset, that the
+// release is not one public/downloads holds, and that releases/<version>.json,
+// which the publishing tool writes after uploading the release and
+// downloading it back, records that same installer. A url on any other host
+// still needs the installer in public/downloads.
 import { closeSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,12 +73,17 @@ function checkOfferedInstaller(publicDir) {
 
 /**
  * For an installer offered from GitHub: the url is exactly that release's
- * installer asset, and releases/<version>.json beside publicDir names that
- * version and that url. Throws otherwise.
+ * installer asset, the release is not one that shipped from public/downloads
+ * (those predate GitHub hosting, so no GitHub release of them exists, although
+ * the site tests keep a record of 1.9.0), and releases/<version>.json beside
+ * publicDir names that version and that url. Throws otherwise.
  */
 function checkRecordedRelease(publicDir, version, name, url) {
   const asset = `${GITHUB_DOWNLOAD}/v${version}/${name}`;
   if (url !== asset) throw new Error(`public/windows-updates.json offers ${url}, which is not the GitHub release asset ${asset}`);
+  if (statSync(join(publicDir, "downloads", name), { throwIfNoEntry: false })?.isFile()) {
+    throw new Error(`public/downloads/${name} is there, so ${version} shipped before releases moved to GitHub and no GitHub release of it exists`);
+  }
   const at = `releases/${version}.json`;
   let record;
   try {
