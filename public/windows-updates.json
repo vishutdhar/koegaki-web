@@ -1,11 +1,11 @@
 {
-  "version": "1.9.0",
-  "notes": "The newer English speech model that downloads in the background to replace an older one on your PC, such as after an app update, and the cleanup model Koegaki downloads at launch when Clean is on and the model is missing, now wait while Windows treats your connection as metered or restricts its background data, such as on a network you marked as metered, on a cellular link, while roaming, or near or over a data limit. A download already under way pauses when Windows starts reporting the connection that way, and they go ahead by themselves once it stops. Meanwhile the speech model you have keeps working, and while the cleanup model waits, dictation is inserted without cleanup. While either of them waits, its row in Settings, under Speech model or Cleanup, says Waiting for an unmetered connection and offers Download now, which lets that download go ahead on the current connection for its current try. Later automatic tries wait again on such a connection. A model you pick, a Cleanup you turn on, a model update you accept and an app update you install go ahead on a metered connection too, with a note saying so.",
-  "pub_date": "2026-10-06T02:36:30Z",
+  "version": "1.9.1",
+  "notes": "New versions of Koegaki, from the website or as an update in the app, now download from GitHub. Updates are still offered and installed the same way, and your settings, models and data stay where they are.",
+  "pub_date": "2026-10-06T15:22:47Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3V4UFFwMXZ6QTBBQndnUDJVMDF2S2s2aEFXNWkwY1c0dk5sanZKcGxxREpkVDRSSWNvaDdjL3RmeHVXUmtjOFhGTWN6RWZrZDhLZVZrb3d6TnNueHdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjU0MDcyCWZpbGU6S29lZ2FraV8xLjkuMF94NjQtc2V0dXAuZXhlCmNyMXgrQnJSWE1MbnUybGU5UExkYk9nYUdnbXFTUUFweG1zcU9Qc2MzbWR1aG9PYzZNZ1lvWlpOZTluMjVobndUTXQ3ckNGdURTaWlFVnlQMDNIRkRnPT0K",
-      "url": "https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.9.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3NCNHJ2ZG1BZkxPK095Z2ZlZXgwajJJWjYwUXRwOUNsaDlXRjhaeko3L201L29Db3dBWTFMNUg4eXIyTytPRmo5TG5FYWhhWmU5aDhMaWxwTkxvb1FjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjk5OTA2CWZpbGU6S29lZ2FraV8xLjkuMV94NjQtc2V0dXAuZXhlCktmbnljczZmOENXSjlFWVhvbURzdk9CamtBT3V3dSs4cXVrSzNMK0VXbkY2aUtjWUFXREtGbytTdi9uaGxFcGFkT0NkVmNNbVJpNTkyS3QzaEtsRkFnPT0K",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.9.1/Koegaki-1.9.1-setup.exe"
     }
   }
 }
