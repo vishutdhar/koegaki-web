@@ -3,18 +3,17 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.9.0</title>
-            <pubDate>Mon, 05 Oct 2026 22:32:55 -0400</pubDate>
-            <sparkle:version>25</sparkle:version>
-            <sparkle:shortVersionString>1.9.0</sparkle:shortVersionString>
+            <title>1.9.1</title>
+            <pubDate>Tue, 06 Oct 2026 11:11:03 -0400</pubDate>
+            <sparkle:version>26</sparkle:version>
+            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.9.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.9.1</h2>
 <ul>
-    <li>Some model downloads that Koegaki starts by itself now wait while your Mac is on a connection it treats as costly, such as Personal Hotspot or Low Data Mode. These are the speech model update after an app update and its repair, while your current model keeps working, and the cleanup model fetched again at launch when Clean is on. A download already under way stops, and each one goes ahead by itself once you are back on an ordinary connection.</li>
-    <li>Settings shows Waiting for an unmetered connection with Download now beside it, to go ahead on this connection just once. Dictation keeps working meanwhile, without cleanup while the cleanup model waits. A model you pick, Clean turned on, or a model update you accept goes ahead on any connection, with a line under its progress when the connection is costly. A download Koegaki needs before you can dictate, such as the first one on a new install, goes ahead too.</li>
+    <li>New versions of Koegaki, from the website or as an update in the app, now download from GitHub. Updates are still offered and installed the same way, and your settings, models and data stay where they are.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-1.9.0.dmg" length="31400624" type="application/octet-stream" sparkle:edSignature="P9sOI9lFDNNgn0KabhORO522YuO5qGTLNvEJbmUuzCArQgyCa+f3phDKLhOhSHmFZZ39SrSjUpnkx7U/U47gDg=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.9.1/Koegaki-1.9.1.dmg" length="31399495" type="application/octet-stream" sparkle:edSignature="lf8VyWgR0udqCTeL5qkhMmDoCDr0sjU0uKH1PF8p1I2kiHYrDOT14EVuB8eGHRKPjlNnj3XpBEZZRwge23BvDA=="/>
         </item>
     </channel>
 </rss>
