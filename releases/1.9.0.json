@@ -1,0 +1,19 @@
+{
+  "version": "1.9.0",
+  "note": "1.9.0 shipped on Vercel Blob and was never published as a GitHub release. Its urls here are the shape a GitHub release of it would have; the record is here so the release checks run against a real signed release. Never point a manifest or appcast at these urls.",
+  "artifacts": {
+    "dmg": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.9.0/Koegaki-1.9.0.dmg",
+      "size": 31400624,
+      "sha256": "dc4a7697729b88efc09e8958590a02fe975d9a0fd233494f99eb341e657ed4fe",
+      "blake2b512": "5e27a694241e28cc3cc12d50dbb8f62bcc25122c4a6c3506187d4179c59e6ac885b990591edd6d36c4d5a3f49d172f9ff065e91049e268b67e748b31d1833e86"
+    },
+    "exe": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.9.0/Koegaki-1.9.0-setup.exe",
+      "size": 14549506,
+      "sha256": "6e615e831afe980942930cb5f0cba66f6736a4c2c058743ca90a9f7bbe0a7d31",
+      "blake2b512": "78b90c44764da8cf73393099e78fb8322571fa1e770a50e86d8151eae0268c204ec68124698d6ebb86e5ab77be5a63ed6882e764e9d48efa251b12bc8ef88718",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3V4UFFwMXZ6QTBBQndnUDJVMDF2S2s2aEFXNWkwY1c0dk5sanZKcGxxREpkVDRSSWNvaDdjL3RmeHVXUmtjOFhGTWN6RWZrZDhLZVZrb3d6TnNueHdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjU0MDcyCWZpbGU6S29lZ2FraV8xLjkuMF94NjQtc2V0dXAuZXhlCmNyMXgrQnJSWE1MbnUybGU5UExkYk9nYUdnbXFTUUFweG1zcU9Qc2MzbWR1aG9PYzZNZ1lvWlpOZTluMjVobndUTXQ3ckNGdURTaWlFVnlQMDNIRkRnPT0K"
+    }
+  }
+}

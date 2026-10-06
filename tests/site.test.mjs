@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, verify } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { SITE } from "../lib/site.ts";
 import { LANDING_PAGES } from "../lib/pages.ts";
 import { COMPARISONS } from "../lib/compare.ts";
@@ -926,6 +926,133 @@ test("the model index check refuses what the app readers refuse", () => {
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const refused = accepted.map(([name, mutate]) => [name, problemsAfter(mutate)]).filter(([, problems]) => problems.length);
   assert.deepEqual(refused, [], "these were refused");
+});
+
+/**
+ * Release records. From 1.9.1 the installers are assets of a GitHub release in
+ * vishutdhar/koegaki-releases rather than files in public/downloads, so the
+ * bytes the checks below once read from this repository are no longer here.
+ * Tools/publish-release.sh in the Koegaki repo uploads them, downloads each one
+ * back to compare, and writes what it published to releases/<version>.json,
+ * outside public/ so the site never serves it:
+ *
+ *   { "version": "1.9.1", "note": "optional text",
+ *     "artifacts": {
+ *       "dmg": { "url": ..., "size": ..., "sha256": ..., "blake2b512": ... },
+ *       "exe": { "url": ..., "size": ..., "sha256": ..., "blake2b512": ..., "signature": ... } } }
+ *
+ * Each url is the release asset, size its length in bytes, sha256 and
+ * blake2b512 lowercase hex digests of the whole file, and signature the
+ * updater signature public/windows-updates.json carries, which signs that
+ * BLAKE2b-512 digest and so ties the record to the signed installer.
+ */
+const RELEASES = new URL("../releases/", import.meta.url);
+const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
+const ASSET_NAME = { dmg: (version) => `Koegaki-${version}.dmg`, exe: (version) => `Koegaki-${version}-setup.exe` };
+/** The one url a GitHub release asset of this version and kind ("dmg" or "exe") is served from. */
+const githubAssetUrl = (version, kind) => `${GITHUB_DOWNLOAD}/v${version}/${ASSET_NAME[kind](version)}`;
+const RECORD_FIELDS = { dmg: ["url", "size", "sha256", "blake2b512"], exe: ["url", "size", "sha256", "blake2b512", "signature"] };
+const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/** The parsed releases/<version>.json, or undefined when there is none or the version could not name one. */
+function releaseRecord(version) {
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
+  const file = new URL(`${version}.json`, RELEASES);
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
+}
+
+/** What is wrong with a record of this version: its keys, its version, and each artifact's url, size and digests. */
+function releaseRecordProblems(record, version) {
+  if (!isPlainObject(record)) return ["the record is not an object"];
+  const problems = [];
+  const sameKeys = (object, expected) => Object.keys(object).sort().join() === [...expected].sort().join();
+  if (!sameKeys(Object.fromEntries(Object.entries(record).filter(([key]) => key !== "note")), ["version", "artifacts"])) {
+    problems.push(`the record holds ${JSON.stringify(Object.keys(record))}, not version, artifacts and an optional note`);
+  }
+  if (record.version !== version) problems.push(`the record names version ${JSON.stringify(record.version)}, not ${version}`);
+  if ("note" in record && typeof record.note !== "string") problems.push("the note is not a string");
+  if (!isPlainObject(record.artifacts) || !sameKeys(record.artifacts, ["dmg", "exe"])) return [...problems, "artifacts is not exactly a dmg and an exe"];
+  for (const [kind, fields] of Object.entries(RECORD_FIELDS)) {
+    const artifact = record.artifacts[kind];
+    if (!isPlainObject(artifact)) {
+      problems.push(`${kind} is not an object`);
+      continue;
+    }
+    if (!sameKeys(artifact, fields)) problems.push(`${kind} holds ${JSON.stringify(Object.keys(artifact))}, not ${fields.join(", ")}`);
+    const url = githubAssetUrl(version, kind);
+    if (artifact.url !== url) problems.push(`${kind}: url ${JSON.stringify(artifact.url)} is not ${url}`);
+    if (!Number.isSafeInteger(artifact.size) || artifact.size <= 0) problems.push(`${kind}: size ${JSON.stringify(artifact.size)} is not a positive integer`);
+    for (const [digest, length] of [["sha256", 64], ["blake2b512", 128]]) {
+      if (typeof artifact[digest] !== "string" || !new RegExp(`^[0-9a-f]{${length}}$`).test(artifact[digest])) {
+        problems.push(`${kind}: ${digest} ${JSON.stringify(artifact[digest])} is not ${length} lowercase hex digits`);
+      }
+    }
+  }
+  if (isPlainObject(record.artifacts.exe) && (typeof record.artifacts.exe.signature !== "string" || record.artifacts.exe.signature === "")) {
+    problems.push("exe: signature is not a string");
+  }
+  return problems;
+}
+
+/** Every record in releases/, by version; a file named anything but <version>.json is reported under its name. */
+function releaseRecords() {
+  return readdirSync(RELEASES).map((name) => {
+    const version = name.match(/^(\d+\.\d+\.\d+)\.json$/)?.[1];
+    return { name, version, record: version && releaseRecord(version) };
+  });
+}
+
+test("every release record has the published shape and describes the same bytes as an installer public/downloads still holds", () => {
+  const records = releaseRecords();
+  assert.ok(records.length > 0, "releases/ holds no record");
+  for (const { name, version, record } of records) {
+    assert.ok(version, `releases/${name} is not named <version>.json`);
+    assert.deepEqual(releaseRecordProblems(record, version), [], `releases/${name}`);
+    // 1.9.0 and earlier shipped from this repository, so where the installer is
+    // here too, the record must describe exactly those bytes.
+    const local = new URL(`../public/downloads/${ASSET_NAME.exe(version)}`, import.meta.url);
+    if (!existsSync(local)) continue;
+    const bytes = readFileSync(local);
+    const { size, sha256, blake2b512 } = record.artifacts.exe;
+    assert.deepEqual(
+      { size, sha256, blake2b512 },
+      { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), blake2b512: createHash("blake2b512").update(bytes).digest("hex") },
+      `releases/${name} does not describe public/downloads/${ASSET_NAME.exe(version)}`,
+    );
+  }
+});
+
+test("the release record check refuses a record that is malformed or names another release", () => {
+  const record = releaseRecord("1.9.0");
+  assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
+  const refused = [
+    ["another version", (r) => (r.version = "1.9.1"), /names version "1\.9\.1"/],
+    ["an unknown top level key", (r) => (r.extra = 1), /the record holds/],
+    ["a note that is not text", (r) => (r.note = 7), /note is not a string/],
+    ["no dmg", (r) => delete r.artifacts.dmg, /artifacts is not exactly/],
+    ["a third artifact", (r) => (r.artifacts.zip = {}), /artifacts is not exactly/],
+    ["an exe with no signature", (r) => delete r.artifacts.exe.signature, /exe holds/],
+    ["a dmg with a signature", (r) => (r.artifacts.dmg.signature = "x"), /dmg holds/],
+    ["an empty signature", (r) => (r.artifacts.exe.signature = ""), /exe: signature/],
+    ["a dmg url on another tag", (r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace("/v1.9.0/", "/v1.9.1/")), /dmg: url/],
+    ["an exe url in another repo", (r) => (r.artifacts.exe.url = r.artifacts.exe.url.replace("/koegaki-releases/", "/koegaki/")), /exe: url/],
+    ["an exe url of another owner", (r) => (r.artifacts.exe.url = r.artifacts.exe.url.replace("/vishutdhar/", "/someone/")), /exe: url/],
+    ["a dmg url with another asset name", (r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(/Koegaki-1\.9\.0\.dmg$/, "Koegaki.dmg")), /dmg: url/],
+    ["a size as text", (r) => (r.artifacts.dmg.size = String(r.artifacts.dmg.size)), /dmg: size/],
+    ["a zero size", (r) => (r.artifacts.exe.size = 0), /exe: size/],
+    ["an uppercase digest", (r) => (r.artifacts.exe.sha256 = r.artifacts.exe.sha256.toUpperCase()), /exe: sha256/],
+    ["a short digest", (r) => (r.artifacts.dmg.blake2b512 = r.artifacts.dmg.blake2b512.slice(2)), /dmg: blake2b512/],
+    ["a digest that is not hex", (r) => (r.artifacts.exe.blake2b512 = `${r.artifacts.exe.blake2b512.slice(1)}g`), /exe: blake2b512/],
+  ];
+  const problemsAfter = (mutate) => {
+    const copy = structuredClone(record);
+    mutate(copy);
+    return releaseRecordProblems(copy, "1.9.0");
+  };
+  const missed = refused.filter(([, mutate, expected]) => !problemsAfter(mutate).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  assert.deepEqual(problemsAfter(() => {}), [], "the record as committed was refused");
+  assert.deepEqual(problemsAfter((r) => delete r.note), [], "a record with no note was refused");
 });
 
 /**
