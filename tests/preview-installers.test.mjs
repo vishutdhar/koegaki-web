@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { FROZEN_INSTALLERS, stripPreviewInstallers } from "../scripts/strip-preview-installers.mjs";
@@ -288,6 +288,11 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     // installer lives on GitHub: the installers published before it still have
     // to be served from here.
     ["another new installer in public/downloads", (dir) => writeFileSync(join(dir, "downloads", "Koegaki-1.2.5-setup.exe"), installer(10)), /public\/downloads\/Koegaki-1\.2\.5-setup\.exe is there, but nothing new lands in public\/downloads/],
+    [
+      "another new installer in public/downloads, as a symbolic link",
+      (dir) => symlinkSync("Koegaki-1.1.0-setup.exe", join(dir, "downloads", "Koegaki-1.2.5-setup.exe")),
+      /public\/downloads\/Koegaki-1\.2\.5-setup\.exe is there, but nothing new lands in public\/downloads/,
+    ],
     ["a frozen installer deleted", (dir) => rmSync(join(dir, "downloads", "Koegaki-1.0.0-setup.exe")), /public\/downloads\/Koegaki-1\.0\.0-setup\.exe, published before releases moved to GitHub, is missing/],
     ["a frozen installer replaced by a Git LFS pointer", (dir) => writeFileSync(join(dir, CURRENT), "version https://git-lfs.github.com/spec/v1\n"), /Koegaki-1\.1\.0-setup\.exe, published before releases moved to GitHub, is not a Windows executable/],
     ["a record with no installer sha256", writeRecord((r) => delete r.artifacts.exe.sha256), incomplete],

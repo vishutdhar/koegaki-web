@@ -1183,8 +1183,8 @@ function updaterUrlProblem(url, version) {
   return exact ? undefined : `the url ${url} is not https://<host>/Koegaki-${version}-setup.exe`;
 }
 
-/** The host of a url, or undefined when it does not parse. */
-const hostOf = (url) => (typeof url === "string" && URL.canParse(url) ? new URL(url).hostname : undefined);
+/** The host of a url with any port that is not the default, or undefined when it does not parse. */
+const hostOf = (url) => (typeof url === "string" && URL.canParse(url) ? new URL(url).host : undefined);
 
 /**
  * Why a release cannot be on GitHub, or undefined. public/downloads holds the
@@ -1396,6 +1396,7 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["a url with no host", { href: `https://?/Koegaki-${version}-setup.exe` }, /url/],
     ["a url on a host that is neither GitHub nor the Blob", { href: url.replace(BLOB_HOST, "github.invalid") }, /is on neither github\.com nor the Blob host/],
     ["a url on koegaki.com", { href: `https://koegaki.com/Koegaki-${version}-setup.exe` }, /is on neither github\.com nor the Blob host/],
+    ["a Blob url on another port", { href: url.replace(BLOB_HOST, `${BLOB_HOST}:444`) }, /is on neither github\.com nor the Blob host/],
     ["a url whose fragment names the installer", { href: `https://example.com/wrong.exe#/Koegaki-${version}-setup.exe` }, /url/],
     ["a url with a query", { href: `${url}?v=1` }, /url/],
     ["a url over http", { href: url.replace(/^https:/, "http:") }, /url/],
@@ -1487,11 +1488,37 @@ test("every release record states the installer digest its updater signature cov
   }
 });
 
-/** Every enclosure in an appcast's items, with the short version of the item that holds it. */
+/** An appcast's markup without its comments and CDATA sections, whose text an XML reader never takes for elements. */
+const appcastMarkup = (xml) => xml.replace(/<!--[\s\S]*?-->/g, "").replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "");
+
+/** An enclosure tag, read whole even where a quoted attribute value holds a ">". */
+const ENCLOSURE_TAG = /<enclosure\b(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+
+/**
+ * The attributes of one tag by name, each read where it starts, so text inside
+ * another attribute's quoted value is never taken for an attribute; a name
+ * given twice reads as null.
+ */
+function xmlAttributes(tag) {
+  const attributes = new Map();
+  for (const [, name, double, single] of tag.matchAll(/\s([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    attributes.set(name, attributes.has(name) ? null : (double ?? single));
+  }
+  return attributes;
+}
+
+/**
+ * Every enclosure in an appcast's items, with the short version of the item
+ * that holds it, or null when the item does not hold exactly one.
+ */
 function appcastEnclosures(xml) {
-  return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/g)].flatMap(([, item]) => {
-    const version = item.match(/<sparkle:shortVersionString>([^<]*)<\/sparkle:shortVersionString>/)?.[1];
-    return (item.match(/<enclosure\s[^>]*>/g) ?? []).map((tag) => ({ version, url: attr(tag, "url"), length: attr(tag, "length") }));
+  return [...appcastMarkup(xml).matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/g)].flatMap(([, item]) => {
+    const versions = [...item.matchAll(/<sparkle:shortVersionString>([^<]*)<\/sparkle:shortVersionString>/g)].map((m) => m[1]);
+    const version = versions.length === 1 ? versions[0] : null;
+    return (item.match(ENCLOSURE_TAG) ?? []).map((tag) => {
+      const attributes = xmlAttributes(tag);
+      return { version, versions: versions.length, url: attributes.get("url"), length: attributes.get("length") };
+    });
   });
 }
 
@@ -1510,10 +1537,11 @@ function appcastProblems(xml, sources) {
   const enclosures = appcastEnclosures(xml);
   // Every enclosure in the file is one checked below, so none escapes the
   // checks by sitting where the item pattern does not look.
-  const stray = (xml.match(/<enclosure\b/g) ?? []).length - enclosures.length;
+  const stray = (appcastMarkup(xml).match(/<enclosure\b/g) ?? []).length - enclosures.length;
   if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
-  for (const { version, url, length } of enclosures) {
+  for (const { version, versions, url, length } of enclosures) {
     const at = `item ${version}`;
+    if (version === null) problems.push(`an item holds ${versions} short versions, not one`);
     const host = hostOf(url);
     if (host !== "github.com") {
       if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
@@ -1604,6 +1632,18 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     ["a misspelled GitHub host", { url: github.replace("//github.com/", "//githb.com/"), record: undefined }, /is on neither github\.com nor the Blob host/],
     ["a newer item with an attribute on its tag", { xml: withSecondItem('<item xml:lang="en">', brokenEnclosure) }, /item 1\.9\.1: the enclosure url https:\/\/github\.invalid/],
     [
+      "an attribute value that holds the release url, beside another url",
+      { xml: appcastOf(version, "https://github.invalid/Koegaki-1.9.0.dmg", size).replace("<enclosure ", `<enclosure note=' url="${github}"' `) },
+      /the enclosure url https:\/\/github\.invalid\/Koegaki-1\.9\.0\.dmg is on neither/,
+    ],
+    ["the url given twice", { xml: appcastOf(version, github, size).replace("<enclosure ", `<enclosure url="${github}" `) }, /is on neither/],
+    ["a Blob url on another port", { url: `https://${BLOB_HOST}:444/Koegaki-${version}.dmg`, record: undefined }, /is on neither/],
+    [
+      "an item with two versions",
+      { xml: appcastOf(version, github, size).replace("<sparkle:version>", "<sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>\n            <sparkle:version>") },
+      /item holds 2 short versions/,
+    ],
+    [
       "an enclosure outside any item",
       { xml: appcastOf(version, github, size).replace("    </channel>", `        ${brokenEnclosure}\n    </channel>`) },
       /enclosures? outside the items/,
@@ -1623,6 +1663,16 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   const accepted = [
     ["the release asset with its recorded size", {}],
     ["an item tag with an attribute", { xml: appcastOf(version, github, size).replace("<item>", '<item xml:lang="en">') }],
+    ["a comment that mentions an enclosure", { xml: appcastOf(version, github, size).replace("    </channel>", '        <!-- Old syntax: <enclosure url="retired"/> -->\n    </channel>') }],
+    [
+      "release notes in CDATA that mention an enclosure and a version",
+      {
+        xml: appcastOf(version, github, size).replace(
+          "<sparkle:version>",
+          "<description><![CDATA[<p>Sparkle reads <enclosure url=\"x\"/> and <sparkle:shortVersionString>9.9.9</sparkle:shortVersionString>.</p>]]></description>\n            <sparkle:version>",
+        ),
+      },
+    ],
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
@@ -1661,9 +1711,9 @@ test("every download link is on GitHub, koegaki.com or the Blob host, and one on
   // public/downloads gains nothing, so a link left on koegaki.com when its
   // release moves to GitHub would serve a 404 there.
   for (const [what, link] of [["Mac", SITE.downloadUrl], ["Windows", SITE.windowsDownloadUrl]]) {
-    const { hostname, pathname } = new URL(link);
-    assert.ok(["github.com", "koegaki.com", BLOB_HOST].includes(hostname), `the ${what} download link ${link} is on ${hostname}, which serves no release`);
-    if (hostname !== "koegaki.com") continue;
+    const { host, pathname } = new URL(link);
+    assert.ok(["github.com", "koegaki.com", BLOB_HOST].includes(host), `the ${what} download link ${link} is on ${host}, which serves no release`);
+    if (host !== "koegaki.com") continue;
     assert.ok(existsSync(new URL(`../public${pathname}`, import.meta.url)), `the ${what} download link ${link} names no file in public/`);
   }
 });

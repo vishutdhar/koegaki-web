@@ -142,9 +142,11 @@ function checkRecordedRelease(publicDir, version, name, target, frozen) {
   for (const published of frozen) {
     checkInstallerFile(join(downloads, published), `public/downloads/${published}, published before releases moved to GitHub,`);
   }
-  // Every installer directly in public/downloads, and anything at all under
-  // the offered installer's name.
-  const present = readdirSync(downloads, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".exe")).map((e) => e.name);
+  // Every installer directly in public/downloads, a symbolic link too, and
+  // anything at all under the offered installer's name.
+  const present = readdirSync(downloads, { withFileTypes: true })
+    .filter((e) => (e.isFile() || e.isSymbolicLink()) && e.name.endsWith(".exe"))
+    .map((e) => e.name);
   if (statSync(join(downloads, name), { throwIfNoEntry: false })) present.push(name);
   const added = present.find((entry) => !frozen.includes(entry));
   if (added) {
