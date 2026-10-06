@@ -1495,8 +1495,9 @@ test("every release record states the installer digest its updater signature cov
 const feedRefusal = (message) => Object.assign(new Error(message), { refusal: true });
 
 /**
- * An XML document as a tree of elements, each { uri, local, attributes,
- * text, children }, read by a conformant parser (saxes) with namespaces, so
+ * An XML document as a tree of elements, each { name, uri, local,
+ * attributes, text, children }, read by a conformant parser (saxes) with
+ * namespaces, so
  * the checks see the elements, attribute values and text an XML reader such
  * as Sparkle's does: comments dropped, CDATA and character references read as
  * text, and names matched by namespace, whatever the prefix. Throws on any
@@ -1507,7 +1508,7 @@ const feedRefusal = (message) => Object.assign(new Error(message), { refusal: tr
  */
 function xmlTree(xml) {
   const parser = new SaxesParser({ xmlns: true });
-  const root = { uri: "", local: "", attributes: [], text: "", children: [] };
+  const root = { name: "", uri: "", local: "", attributes: [], text: "", children: [] };
   const open = [root];
   parser.on("doctype", () => {
     throw feedRefusal("holds a DOCTYPE, which a Sparkle feed never needs");
@@ -1516,8 +1517,8 @@ function xmlTree(xml) {
     throw feedRefusal("holds a processing instruction, which a Sparkle feed never needs");
   });
   parser.on("opentag", (tag) => {
-    const attributes = Object.values(tag.attributes).map(({ uri, local, value }) => ({ uri, local, value }));
-    const element = { uri: tag.uri, local: tag.local, attributes, text: "", children: [] };
+    const attributes = Object.values(tag.attributes).map(({ name, uri, local, value }) => ({ name, uri, local, value }));
+    const element = { name: tag.name, uri: tag.uri, local: tag.local, attributes, text: "", children: [] };
     open.at(-1).children.push(element);
     open.push(element);
   });
@@ -1532,16 +1533,28 @@ function xmlTree(xml) {
 const descendants = (element) => element.children.flatMap((child) => [child, ...descendants(child)]);
 /** The children of `element` named `local` in namespace `uri` ("" for none). */
 const childrenNamed = (element, uri, local) => element.children.filter((child) => child.uri === uri && child.local === local);
-/** The value of an attribute named `local` in namespace `uri` ("" for none), or undefined. */
-const attributeOf = (element, uri, local) => element.attributes.find((a) => a.uri === uri && a.local === local)?.value;
+/**
+ * The name Sparkle 2.9.4 files an item's child or an enclosure's attribute
+ * under (sparkleNamespacedNameOfNode in Sparkle/SUAppcast.m): "sparkle:" and
+ * its local name when it is in Sparkle's namespace, whatever the prefix, and
+ * otherwise its name as written, so a sparkle prefix bound elsewhere still
+ * reads as Sparkle's.
+ */
+const sparkleName = (node) => (node.uri === SPARKLE_NS ? `sparkle:${node.local}` : node.name);
+/** The children of `element` Sparkle files under `name`. */
+const sparkleChildren = (element, name) => element.children.filter((child) => sparkleName(child) === name);
+/** The value of the attribute of `element` Sparkle files under `name`, or undefined. */
+const sparkleAttribute = (element, name) => element.attributes.find((a) => sparkleName(a) === name)?.value;
 
 /**
  * The enclosures of the items Sparkle reads, /rss/channel/item, each with what
  * its item says of its short version: the version when the item holds exactly
- * one sparkle:shortVersionString (null otherwise), how many it holds, whether
- * that element holds markup, and whether the enclosure gives a version of its
- * own. `stray` counts every other enclosure in the document, in any namespace.
- * Throws when the appcast cannot be read (see xmlTree).
+ * one child Sparkle reads as sparkle:shortVersionString (null otherwise), how
+ * many it holds, whether that element holds markup, and whether the enclosure
+ * gives a version of its own. An item's enclosures are the children Sparkle
+ * reads as enclosure, and `stray` counts every other element named enclosure
+ * in the document, in any namespace. Throws when the appcast cannot be read
+ * (see xmlTree).
  */
 function appcastEnclosures(xml) {
   const root = xmlTree(xml);
@@ -1549,15 +1562,15 @@ function appcastEnclosures(xml) {
     .flatMap((rss) => childrenNamed(rss, "", "channel"))
     .flatMap((channel) => childrenNamed(channel, "", "item"));
   const enclosures = items.flatMap((item) => {
-    const versions = childrenNamed(item, SPARKLE_NS, "shortVersionString");
+    const versions = sparkleChildren(item, "sparkle:shortVersionString");
     const [only] = versions.length === 1 ? versions : [];
-    return childrenNamed(item, "", "enclosure").map((enclosure) => ({
+    return sparkleChildren(item, "enclosure").map((enclosure) => ({
       version: only ? only.text : null,
       versions: versions.length,
       markup: Boolean(only?.children.length),
       enclosureVersion: enclosure.attributes.some((a) => a.local === "shortVersionString"),
-      url: attributeOf(enclosure, "", "url"),
-      length: attributeOf(enclosure, "", "length"),
+      url: sparkleAttribute(enclosure, "url"),
+      length: sparkleAttribute(enclosure, "length"),
     }));
   });
   return { enclosures, stray: descendants(root).filter((element) => element.local === "enclosure").length - enclosures.length };
@@ -1592,6 +1605,7 @@ function appcastProblems(xml, sources) {
     const at = `item ${version}`;
     if (version === null) problems.push(`an item holds ${versions} short versions, not one`);
     if (markup) problems.push(`${at}: its short version holds markup, not only text`);
+    else if (version !== null && !/^\d+\.\d+\.\d+$/.test(version)) problems.push(`${at}: the short version ${JSON.stringify(version)} is not a plain version`);
     if (enclosureVersion) problems.push(`${at}: the enclosure gives a short version on its enclosure, which Sparkle would show instead of the item's`);
     const host = hostOf(url);
     if (host !== "github.com") {
@@ -1720,6 +1734,26 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
         ),
       },
       /item holds 2 short versions/,
+    ],
+    [
+      "a second version whose sparkle prefix is bound to another namespace",
+      {
+        xml: appcastOf(version, github, size).replace(
+          "<sparkle:version>",
+          '<sparkle:shortVersionString xmlns:sparkle="urn:example:other" xml:lang="en">9.9.9</sparkle:shortVersionString>\n            <sparkle:version>',
+        ),
+      },
+      /item holds 2 short versions/,
+    ],
+    [
+      "a second enclosure in a default namespace",
+      { xml: appcastOf(version, github, size).replace("        </item>", '            <enclosure xmlns="urn:example:other" url="https://github.invalid/Koegaki-1.9.0.dmg" length="1"/>\n        </item>') },
+      /the enclosure url https:\/\/github\.invalid\/Koegaki-1\.9\.0\.dmg is on neither/,
+    ],
+    [
+      "a version with space around it",
+      { xml: appcastOf(version, github, size).replace(`<sparkle:shortVersionString>${version}<`, `<sparkle:shortVersionString> ${version} <`) },
+      /short version " 1\.9\.0 " is not a plain version/,
     ],
     ["a version given on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure sparkle:shortVersionString="9.9.9" ') }, /short version on its enclosure/],
     [
