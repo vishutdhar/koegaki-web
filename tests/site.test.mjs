@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { SaxesParser } from "saxes";
 import { SITE } from "../lib/site.ts";
 import { LANDING_PAGES } from "../lib/pages.ts";
 import { COMPARISONS } from "../lib/compare.ts";
@@ -1488,38 +1489,55 @@ test("every release record states the installer digest its updater signature cov
   }
 });
 
-/** An appcast's markup without its comments and CDATA sections, whose text an XML reader never takes for elements. */
-const appcastMarkup = (xml) => xml.replace(/<!--[\s\S]*?-->/g, "").replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "");
-
-/** An enclosure tag, read whole even where a quoted attribute value holds a ">". */
-const ENCLOSURE_TAG = /<enclosure\b(?:[^>"']|"[^"]*"|'[^']*')*>/g;
-
 /**
- * The attributes of one tag by name, each read where it starts, so text inside
- * another attribute's quoted value is never taken for an attribute; a name
- * given twice reads as null.
+ * An XML document as a tree of elements, each { name, attributes, text,
+ * children }, read by a conformant parser (saxes), so the checks see exactly
+ * the elements, attribute values and text an XML reader such as Sparkle's
+ * does: comments dropped, CDATA and character references read as text, and a
+ * qualified name such as sparkle:shortVersionString kept whole. Throws on any
+ * well formedness error, an unbound prefix included.
  */
-function xmlAttributes(tag) {
-  const attributes = new Map();
-  for (const [, name, double, single] of tag.matchAll(/\s([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
-    attributes.set(name, attributes.has(name) ? null : (double ?? single));
-  }
-  return attributes;
+function xmlTree(xml) {
+  const parser = new SaxesParser({ xmlns: true });
+  const root = { name: "", attributes: {}, text: "", children: [] };
+  const open = [root];
+  parser.on("opentag", (tag) => {
+    const attributes = Object.fromEntries(Object.entries(tag.attributes).map(([name, { value }]) => [name, value]));
+    const element = { name: tag.name, attributes, text: "", children: [] };
+    open.at(-1).children.push(element);
+    open.push(element);
+  });
+  parser.on("closetag", () => open.pop());
+  parser.on("text", (text) => (open.at(-1).text += text));
+  parser.on("cdata", (text) => (open.at(-1).text += text));
+  parser.write(xml).close();
+  return root;
 }
 
+/** Every element under `element`, in document order. */
+const descendants = (element) => element.children.flatMap((child) => [child, ...descendants(child)]);
+
 /**
- * Every enclosure in an appcast's items, with the short version of the item
- * that holds it, or null when the item does not hold exactly one.
+ * The enclosures of an appcast's items, each with the short version of its
+ * item (null unless the item holds exactly one), and how many enclosures sit
+ * anywhere but directly in an item. Throws when the appcast is not well formed.
  */
 function appcastEnclosures(xml) {
-  return [...appcastMarkup(xml).matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/g)].flatMap(([, item]) => {
-    const versions = [...item.matchAll(/<sparkle:shortVersionString>([^<]*)<\/sparkle:shortVersionString>/g)].map((m) => m[1]);
-    const version = versions.length === 1 ? versions[0] : null;
-    return (item.match(ENCLOSURE_TAG) ?? []).map((tag) => {
-      const attributes = xmlAttributes(tag);
-      return { version, versions: versions.length, url: attributes.get("url"), length: attributes.get("length") };
+  const elements = descendants(xmlTree(xml));
+  const enclosures = elements
+    .filter((element) => element.name === "item")
+    .flatMap((item) => {
+      const versions = item.children.filter((child) => child.name === "sparkle:shortVersionString").map((child) => child.text);
+      return item.children
+        .filter((child) => child.name === "enclosure")
+        .map(({ attributes }) => ({
+          version: versions.length === 1 ? versions[0] : null,
+          versions: versions.length,
+          url: attributes.url,
+          length: attributes.length,
+        }));
     });
-  });
+  return { enclosures, stray: elements.filter((element) => element.name === "enclosure").length - enclosures.length };
 }
 
 /**
@@ -1534,10 +1552,15 @@ function appcastEnclosures(xml) {
  */
 function appcastProblems(xml, sources) {
   const problems = [];
-  const enclosures = appcastEnclosures(xml);
+  let read;
+  try {
+    read = appcastEnclosures(xml);
+  } catch (error) {
+    return [`the appcast is not well formed XML, so Sparkle cannot read it: ${error.message}`];
+  }
   // Every enclosure in the file is one checked below, so none escapes the
-  // checks by sitting where the item pattern does not look.
-  const stray = (appcastMarkup(xml).match(/<enclosure\b/g) ?? []).length - enclosures.length;
+  // checks by sitting anywhere but directly in an item.
+  const { enclosures, stray } = read;
   if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
   for (const { version, versions, url, length } of enclosures) {
     const at = `item ${version}`;
@@ -1583,7 +1606,7 @@ const appcastOf = (version, url, length) => `<?xml version="1.0" standalone="yes
 
 test("the appcast offers a GitHub hosted disk image only at its release asset url, with the size its record states", () => {
   const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
-  const enclosures = appcastEnclosures(xml);
+  const { enclosures } = appcastEnclosures(xml);
   assert.ok(enclosures.length > 0 && enclosures.every((e) => e.version && e.url && e.length), `the appcast enclosures did not parse: ${JSON.stringify(enclosures)}`);
   assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), []);
   // The site's Mac download link, once it moves to GitHub, is the same asset.
@@ -1636,7 +1659,30 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       { xml: appcastOf(version, "https://github.invalid/Koegaki-1.9.0.dmg", size).replace("<enclosure ", `<enclosure note=' url="${github}"' `) },
       /the enclosure url https:\/\/github\.invalid\/Koegaki-1\.9\.0\.dmg is on neither/,
     ],
-    ["the url given twice", { xml: appcastOf(version, github, size).replace("<enclosure ", `<enclosure url="${github}" `) }, /is on neither/],
+    ["the url given twice", { xml: appcastOf(version, github, size).replace("<enclosure ", `<enclosure url="${github}" `) }, /not well formed XML/],
+    ["an appcast that is not well formed", { xml: appcastOf(version, github, size).replace("</rss>", "") }, /not well formed XML/],
+    [
+      "a newer item hidden between comment markers inside CDATA",
+      {
+        xml: appcastOf(version, github, size)
+          .replace("        </item>", "            <description><![CDATA[<!--]]></description>\n        </item>")
+          .replace(
+            "    </channel>",
+            '        <item>\n            <sparkle:shortVersionString>1.9.2</sparkle:shortVersionString>\n            <enclosure url="https://github.invalid/Koegaki-1.9.2.dmg" length="1"/>\n            <description><![CDATA[-->]]></description>\n        </item>\n    </channel>',
+          ),
+      },
+      /item 1\.9\.2: the enclosure url https:\/\/github\.invalid/,
+    ],
+    [
+      "a version split across a CDATA section",
+      { xml: appcastOf(version, github, size).replace(`<sparkle:shortVersionString>${version}<`, `<sparkle:shortVersionString>${version}<![CDATA[9]]><`) },
+      new RegExp(`GitHub release asset of ${escaped(version)}9`),
+    ],
+    [
+      "a second version whose tag holds a space",
+      { xml: appcastOf(version, github, size).replace("<sparkle:version>", "<sparkle:shortVersionString >9.9.9</sparkle:shortVersionString>\n            <sparkle:version>") },
+      /item holds 2 short versions/,
+    ],
     ["a Blob url on another port", { url: `https://${BLOB_HOST}:444/Koegaki-${version}.dmg`, record: undefined }, /is on neither/],
     [
       "an item with two versions",
@@ -1663,6 +1709,12 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   const accepted = [
     ["the release asset with its recorded size", {}],
     ["an item tag with an attribute", { xml: appcastOf(version, github, size).replace("<item>", '<item xml:lang="en">') }],
+    ["a version written as CDATA", { xml: appcastOf(version, github, size).replace(`<sparkle:shortVersionString>${version}<`, `<sparkle:shortVersionString><![CDATA[${version}]]><`) }],
+    [
+      "a url and length written with character references",
+      { url: github.replace("github.com", "github&#46;com"), length: `&#${String(size).charCodeAt(0)};${String(size).slice(1)}` },
+    ],
+    ["an item end tag with a space", { xml: appcastOf(version, github, size).replace("</item>", "</item >") }],
     ["a comment that mentions an enclosure", { xml: appcastOf(version, github, size).replace("    </channel>", '        <!-- Old syntax: <enclosure url="retired"/> -->\n    </channel>') }],
     [
       "release notes in CDATA that mention an enclosure and a version",
