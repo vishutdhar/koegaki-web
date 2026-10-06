@@ -24,13 +24,20 @@ export const SITE = {
    * than to a placeholder, so an unset env var degrades to a working build
    * instead of a dead link. The previous macOS fallback pointed at releases
    * on a PRIVATE repo, which would have 404'd for every visitor the moment
-   * NEXT_PUBLIC_DOWNLOAD_URL went missing. The Windows fallback uses the
-   * publisher-domain /downloads path, a real static file under
-   * public/downloads (see next.config.ts for why it is neither a proxy nor
-   * a redirect), because package managers require installer URLs on a domain
-   * attributable to the publisher that serve the bytes directly. The blob
-   * host is already public in appcast.xml, so committing either exposes
-   * nothing.
+   * NEXT_PUBLIC_DOWNLOAD_URL went missing.
+   *
+   * Where a release lives. Through 1.9.0 the Mac disk image, and the copy of
+   * the Windows installer the in-app updater fetches, are on Vercel Blob, and
+   * this link serves the same Windows installer as a static file in
+   * public/downloads on koegaki.com, where winget's manifests point too (see
+   * next.config.ts for why). From 1.9.1 both files are assets of a public
+   * GitHub release,
+   * https://github.com/vishutdhar/koegaki-releases/releases/download/v<version>/<file>,
+   * recorded with their sizes and digests in releases/<version>.json, and
+   * these links move there with that release; the site tests hold a GitHub
+   * link to exactly that asset of a recorded release. Every host here is
+   * already public in appcast.xml and windows-updates.json, so committing
+   * them exposes nothing.
    */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
