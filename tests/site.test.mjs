@@ -1491,6 +1491,50 @@ test("every release record states the installer digest its updater signature cov
   }
 });
 
+/**
+ * The build number, sparkle:version, of every Mac release the appcast has
+ * offered, read from the history of public/appcast.xml. Sparkle offers an item
+ * only when its build number is higher than the installed app's
+ * CFBundleVersion, so a release whose build is not higher than the one before
+ * it reaches nobody. A release that publishes public/appcast.xml adds its line
+ * here; the test of the live appcast fails until it does.
+ */
+const MAC_BUILDS = new Map([
+  ["1.0.1", 2],
+  ["1.0.2", 3],
+  ["1.0.3", 4],
+  ["1.0.4", 5],
+  ["1.0.5", 6],
+  ["1.0.6", 7],
+  ["1.0.7", 8],
+  ["1.0.8", 9],
+  ["1.0.9", 10],
+  ["1.1.0", 13],
+  ["1.2", 14],
+  ["1.2.1", 15],
+  ["1.2.2", 16],
+  ["1.2.3", 17],
+  ["1.3.0", 18],
+  ["1.5.0", 19],
+  ["1.5.1", 20],
+  ["1.6.0", 21],
+  ["1.7.0", 22],
+  ["1.8.0", 23],
+  ["1.8.1", 24],
+  ["1.9.0", 25],
+  ["1.9.1", 26],
+]);
+
+/** Below zero, zero or above zero as version a is below, equal to or above b, part by part, a missing part counting as 0. */
+function compareVersions(a, b) {
+  const [x, y] = [a, b].map((version) => version.split(".").map(BigInt));
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const [p, q] = [x[i] ?? 0n, y[i] ?? 0n];
+    if (p !== q) return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
 /** A refusal of something legal XML allows but a Sparkle feed never needs, told apart from a parse error. */
 const feedRefusal = (message) => Object.assign(new Error(message), { refusal: true });
 
@@ -1552,11 +1596,12 @@ const sparkleAttribute = (element, name) => element.attributes.find((a) => spark
  * The items Sparkle reads, /rss/channel/item, each with what it says of its
  * short version (the version when it holds exactly one child Sparkle reads as
  * sparkle:shortVersionString, null otherwise; how many it holds; whether that
- * element holds markup or a comment) and its enclosures, the children Sparkle
- * reads as enclosure, each with its url, its length and whether it gives a
- * version of its own. `stray` counts every other element named enclosure in
- * the document, in any namespace. Throws when the appcast cannot be read (see
- * xmlTree).
+ * element holds markup or a comment), the same of its build number
+ * (sparkle:version), and its enclosures, the children Sparkle reads as
+ * enclosure, each with its url, its length, every value Sparkle reads as its
+ * EdDSA signature, and whether it gives a version or a build number of its
+ * own. `stray` counts every other element named enclosure in the document, in
+ * any namespace. Throws when the appcast cannot be read (see xmlTree).
  */
 function appcastItems(xml) {
   const root = xmlTree(xml);
@@ -1566,14 +1611,21 @@ function appcastItems(xml) {
     .map((item) => {
       const versions = sparkleChildren(item, "sparkle:shortVersionString");
       const [only] = versions.length === 1 ? versions : [];
+      const builds = sparkleChildren(item, "sparkle:version");
+      const [build] = builds.length === 1 ? builds : [];
       return {
         version: only ? only.text : null,
         versions: versions.length,
         markup: Boolean(only?.children.length || only?.comments),
+        build: build ? build.text : null,
+        builds: builds.length,
+        buildMarkup: Boolean(build?.children.length || build?.comments),
         enclosures: sparkleChildren(item, "enclosure").map((enclosure) => ({
           versioned: enclosure.attributes.some((a) => a.local === "shortVersionString"),
+          built: enclosure.attributes.some((a) => a.local === "version"),
           url: sparkleAttribute(enclosure, "url"),
           length: sparkleAttribute(enclosure, "length"),
+          signatures: enclosure.attributes.filter((a) => sparkleName(a) === "sparkle:edSignature").map((a) => a.value),
         })),
       };
     });
@@ -1585,19 +1637,51 @@ function appcastItems(xml) {
 const enclosuresOf = (items) => items.flatMap(({ version, enclosures }) => enclosures.map((enclosure) => ({ ...enclosure, version })));
 
 /**
- * What is wrong with the disk images an appcast offers, given `sources` (see
- * windowsUpdateProblems). The appcast must be well formed XML that holds only
- * what a Sparkle feed needs; every enclosure must sit in an item Sparkle reads,
- * whose one short version is plain text and is not overridden on the
- * enclosure. An enclosure on github.com must be exactly the release asset of
- * that version, of a release that did not ship from public/downloads, and the
- * length Sparkle is told must be the size that release's record states. An
- * enclosure on the Blob host, as every one was through 1.9.0, is left as it
- * is, and any other host is refused, so a misspelled host cannot skip these
- * checks. Sparkle's signature is over the whole disk image, which is not here,
- * so it is not checked.
+ * What is wrong with an item's build number, the sparkle:version Sparkle
+ * compares with the installed app's CFBundleVersion to decide whether the item
+ * is an update: it is a positive integer with no leading zero, the build
+ * `builds` lists for this release when it lists one, higher than every build
+ * it lists for an earlier release and lower than every build it lists for a
+ * later one.
  */
-function appcastProblems(xml, sources) {
+function buildNumberProblems(version, build, builds) {
+  if (!/^[1-9][0-9]*$/.test(build) || !Number.isSafeInteger(Number(build))) {
+    return [`the build number ${JSON.stringify(build)} is not a positive integer`];
+  }
+  const number = Number(build);
+  const problems = [];
+  const listed = builds.get(version);
+  if (listed !== undefined && number !== listed) problems.push(`the build number ${number} is not ${listed}, the build MAC_BUILDS lists for ${version}`);
+  // Only a plain version can be placed among the others; any other is refused
+  // on its own.
+  if (!/^\d+\.\d+\.\d+$/.test(version ?? "")) return problems;
+  for (const [release, other] of builds) {
+    const order = compareVersions(release, version);
+    if (order < 0 && number <= other) problems.push(`the build number ${number} is not higher than ${other}, the build of ${release}, an earlier release`);
+    if (order > 0 && number >= other) problems.push(`the build number ${number} is not lower than ${other}, the build of ${release}, a later release`);
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with the disk images an appcast offers, given `sources` (see
+ * windowsUpdateProblems) and `builds`, the build number of each release (see
+ * MAC_BUILDS). The appcast must be well formed XML that holds only what a
+ * Sparkle feed needs; every enclosure must sit in an item Sparkle reads, whose
+ * one short version is plain text and is not overridden on the enclosure, and
+ * whose one build number is plain text that buildNumberProblems accepts and is
+ * not overridden on the enclosure either (Sparkle reads an enclosure's own
+ * sparkle:version first). Every enclosure carries exactly one EdDSA signature
+ * of 64 bytes as canonical base64, the shape Sparkle can check; the signature
+ * itself is over the whole disk image, which is not here, so only the test
+ * that downloads the release verifies it. An enclosure on github.com must be
+ * exactly the release asset of that version, of a release that did not ship
+ * from public/downloads, and the length Sparkle is told must be the size that
+ * release's record states. An enclosure on the Blob host, as every one was
+ * through 1.9.0, is otherwise left as it is, and any other host is refused, so
+ * a misspelled host cannot skip these checks.
+ */
+function appcastProblems(xml, sources, builds = MAC_BUILDS) {
   const problems = [];
   let read;
   try {
@@ -1611,16 +1695,24 @@ function appcastProblems(xml, sources) {
   if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
   // Every item's version is checked, an item without a disk image included,
   // since Sparkle shows that version too.
-  for (const { version, versions, markup, enclosures } of items) {
+  for (const { version, versions, markup, build, builds: buildCount, buildMarkup, enclosures } of items) {
     const at = `item ${version}`;
     if (version === null) problems.push(`an item holds ${versions} short versions, not one`);
     else if (markup) problems.push(`${at}: its short version holds markup, not only text`);
     else if (!/^\d+\.\d+\.\d+$/.test(version)) problems.push(`${at}: the short version ${JSON.stringify(version)} is not a plain version`);
+    if (build === null) problems.push(`${at}: it holds ${buildCount} build numbers (sparkle:version), not one`);
+    else if (buildMarkup) problems.push(`${at}: its build number holds markup, not only text`);
+    else problems.push(...buildNumberProblems(version, build, builds).map((problem) => `${at}: ${problem}`));
     if (enclosures.length === 0) problems.push(`${at}: it offers no disk image, and every item in this feed must`);
   }
-  for (const { version, versioned, url, length } of enclosuresOf(items)) {
+  for (const { version, versioned, built, url, length, signatures } of enclosuresOf(items)) {
     const at = `item ${version}`;
     if (versioned) problems.push(`${at}: the enclosure gives a short version on its enclosure, which Sparkle would show instead of the item's`);
+    if (built) problems.push(`${at}: the enclosure gives a build number on its enclosure, which Sparkle reads instead of the item's`);
+    if (signatures.length !== 1) problems.push(`${at}: the enclosure carries ${signatures.length} EdDSA signatures (sparkle:edSignature), not one`);
+    else if (canonicalBase64(signatures[0])?.length !== 64) {
+      problems.push(`${at}: the EdDSA signature ${JSON.stringify(signatures[0])} is not 64 bytes as canonical base64, the only signature Sparkle can check`);
+    }
     const host = hostOf(url);
     if (host !== "github.com") {
       if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
@@ -1645,16 +1737,23 @@ function appcastProblems(xml, sources) {
   return problems;
 }
 
-/** An appcast of one item, laid out as Tools/make-appcast.sh writes it. */
-const appcastOf = (version, url, length) => `<?xml version="1.0" standalone="yes"?>
+/** The EdDSA signature the appcast carried for the 1.9.0 disk image, a real one to build test feeds with. */
+const SIGNATURE_1_9_0 = "P9sOI9lFDNNgn0KabhORO522YuO5qGTLNvEJbmUuzCArQgyCa+f3phDKLhOhSHmFZZ39SrSjUpnkx7U/U47gDg==";
+
+/**
+ * An appcast of one item, laid out as Tools/make-appcast.sh writes it, with
+ * the build number MAC_BUILDS lists for the version and 1.9.0's signature
+ * unless `build` or `signature` says otherwise; null leaves either out.
+ */
+const appcastOf = (version, url, length, { build = MAC_BUILDS.get(version), signature = SIGNATURE_1_9_0 } = {}) => `<?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>${version}</title>
-            <sparkle:version>25</sparkle:version>
+            <title>${version}</title>${build === null ? "" : `
+            <sparkle:version>${build}</sparkle:version>`}
             <sparkle:shortVersionString>${version}</sparkle:shortVersionString>
-            <enclosure url="${url}" length="${length}" type="application/octet-stream" sparkle:edSignature="c2lnbmF0dXJl"/>
+            <enclosure url="${url}" length="${length}" type="application/octet-stream"${signature === null ? "" : ` sparkle:edSignature="${signature}"`}/>
         </item>
     </channel>
 </rss>
@@ -1665,12 +1764,29 @@ test("the appcast offers a GitHub hosted disk image only at its release asset ur
   const enclosures = enclosuresOf(appcastItems(xml).items);
   assert.ok(enclosures.length > 0 && enclosures.every((e) => e.version && e.url && e.length), `the appcast enclosures did not parse: ${JSON.stringify(enclosures)}`);
   assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), []);
+  // The check holds a listed release to its build exactly, so every release the
+  // appcast offers must be listed: publishing one adds its build to MAC_BUILDS.
+  for (const { version } of appcastItems(xml).items) {
+    assert.ok(MAC_BUILDS.has(version), `the appcast offers ${version}, for which MAC_BUILDS lists no build; add the build number that release published`);
+  }
   // The site's Mac download link, once it moves to GitHub, is the same asset.
   if (hostOf(SITE.downloadUrl) === "github.com") {
     const offered = enclosures.find((e) => SITE.downloadUrl === githubAssetUrl(e.version, "dmg"));
     assert.ok(offered, `the Mac download link ${SITE.downloadUrl} is not the GitHub release asset of a version the appcast offers`);
     assert.ok(releaseRecord(offered.version), `the Mac download link is on GitHub but no releases/${offered.version}.json records that release`);
     assert.equal(frozenReleaseProblem(offered.version, RELEASE_SOURCES), undefined, "the Mac download link names a GitHub release that does not exist");
+  }
+});
+
+test("MAC_BUILDS lists the Mac releases in order, their build numbers rising with their versions", () => {
+  const releases = [...MAC_BUILDS];
+  for (const [i, [version, build]] of releases.entries()) {
+    assert.match(version, /^\d+(?:\.\d+){1,2}$/, `MAC_BUILDS lists ${JSON.stringify(version)}, which is not a version`);
+    assert.ok(Number.isSafeInteger(build) && build > 0, `MAC_BUILDS lists ${JSON.stringify(build)} for ${version}, which is not a positive integer`);
+    if (i === 0) continue;
+    const [before, beforeBuild] = releases[i - 1];
+    assert.ok(compareVersions(before, version) < 0, `MAC_BUILDS lists ${before} before ${version}`);
+    assert.ok(beforeBuild < build, `MAC_BUILDS lists build ${build} for ${version}, not higher than ${beforeBuild} for ${before}`);
   }
 });
 
@@ -1690,10 +1806,15 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   // A release on GitHub has no installer in public/downloads, so the sources
   // find none there unless a case names `file`.
   const check = (change) => {
-    const { url = github, length = size, file, xml = appcastOf(version, url, length) } = change;
+    const { url = github, length = size, file, builds, xml = appcastOf(version, url, length) } = change;
     const recorded = "record" in change ? change.record : record;
-    return appcastProblems(xml, { installer: () => file, record: () => recorded });
+    return appcastProblems(xml, { installer: () => file, record: () => recorded }, builds);
   };
+  // A build table of its own for the cases that need releases around this one,
+  // so they hold whatever ships next.
+  const listed = new Map([["1.9.0", 25], ["1.9.1", 26]]);
+  const blob = (release) => `https://${BLOB_HOST}/Koegaki-${release}.dmg`;
+  const withBuild = (text) => appcastOf(version, github, size).replace("<sparkle:version>25<", `<sparkle:version>${text}<`);
   // A second item, newer and broken, beside the good one.
   const withSecondItem = (open, enclosure) =>
     appcastOf(version, github, size).replace(
@@ -1831,6 +1952,43 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
     ],
     ["a record of another disk image", { record: recordWith((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki.dmg"))) }, /records the disk image at/],
+    ["no build number", { xml: appcastOf(version, github, size, { build: null }) }, /item 1\.9\.0: it holds 0 build numbers/],
+    ["two build numbers", { xml: appcastOf(version, github, size).replace("<sparkle:version>", "<sparkle:version>25</sparkle:version>\n            <sparkle:version>") }, /holds 2 build numbers/],
+    [
+      "a second build number under another prefix for the same namespace",
+      { xml: appcastOf(version, github, size).replace("<sparkle:version>", `<s:version xmlns:s="${SPARKLE_NS}">99</s:version>\n            <sparkle:version>`) },
+      /holds 2 build numbers/,
+    ],
+    ["a build number that is not a number", { xml: withBuild("twenty-five") }, /build number "twenty-five" is not a positive integer/],
+    ["a build number with a fraction", { xml: withBuild("25.1") }, /build number "25\.1" is not a positive integer/],
+    ["a build number of zero", { xml: withBuild("0") }, /build number "0" is not a positive integer/],
+    ["a build number with a leading zero", { xml: withBuild("025") }, /build number "025" is not a positive integer/],
+    ["a build number with space around it", { xml: withBuild(" 25 ") }, /build number " 25 " is not a positive integer/],
+    // Foundation's reader counts the comment's text, so Sparkle reads 259.
+    ["a comment inside the build number", { xml: withBuild("25<!--9-->") }, /build number holds markup/],
+    ["a build number other than the one listed for the release", { xml: withBuild("26") }, /the build number 26 is not 25, the build MAC_BUILDS lists for 1\.9\.0/],
+    [
+      "a newer release whose build number is not higher than the one before it",
+      { xml: appcastOf("1.9.2", blob("1.9.2"), 1, { build: 26 }), record: undefined, builds: listed },
+      /item 1\.9\.2: the build number 26 is not higher than 26, the build of 1\.9\.1/,
+    ],
+    [
+      "an older release whose build number is not lower than a later one",
+      { xml: appcastOf("1.8.5", blob("1.8.5"), 1, { build: 25 }), record: undefined, builds: listed },
+      /item 1\.8\.5: the build number 25 is not lower than 25, the build of 1\.9\.0/,
+    ],
+    ["a build number on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure sparkle:version="99" ') }, /build number on its enclosure/],
+    ["no EdDSA signature", { xml: appcastOf(version, github, size, { signature: null }) }, /carries 0 EdDSA signatures/],
+    ["an empty EdDSA signature", { xml: appcastOf(version, github, size, { signature: "" }) }, /EdDSA signature "" is not 64 bytes/],
+    ["an EdDSA signature of 63 bytes", { xml: appcastOf(version, github, size, { signature: Buffer.alloc(63, 7).toString("base64") }) }, /EdDSA signature .* is not 64 bytes/],
+    ["an EdDSA signature of 9 bytes", { xml: appcastOf(version, github, size, { signature: "c2lnbmF0dXJl" }) }, /EdDSA signature "c2lnbmF0dXJl" is not 64 bytes/],
+    ["an EdDSA signature with its padding cut", { xml: appcastOf(version, github, size, { signature: SIGNATURE_1_9_0.slice(0, -2) }) }, /EdDSA signature .* is not 64 bytes/],
+    ["an EdDSA signature with a character after it", { xml: appcastOf(version, github, size, { signature: `${SIGNATURE_1_9_0}!` }) }, /EdDSA signature .* is not 64 bytes/],
+    [
+      "a second EdDSA signature whose sparkle prefix is bound to another namespace",
+      { xml: appcastOf(version, github, size).replace("<enclosure ", `<enclosure xmlns:sparkle="urn:example:other" xmlns:s="${SPARKLE_NS}" s:edSignature="${SIGNATURE_1_9_0}" `) },
+      /carries 2 EdDSA signatures/,
+    ],
   ];
   const accepted = [
     ["the release asset with its recorded size", {}],
@@ -1861,6 +2019,10 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       },
     ],
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
+    ["a build number written as CDATA", { xml: withBuild("<![CDATA[25]]>") }],
+    ["the EdDSA signature under another prefix bound to the Sparkle namespace", { xml: appcastOf(version, github, size).replace("sparkle:edSignature=", `xmlns:s="${SPARKLE_NS}" s:edSignature=`) }],
+    ["a newer release with a higher build number", { xml: appcastOf("1.9.2", blob("1.9.2"), 1, { build: 27 }), record: undefined, builds: listed }],
+    ["an older release with a lower build number", { xml: appcastOf("1.8.5", blob("1.8.5"), 1, { build: 24 }), record: undefined, builds: listed }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
