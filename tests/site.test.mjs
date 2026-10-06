@@ -1202,14 +1202,29 @@ function frozenReleaseProblem(version, sources) {
 }
 
 /**
+ * Why a release cannot be served from a host releases used before GitHub
+ * (koegaki.com/downloads, or the Blob host), or undefined. A release with a
+ * record in releases/ was published as a GitHub release, so every download
+ * link, the updater manifest and the appcast serve it from github.com. The one
+ * exception is a release public/downloads holds: it shipped from there before
+ * releases moved to GitHub, and its record (1.9.0's) exists only so the self
+ * tests run against a real signed release (see frozenReleaseProblem).
+ */
+function legacyHostProblem(version, sources) {
+  if (!sources.record(version) || sources.installer(version)) return undefined;
+  return `releases/${version}.json records ${version} as a GitHub release, which is served from github.com only`;
+}
+
+/**
  * The BLAKE2b-512 digest of the installer the manifest's url serves, and what
  * stops it being known. A url on github.com must be exactly the release asset
  * of this version, of a release that did not ship from public/downloads, and
  * the digest is the one its record states, which the signature check then
  * holds to the signed installer. Otherwise the url must be on the Blob host,
  * where the updater fetched every installer shipped from this repository
- * through 1.9.0, so its bytes are read from public/downloads, and a record
- * never stands in for them.
+ * through 1.9.0, of a release with no record but one public/downloads holds
+ * (see legacyHostProblem), so its bytes are read from public/downloads, and a
+ * record never stands in for them.
  */
 function installerDigest(target, version, sources) {
   const problems = [];
@@ -1233,6 +1248,8 @@ function installerDigest(target, version, sources) {
   const urlProblem = updaterUrlProblem(target.url, version);
   if (urlProblem) problems.push(urlProblem);
   if (hostOf(target.url) !== BLOB_HOST) problems.push(`the url ${target.url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
+  const legacy = legacyHostProblem(version, sources);
+  if (legacy) problems.push(`the url ${target.url} is not on github.com, and ${legacy}`);
   const file = sources.installer(version);
   if (!file) return { problems: [...problems, `public/downloads/${ASSET_NAME.exe(version)}, the installer the url names, is missing`] };
   return { problems, digest: createHash("blake2b512").update(file).digest() };
@@ -1420,6 +1437,11 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
       "an installer missing from public/downloads, though a record of it exists",
       { file: undefined },
       new RegExp(`public/downloads/Koegaki-${escaped(version)}-setup\\.exe, the installer the url names, is missing`),
+    ],
+    [
+      "a Blob url for a release published on GitHub",
+      { file: undefined },
+      new RegExp(`is not on github\\.com, and releases/${escaped(version)}\\.json records ${escaped(version)} as a GitHub release`),
     ],
     ["a GitHub url on another tag", { href: githubUrl.replace(`/v${version}/`, `/v${otherRelease}/`) }, notGithubUrl],
     ["a GitHub url in another repo", { href: githubUrl.replace("/koegaki-releases/", "/koegaki/") }, notGithubUrl],
@@ -1678,8 +1700,9 @@ function buildNumberProblems(version, build, builds) {
  * exactly the release asset of that version, of a release that did not ship
  * from public/downloads, and the length Sparkle is told must be the size that
  * release's record states. An enclosure on the Blob host, as every one was
- * through 1.9.0, is otherwise left as it is, and any other host is refused, so
- * a misspelled host cannot skip these checks.
+ * through 1.9.0, may name only a release with no record, or one that shipped
+ * from public/downloads (see legacyHostProblem), and is otherwise left as it
+ * is; any other host is refused, so a misspelled host cannot skip these checks.
  */
 function appcastProblems(xml, sources, builds = MAC_BUILDS) {
   const problems = [];
@@ -1716,6 +1739,13 @@ function appcastProblems(xml, sources, builds = MAC_BUILDS) {
     const host = hostOf(url);
     if (host !== "github.com") {
       if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
+      // Neither the release the item offers nor one the url's file names may
+      // be a release published on GitHub.
+      const named = typeof url === "string" && URL.canParse(url) ? new URL(url).pathname.match(/\/Koegaki-(\d+\.\d+\.\d+)\.dmg$/)?.[1] : undefined;
+      for (const release of new Set([version, named])) {
+        const legacy = release ? legacyHostProblem(release, sources) : undefined;
+        if (legacy) problems.push(`${at}: the enclosure url ${url} is not on github.com, and ${legacy}`);
+      }
       continue;
     }
     const asset = githubAssetUrl(version, "dmg");
@@ -1808,7 +1838,7 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   const check = (change) => {
     const { url = github, length = size, file, builds, xml = appcastOf(version, url, length) } = change;
     const recorded = "record" in change ? change.record : record;
-    return appcastProblems(xml, { installer: () => file, record: () => recorded }, builds);
+    return appcastProblems(xml, change.sources ?? { installer: () => file, record: () => recorded }, builds);
   };
   // A build table of its own for the cases that need releases around this one,
   // so they hold whatever ships next.
@@ -1952,6 +1982,17 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
     ],
     ["a record of another disk image", { record: recordWith((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki.dmg"))) }, /records the disk image at/],
+    ["a Blob enclosure for a release published on GitHub", { url: blob(version) }, /item 1\.9\.0: the enclosure url .* is not on github\.com, and releases\/1\.9\.0\.json records 1\.9\.0 as a GitHub release/],
+    [
+      "a Blob enclosure naming a release published on GitHub, in the item of one with no record",
+      {
+        xml: appcastOf("1.8.5", blob("1.9.1"), 1, { build: 24 }),
+        builds: listed,
+        sources: { installer: () => undefined, record: (release) => (release === "1.9.1" ? record : undefined) },
+      },
+      /item 1\.8\.5: the enclosure url .*Koegaki-1\.9\.1\.dmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
+    ],
+    ["a record whose disk image size is one byte off", { record: recordWith((r) => (r.artifacts.dmg.size += 1)) }, /enclosure length/],
     ["no build number", { xml: appcastOf(version, github, size, { build: null }) }, /item 1\.9\.0: it holds 0 build numbers/],
     ["two build numbers", { xml: appcastOf(version, github, size).replace("<sparkle:version>", "<sparkle:version>25</sparkle:version>\n            <sparkle:version>") }, /holds 2 build numbers/],
     [
@@ -2019,6 +2060,7 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       },
     ],
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
+    ["a Blob enclosure for 1.9.0, which shipped from public/downloads, though a record of it exists", { url: blob(version), file: Buffer.from("MZ") }],
     ["a build number written as CDATA", { xml: withBuild("<![CDATA[25]]>") }],
     ["the EdDSA signature under another prefix bound to the Sparkle namespace", { xml: appcastOf(version, github, size).replace("sparkle:edSignature=", `xmlns:s="${SPARKLE_NS}" s:edSignature=`) }],
     ["a newer release with a higher build number", { xml: appcastOf("1.9.2", blob("1.9.2"), 1, { build: 27 }), record: undefined, builds: listed }],
@@ -2055,14 +2097,95 @@ test("public/downloads holds exactly the 12 installers published before GitHub r
   assert.deepEqual(readdirSync(new URL("../public/downloads/", import.meta.url)).sort(), FROZEN_DOWNLOADS);
 });
 
-test("every download link is on GitHub, koegaki.com or the Blob host, and one on koegaki.com names a file this deployment serves", () => {
-  // The GitHub links are held to their release elsewhere. From 1.9.1
-  // public/downloads gains nothing, so a link left on koegaki.com when its
-  // release moves to GitHub would serve a 404 there.
-  for (const [what, link] of [["Mac", SITE.downloadUrl], ["Windows", SITE.windowsDownloadUrl]]) {
-    const { host, pathname } = new URL(link);
-    assert.ok(["github.com", "koegaki.com", BLOB_HOST].includes(host), `the ${what} download link ${link} is on ${host}, which serves no release`);
-    if (host !== "koegaki.com") continue;
-    assert.ok(existsSync(new URL(`../public${pathname}`, import.meta.url)), `the ${what} download link ${link} names no file in public/`);
+/** Whether this deployment serves a file at this path, which is in public/. */
+const servedFromPublic = (pathname) => existsSync(new URL(`../public${pathname}`, import.meta.url));
+
+/**
+ * What is wrong with a download link of this kind ("dmg" or "exe"), given
+ * `sources` (see windowsUpdateProblems) and `serves` (see servedFromPublic).
+ * The link names a release by its file name and is exactly one of three urls
+ * for it. On github.com it is that release's asset, of a release with a record
+ * that did not ship from public/downloads. The hosts used before GitHub, as
+ * https://koegaki.com/downloads/<file>, which this deployment must serve, or
+ * https://<Blob host>/<file>, may name only a release with no record, or one
+ * that shipped from public/downloads (see legacyHostProblem). From 1.9.1
+ * public/downloads gains nothing, so a link left on koegaki.com when its
+ * release moves to GitHub would serve a 404 there.
+ */
+function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
+  const at = `the link ${link}`;
+  const file = typeof link === "string" && URL.canParse(link) ? new URL(link).pathname.split("/").at(-1) : undefined;
+  const version = file?.match(kind === "dmg" ? /^Koegaki-(\d+\.\d+\.\d+)\.dmg$/ : /^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)?.[1];
+  if (!version) return [`${at} names no ${kind === "dmg" ? "disk image" : "installer"} of a release`];
+  const host = hostOf(link);
+  const problems = [];
+  if (host === "github.com") {
+    const asset = githubAssetUrl(version, kind);
+    if (link !== asset) problems.push(`${at} is not ${asset}, the GitHub release asset of ${version}`);
+    if (!sources.record(version)) problems.push(`${at} is on GitHub but no releases/${version}.json records that release`);
+    const frozen = frozenReleaseProblem(version, sources);
+    if (frozen) problems.push(`${at}: ${frozen}`);
+    return problems;
   }
+  const legacyUrls = new Map([
+    ["koegaki.com", `https://koegaki.com/downloads/${ASSET_NAME[kind](version)}`],
+    [BLOB_HOST, `https://${BLOB_HOST}/${ASSET_NAME[kind](version)}`],
+  ]);
+  const legacyUrl = legacyUrls.get(host);
+  if (!legacyUrl) return [`${at} is on ${host}, which serves no release`];
+  if (link !== legacyUrl) problems.push(`${at} is not ${legacyUrl}`);
+  else if (host === "koegaki.com" && !serves(new URL(link).pathname)) problems.push(`${at} names no file in public/`);
+  const legacy = legacyHostProblem(version, sources);
+  if (legacy) problems.push(`${at} is not on github.com, and ${legacy}`);
+  return problems;
+}
+
+test("every download link is a GitHub release asset, or names a release with no record on koegaki.com or the Blob host", () => {
+  for (const [kind, link] of [["dmg", SITE.downloadUrl], ["exe", SITE.windowsDownloadUrl]]) {
+    assert.deepEqual(downloadLinkProblems(kind, link, RELEASE_SOURCES), [], `the ${kind === "dmg" ? "Mac" : "Windows"} download link`);
+  }
+});
+
+test("the download link check refuses a recorded release off GitHub, a link on any other host, and a link to no release", () => {
+  // Three releases from the repository as it is: one published on GitHub, so
+  // recorded with no installer in public/downloads; 1.9.0, recorded only for
+  // the self tests although public/downloads holds it; and one public/downloads
+  // holds that no record names.
+  const versionOf = ({ version }) => version;
+  const github = releaseRecords().filter(({ version }) => version && !RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
+  const seed = releaseRecords().filter(({ version }) => version && RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
+  const unrecorded = FROZEN_DOWNLOADS.map((name) => name.match(/^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)[1]).filter((version) => !releaseRecord(version)).at(-1);
+  assert.ok(github && seed && unrecorded, `the releases these cases need are missing: ${JSON.stringify({ github, seed, unrecorded })}`);
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const offGithub = (release) => new RegExp(`records ${escaped(release)} as a GitHub release`);
+  const blob = (kind, release) => `https://${BLOB_HOST}/${ASSET_NAME[kind](release)}`;
+  const site = (release) => `https://koegaki.com/downloads/${ASSET_NAME.exe(release)}`;
+  const refused = [
+    ["a Mac link on the Blob host for a release published on GitHub", ["dmg", blob("dmg", github)], offGithub(github)],
+    ["a Windows link on the Blob host for a release published on GitHub", ["exe", blob("exe", github)], offGithub(github)],
+    ["a Windows link on koegaki.com for a release published on GitHub, though the file is served", ["exe", site(github), () => true], offGithub(github)],
+    ["a Windows link on koegaki.com naming a file this deployment does not serve", ["exe", site("1.1.0")], /names no file in public\//],
+    ["a link on another host", ["exe", `https://example.com/${ASSET_NAME.exe(unrecorded)}`], /is on example\.com, which serves no release/],
+    ["a koegaki.com link outside downloads", ["exe", `https://koegaki.com/${ASSET_NAME.exe(unrecorded)}`, () => true], /is not https:\/\/koegaki\.com\/downloads\//],
+    ["a Blob link over http", ["dmg", blob("dmg", unrecorded).replace(/^https:/, "http:")], /is not https:/],
+    ["a link that names no release", ["dmg", `https://${BLOB_HOST}/Koegaki.dmg`], /names no disk image of a release/],
+    ["a Mac link to an installer", ["dmg", githubAssetUrl(github, "exe")], /names no disk image of a release/],
+    ["a GitHub link to a release with no record", ["dmg", githubAssetUrl("9.9.9", "dmg")], /no releases\/9\.9\.9\.json records/],
+    ["a GitHub link to a release public/downloads holds", ["exe", githubAssetUrl(seed, "exe")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in public/downloads`)],
+    ["a GitHub link with a query", ["dmg", `${githubAssetUrl(github, "dmg")}?raw=1`], /is not https:\/\/github\.com\//],
+    ["a GitHub link in another repo", ["dmg", githubAssetUrl(github, "dmg").replace("/koegaki-releases/", "/koegaki/")], /is not https:\/\/github\.com\//],
+  ];
+  const accepted = [
+    ["the GitHub disk image of a release published on GitHub", ["dmg", githubAssetUrl(github, "dmg")]],
+    ["the GitHub installer of a release published on GitHub", ["exe", githubAssetUrl(github, "exe")]],
+    ["a Windows link on koegaki.com for 1.9.0, recorded only for the self tests", ["exe", site(seed)]],
+    ["a Mac link on the Blob host for 1.9.0, recorded only for the self tests", ["dmg", blob("dmg", seed)]],
+    ["a Windows link on koegaki.com for a release with no record", ["exe", site(unrecorded)]],
+    ["a Mac link on the Blob host for a release with no record", ["dmg", blob("dmg", unrecorded)]],
+  ];
+  const check = ([kind, link, serves]) => downloadLinkProblems(kind, link, RELEASE_SOURCES, serves);
+  const missed = refused.filter(([, args, expected]) => !check(args).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, args]) => [name, check(args)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
 });
