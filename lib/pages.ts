@@ -54,7 +54,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "The speech model runs on your Mac",
         paragraphs: [
-          `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
+          `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
           "That is the whole reason the app exists. Most dictation apps send your voice to a server because that is the easy way to build one. Apple Silicon is fast enough that it no longer has to be, and Koegaki uses the Neural Engine so transcription feels instant. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your Mac too.",
         ],
       },
@@ -94,7 +94,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it need an internet connection?",
-        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
+        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
       },
       {
         q: "Is there a subscription?",
@@ -124,7 +124,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "Transcription happens on your PC",
         paragraphs: [
-          `Koegaki transcribes with ${SITE.windowsEngine}. The model downloads once on first launch, and from then on dictation works with no internet connection at all. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. Your audio and your text stay on your machine. Nothing is uploaded and there is no server on our side to upload to.`,
+          `Koegaki transcribes with ${SITE.windowsEngine}. The model downloads once on first launch, and from then on dictation works with no internet connection at all. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That background download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot. Your audio and your text stay on your machine. Nothing is uploaded and there is no server on our side to upload to.`,
           "The voice typing built into Windows sends your speech to Microsoft's servers to be recognised. Koegaki does the recognition locally, which is why it can be used on documents you would never paste into a website. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your PC too.",
         ],
       },
@@ -161,7 +161,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it work without internet?",
-        a: "Yes. Once the speech model has downloaded, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
+        a: "Yes. Once the speech model has downloaded, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
       },
       {
         q: "Which versions of Windows are supported?",
@@ -177,7 +177,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/offline-dictation",
     linkLabel: "Offline dictation",
     operatingSystem: "macOS 14.0 or later, Windows 10, Windows 11",
-    lastModified: "2026-10-03",
+    lastModified: "2026-10-05",
     name: "Offline dictation",
     title: "Offline dictation software for Mac and Windows",
     description: `Dictation that works with no internet connection. The speech model runs on your Mac or PC, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
@@ -189,7 +189,7 @@ export const LANDING_PAGES: LandingPage[] = [
         heading: "Why most dictation stops working offline",
         paragraphs: [
           "Most dictation tools are a microphone connected to a server. They record you, upload the audio, and wait for a transcript to come back. Lose the connection and they stop. Keep the connection and every word you say passes through someone else's computer.",
-          "Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing.",
+          "Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing. That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.",
         ],
       },
       {
@@ -202,7 +202,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          "A few things, none of them involving audio or text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. Each model downloads once, and a cleanup model downloads only when you choose it. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.",
+          "A few things, none of them involving audio or text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows. Each model downloads once, and a cleanup model downloads only when you choose it. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.",
         ],
       },
       {
