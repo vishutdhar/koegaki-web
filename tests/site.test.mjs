@@ -3,11 +3,12 @@
 // `npm test`, which builds first.
 //
 // One test needs the network and runs only when asked to. With RELEASE_FETCH=1
-// it downloads from GitHub both assets of every release the update manifest,
-// the appcast and the download links serve from there, holds each to its
-// record in releases/ (size, SHA-256 and BLAKE2b-512), and verifies the Windows
-// updater signature and the appcast's Sparkle signature over the downloaded
-// bytes. Without RELEASE_FETCH=1 it is reported as skipped, never as passed.
+// it holds the live update manifest, appcast and download links to the
+// offline checks, downloads from GitHub both assets of every release they
+// serve from there, holds each to its record in releases/ (size, SHA-256 and
+// BLAKE2b-512), and verifies the manifest's updater signature and the
+// appcast's Sparkle signature over the downloaded bytes. Without
+// RELEASE_FETCH=1 it is reported as skipped, never as passed.
 // Run it alone with
 //
 //   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub" tests/site.test.mjs
@@ -1200,6 +1201,16 @@ function updaterUrlProblem(url, version) {
   return exact ? undefined : `the url ${url} is not https://<host>/Koegaki-${version}-setup.exe`;
 }
 
+/** The path of a url with its percent escapes decoded, or undefined when it does not parse or decode. */
+function decodedPath(url) {
+  if (typeof url !== "string" || !URL.canParse(url)) return undefined;
+  try {
+    return decodeURIComponent(new URL(url).pathname);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The host of a url with any port that is not the default, or undefined when it does not parse. */
 const hostOf = (url) => (typeof url === "string" && URL.canParse(url) ? new URL(url).host : undefined);
 
@@ -1623,6 +1634,8 @@ const childrenNamed = (element, uri, local) => element.children.filter((child) =
  * reads as Sparkle's.
  */
 const sparkleName = (node) => (node.uri === SPARKLE_NS ? `sparkle:${node.local}` : node.name);
+/** The namespace of every namespace declaration (xmlns and xmlns:<prefix>), which binds a prefix and is no attribute value Sparkle reads. */
+const XMLNS_NS = "http://www.w3.org/2000/xmlns/";
 /** The children of `element` Sparkle files under `name`. */
 const sparkleChildren = (element, name) => element.children.filter((child) => sparkleName(child) === name);
 /** The value of the attribute of `element` Sparkle files under `name`, or undefined. */
@@ -1636,8 +1649,10 @@ const sparkleAttribute = (element, name) => element.attributes.find((a) => spark
  * (sparkle:version), and its enclosures, the children Sparkle reads as
  * enclosure, each with its url, its length, every value Sparkle reads as its
  * EdDSA signature, and whether it gives a version or a build number of its
- * own. `stray` counts every other element named enclosure in the document, in
- * any namespace. Throws when the appcast cannot be read (see xmlTree).
+ * own, as an attribute of that local name in any namespace, a namespace
+ * declaration aside. `stray` counts every other element named enclosure in
+ * the document, in any namespace. Throws when the appcast cannot be read (see
+ * xmlTree).
  */
 function appcastItems(xml) {
   const root = xmlTree(xml);
@@ -1657,8 +1672,8 @@ function appcastItems(xml) {
         builds: builds.length,
         buildMarkup: Boolean(build?.children.length || build?.comments),
         enclosures: sparkleChildren(item, "enclosure").map((enclosure) => ({
-          versioned: enclosure.attributes.some((a) => a.local === "shortVersionString"),
-          built: enclosure.attributes.some((a) => a.local === "version"),
+          versioned: enclosure.attributes.some((a) => a.uri !== XMLNS_NS && a.local === "shortVersionString"),
+          built: enclosure.attributes.some((a) => a.uri !== XMLNS_NS && a.local === "version"),
           url: sparkleAttribute(enclosure, "url"),
           length: sparkleAttribute(enclosure, "length"),
           signatures: enclosure.attributes.filter((a) => sparkleName(a) === "sparkle:edSignature").map((a) => a.value),
@@ -1754,8 +1769,9 @@ function appcastProblems(xml, sources, builds = MAC_BUILDS) {
     if (host !== "github.com") {
       if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
       // Neither the release the item offers nor one the url's file names may
-      // be a release published on GitHub.
-      const named = typeof url === "string" && URL.canParse(url) ? new URL(url).pathname.match(/\/Koegaki-(\d+\.\d+\.\d+)\.dmg$/)?.[1] : undefined;
+      // be a release published on GitHub. A server decodes the path, so the
+      // name is read decoded; a path that does not decode names nothing.
+      const named = decodedPath(url)?.match(/\/Koegaki-(\d+\.\d+\.\d+)\.dmg$/)?.[1];
       for (const release of new Set([version, named])) {
         const legacy = release ? legacyHostProblem(release, sources) : undefined;
         if (legacy) problems.push(`${at}: the enclosure url ${url} is not on github.com, and ${legacy}`);
@@ -2006,6 +2022,14 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       },
       /item 1\.8\.5: the enclosure url .*Koegaki-1\.9\.1\.dmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
     ],
+    [
+      "a Blob enclosure whose percent encoded file name names a release published on GitHub, in the item of 1.9.0",
+      {
+        xml: appcastOf(version, `https://${BLOB_HOST}/Koegaki-%31.9.1%2Edmg`, 1),
+        sources: { installer: (release) => (release === version ? Buffer.from("MZ") : undefined), record: (release) => (release === version || release === "1.9.1" ? record : undefined) },
+      },
+      /Koegaki-%31\.9\.1%2Edmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
+    ],
     ["a record whose disk image size is one byte off", { record: recordWith((r) => (r.artifacts.dmg.size += 1)) }, /enclosure length/],
     ["no build number", { xml: appcastOf(version, github, size, { build: null }) }, /item 1\.9\.0: it holds 0 build numbers/],
     ["two build numbers", { xml: appcastOf(version, github, size).replace("<sparkle:version>", "<sparkle:version>25</sparkle:version>\n            <sparkle:version>") }, /holds 2 build numbers/],
@@ -2076,6 +2100,9 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
     ["a Blob enclosure for 1.9.0, which shipped from public/downloads, though a record of it exists", { url: blob(version), file: Buffer.from("MZ") }],
     ["a build number written as CDATA", { xml: withBuild("<![CDATA[25]]>") }],
+    // A namespace declaration binds a prefix and gives Sparkle no value.
+    ["a namespace prefix named version declared on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure xmlns:version="urn:example:other" ') }],
+    ["a namespace prefix named shortVersionString declared on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure xmlns:shortVersionString="urn:example:other" ') }],
     ["the EdDSA signature under another prefix bound to the Sparkle namespace", { xml: appcastOf(version, github, size).replace("sparkle:edSignature=", `xmlns:s="${SPARKLE_NS}" s:edSignature=`) }],
     ["a newer release with a higher build number", { xml: appcastOf("1.9.2", blob("1.9.2"), 1, { build: 27 }), record: undefined, builds: listed }],
     ["an older release with a lower build number", { xml: appcastOf("1.8.5", blob("1.8.5"), 1, { build: 24 }), record: undefined, builds: listed }],
@@ -2267,8 +2294,20 @@ test(
   { skip: process.env.RELEASE_FETCH === "1" ? false : "needs the network: run with RELEASE_FETCH=1, as the top of this file says" },
   async (t) => {
     const manifest = publicJson("windows-updates.json");
-    const enclosures = enclosuresOf(appcastItems(readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8")).items);
-    const served = [manifest.platforms?.["windows-x86_64"]?.url, ...enclosures.map(({ url }) => url), SITE.downloadUrl, SITE.windowsDownloadUrl];
+    const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
+    // Run alone, this test first holds the live files to the offline checks,
+    // so the manifest, the appcast and the links serve exactly the urls the
+    // records state, the manifest carries the record's signature and every
+    // enclosure carries one well formed Sparkle signature; what is downloaded
+    // below is then what they serve.
+    assert.deepEqual(windowsUpdateProblems(manifest, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY), [], "public/windows-updates.json");
+    assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), [], "public/appcast.xml");
+    for (const [kind, link] of [["dmg", SITE.downloadUrl], ["exe", SITE.windowsDownloadUrl]]) {
+      assert.deepEqual(downloadLinkProblems(kind, link, RELEASE_SOURCES), [], `the ${kind === "dmg" ? "Mac" : "Windows"} download link`);
+    }
+    const target = manifest.platforms["windows-x86_64"];
+    const enclosures = enclosuresOf(appcastItems(xml).items);
+    const served = [target.url, ...enclosures.map(({ url }) => url), SITE.downloadUrl, SITE.windowsDownloadUrl];
     const versions = new Set(served.filter((url) => hostOf(url) === "github.com").map((url) => url.match(/\/releases\/download\/v(\d+\.\d+\.\d+)\//)?.[1]));
     assert.ok(versions.size > 0, "the site serves nothing from GitHub");
     for (const version of versions) {
@@ -2284,8 +2323,12 @@ test(
       }
       const signatures = enclosures.filter(({ url }) => url === record.artifacts.dmg.url).flatMap((enclosure) => enclosure.signatures);
       if (signatures.length === 0) t.diagnostic(`no appcast item offers ${record.artifacts.dmg.url}, so no Sparkle signature of it is checked`);
+      // Where the manifest offers this installer, the signature verified is
+      // the one it carries, which is what the updater checks.
+      const checked = structuredClone(record);
+      if (target.url === record.artifacts.exe.url) checked.artifacts.exe.signature = target.signature;
       const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: MAC_SPARKLE_PUBKEY };
-      assert.deepEqual(downloadedReleaseProblems(record, assets, signatures, keys), [], `${version} as GitHub serves it`);
+      assert.deepEqual(downloadedReleaseProblems(checked, assets, signatures, keys), [], `${version} as GitHub serves it`);
       t.diagnostic(
         `${version}: both assets match releases/${version}.json in size, SHA-256 and BLAKE2b-512; the updater signature and ${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"} verify over the downloaded bytes`,
       );
