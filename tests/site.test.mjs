@@ -944,7 +944,12 @@ test("the model index check refuses what the app readers refuse", () => {
  * Each url is the release asset, size its length in bytes, sha256 and
  * blake2b512 lowercase hex digests of the whole file, and signature the
  * updater signature public/windows-updates.json carries, which signs that
- * BLAKE2b-512 digest and so ties the record to the signed installer.
+ * BLAKE2b-512 digest and so ties the record to the signed installer. That
+ * digest is the only field the checks here can authenticate; the sizes, the
+ * SHA-256 digests and the disk image's BLAKE2b-512 are held to their shape,
+ * and to the bytes where public/downloads still holds the installer, but
+ * otherwise rest on the publishing tool, which measured them on the files it
+ * downloaded back from the release.
  */
 const RELEASES = new URL("../releases/", import.meta.url);
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
@@ -1313,6 +1318,7 @@ test("the Windows updater manifest names the installer its signature covers", ()
   if (hostOf(SITE.windowsDownloadUrl) === "github.com") {
     assert.equal(SITE.windowsDownloadUrl, githubAssetUrl(manifest.version, "exe"), "the Windows download link is not the GitHub release asset");
     assert.ok(releaseRecord(manifest.version), `the Windows download link is on GitHub but no releases/${manifest.version}.json records that release`);
+    assert.equal(frozenReleaseProblem(manifest.version, RELEASE_SOURCES), undefined, "the Windows download link names a GitHub release that does not exist");
   }
 });
 
@@ -1483,19 +1489,28 @@ function appcastEnclosures(xml) {
   });
 }
 
+/** The Vercel Blob host every disk image through 1.9.0 was served from. */
+const BLOB_HOST = "npdal36mxz3kcwxv.public.blob.vercel-storage.com";
+
 /**
  * What is wrong with the disk images an appcast offers, given `sources` (see
  * windowsUpdateProblems). An enclosure on github.com must be exactly the
  * release asset of its item's version, of a release that did not ship from
  * public/downloads, and the length Sparkle is told must be the size that
- * release's record states. An enclosure on any other host, as every one was
- * through 1.9.0, is left as it is.
+ * release's record states. An enclosure on the Blob host, as every one was
+ * through 1.9.0, is left as it is, and any other host is refused, so a
+ * misspelled host cannot skip these checks. Sparkle's signature is over the
+ * whole disk image, which is not here, so it is not checked.
  */
 function appcastProblems(xml, sources) {
   const problems = [];
   for (const { version, url, length } of appcastEnclosures(xml)) {
-    if (hostOf(url) !== "github.com") continue;
     const at = `item ${version}`;
+    const host = hostOf(url);
+    if (host !== "github.com") {
+      if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
+      continue;
+    }
     const asset = githubAssetUrl(version, "dmg");
     if (url !== asset) problems.push(`${at}: the enclosure url ${url} is not ${asset}, the GitHub release asset of ${version}`);
     const frozen = frozenReleaseProblem(version, sources);
@@ -1540,6 +1555,7 @@ test("the appcast offers a GitHub hosted disk image only at its release asset ur
     const offered = enclosures.find((e) => SITE.downloadUrl === githubAssetUrl(e.version, "dmg"));
     assert.ok(offered, `the Mac download link ${SITE.downloadUrl} is not the GitHub release asset of a version the appcast offers`);
     assert.ok(releaseRecord(offered.version), `the Mac download link is on GitHub but no releases/${offered.version}.json records that release`);
+    assert.equal(frozenReleaseProblem(offered.version, RELEASE_SOURCES), undefined, "the Mac download link names a GitHub release that does not exist");
   }
 });
 
@@ -1570,6 +1586,8 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     ["another asset name", { url: github.replace(/[^/]+$/, "Koegaki.dmg") }, notGithub],
     ["the Windows installer's asset", { url: githubAssetUrl(version, "exe") }, notGithub],
     ["a query", { url: `${github}?raw=1` }, notGithub],
+    ["a misspelled GitHub host", { url: github.replace("//github.com/", "//githb.com/"), record: undefined }, /is on neither github\.com nor the Blob host/],
+    ["a Blob host one character off", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.co/Koegaki-${version}.dmg`, record: undefined }, /is on neither github\.com nor the Blob host/],
     ["a length one byte longer", { length: size + 1 }, /enclosure length/],
     ["a length that is not a whole number", { length: `${size}.0` }, /enclosure length/],
     ["no record", { record: undefined }, new RegExp(`no releases/${escaped(version)}\\.json records`)],
@@ -1614,4 +1632,14 @@ const FROZEN_DOWNLOADS = [
 
 test("public/downloads holds exactly the 12 installers published before GitHub releases, and nothing new", () => {
   assert.deepEqual(readdirSync(new URL("../public/downloads/", import.meta.url)).sort(), FROZEN_DOWNLOADS);
+});
+
+test("a download link on koegaki.com names a file this deployment serves", () => {
+  // From 1.9.1 public/downloads gains nothing, so a link left on koegaki.com
+  // when its release moves to GitHub would serve a 404 there.
+  for (const [what, link] of [["Mac", SITE.downloadUrl], ["Windows", SITE.windowsDownloadUrl]]) {
+    const { hostname, pathname } = new URL(link);
+    if (hostname !== "koegaki.com") continue;
+    assert.ok(existsSync(new URL(`../public${pathname}`, import.meta.url)), `the ${what} download link ${link} names no file in public/`);
+  }
 });
