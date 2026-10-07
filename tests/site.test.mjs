@@ -1,9 +1,27 @@
 // Checks the BUILT site (the prerendered HTML and sitemap in .next), not the
 // source, so what is pinned here is exactly what a crawler is served. Run with
 // `npm test`, which builds first.
+//
+// One test needs the network and runs only when asked to. With RELEASE_FETCH=1
+// it holds the live update manifest, appcast and download links to the
+// offline checks, downloads from GitHub both assets of every release they
+// serve from there, holds each to its record in releases/ (size, SHA-256 and
+// BLAKE2b-512), and verifies the manifest's updater signature over the
+// downloaded installer; then it downloads the installer the manifest and the
+// Windows link serve, from whichever host, and holds it to its record, or to
+// the installer public/downloads holds, and to the manifest's updater
+// signature; then it downloads every disk image the appcast offers, from
+// whichever host, and holds it to its enclosure's length and Sparkle
+// signature, and to its record when one records its release. Without
+// RELEASE_FETCH=1 it is reported as skipped, never as passed.
+// Run it alone with
+//
+//   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub" tests/site.test.mjs
+//
+// or with the whole suite as `RELEASE_FETCH=1 npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { SaxesParser } from "saxes";
 import { SITE } from "../lib/site.ts";
@@ -948,9 +966,11 @@ test("the model index check refuses what the app readers refuse", () => {
  * BLAKE2b-512 digest and so ties the record to the signed installer. That
  * digest is the only field the checks here can authenticate; the sizes, the
  * SHA-256 digests and the disk image's BLAKE2b-512 are held to their shape,
- * and to the bytes where public/downloads still holds the installer, but
- * otherwise rest on the publishing tool, which measured them on the files it
- * downloaded back from the release.
+ * to each other where the manifest and the appcast repeat them, and to the
+ * bytes where public/downloads still holds the installer. Otherwise they rest
+ * on the publishing tool, which measured them on the files it downloaded back
+ * from the release, and on the test that downloads the release again
+ * (RELEASE_FETCH=1, see the top of this file).
  */
 const RELEASES = new URL("../releases/", import.meta.url);
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
@@ -1186,6 +1206,16 @@ function updaterUrlProblem(url, version) {
   return exact ? undefined : `the url ${url} is not https://<host>/Koegaki-${version}-setup.exe`;
 }
 
+/** The path of a url with its percent escapes decoded, or undefined when it does not parse or decode. */
+function decodedPath(url) {
+  if (typeof url !== "string" || !URL.canParse(url)) return undefined;
+  try {
+    return decodeURIComponent(new URL(url).pathname);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The host of a url with any port that is not the default, or undefined when it does not parse. */
 const hostOf = (url) => (typeof url === "string" && URL.canParse(url) ? new URL(url).host : undefined);
 
@@ -1202,14 +1232,29 @@ function frozenReleaseProblem(version, sources) {
 }
 
 /**
+ * Why a release cannot be served from a host releases used before GitHub
+ * (koegaki.com/downloads, or the Blob host), or undefined. A release with a
+ * record in releases/ was published as a GitHub release, so every download
+ * link, the updater manifest and the appcast serve it from github.com. The one
+ * exception is a release public/downloads holds: it shipped from there before
+ * releases moved to GitHub, and its record (1.9.0's) exists only so the self
+ * tests run against a real signed release (see frozenReleaseProblem).
+ */
+function legacyHostProblem(version, sources) {
+  if (!sources.record(version) || sources.installer(version)) return undefined;
+  return `releases/${version}.json records ${version} as a GitHub release, which is served from github.com only`;
+}
+
+/**
  * The BLAKE2b-512 digest of the installer the manifest's url serves, and what
  * stops it being known. A url on github.com must be exactly the release asset
  * of this version, of a release that did not ship from public/downloads, and
  * the digest is the one its record states, which the signature check then
  * holds to the signed installer. Otherwise the url must be on the Blob host,
  * where the updater fetched every installer shipped from this repository
- * through 1.9.0, so its bytes are read from public/downloads, and a record
- * never stands in for them.
+ * through 1.9.0, of a release with no record but one public/downloads holds
+ * (see legacyHostProblem), so its bytes are read from public/downloads, and a
+ * record never stands in for them.
  */
 function installerDigest(target, version, sources) {
   const problems = [];
@@ -1233,6 +1278,8 @@ function installerDigest(target, version, sources) {
   const urlProblem = updaterUrlProblem(target.url, version);
   if (urlProblem) problems.push(urlProblem);
   if (hostOf(target.url) !== BLOB_HOST) problems.push(`the url ${target.url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
+  const legacy = legacyHostProblem(version, sources);
+  if (legacy) problems.push(`the url ${target.url} is not on github.com, and ${legacy}`);
   const file = sources.installer(version);
   if (!file) return { problems: [...problems, `public/downloads/${ASSET_NAME.exe(version)}, the installer the url names, is missing`] };
   return { problems, digest: createHash("blake2b512").update(file).digest() };
@@ -1317,16 +1364,9 @@ function updaterSelfTestRelease() {
 }
 
 test("the Windows updater manifest names the installer its signature covers", () => {
-  const manifest = publicJson("windows-updates.json");
-  assert.deepEqual(windowsUpdateProblems(manifest, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY), []);
   // The site's own download link serves the same release the updater offers,
-  // and once it moves to GitHub, the same release asset.
-  assert.ok(SITE.windowsDownloadUrl.endsWith(`/Koegaki-${manifest.version}-setup.exe`), `the download link does not name ${manifest.version}`);
-  if (hostOf(SITE.windowsDownloadUrl) === "github.com") {
-    assert.equal(SITE.windowsDownloadUrl, githubAssetUrl(manifest.version, "exe"), "the Windows download link is not the GitHub release asset");
-    assert.ok(releaseRecord(manifest.version), `the Windows download link is on GitHub but no releases/${manifest.version}.json records that release`);
-    assert.equal(frozenReleaseProblem(manifest.version, RELEASE_SOURCES), undefined, "the Windows download link names a GitHub release that does not exist");
-  }
+  // and once it moves to GitHub, the same release asset (liveManifestProblems).
+  assert.deepEqual(liveManifestProblems(publicJson("windows-updates.json"), SITE.windowsDownloadUrl, RELEASE_SOURCES), []);
 });
 
 test("the updater manifest check refuses a damaged manifest, signature, installer or key", () => {
@@ -1421,6 +1461,11 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
       { file: undefined },
       new RegExp(`public/downloads/Koegaki-${escaped(version)}-setup\\.exe, the installer the url names, is missing`),
     ],
+    [
+      "a Blob url for a release published on GitHub",
+      { file: undefined },
+      new RegExp(`is not on github\\.com, and releases/${escaped(version)}\\.json records ${escaped(version)} as a GitHub release`),
+    ],
     ["a GitHub url on another tag", { href: githubUrl.replace(`/v${version}/`, `/v${otherRelease}/`) }, notGithubUrl],
     ["a GitHub url in another repo", { href: githubUrl.replace("/koegaki-releases/", "/koegaki/") }, notGithubUrl],
     ["a GitHub url of another owner", { href: githubUrl.replace("/vishutdhar/", "/someone/") }, notGithubUrl],
@@ -1491,6 +1536,50 @@ test("every release record states the installer digest its updater signature cov
   }
 });
 
+/**
+ * The build number, sparkle:version, of every Mac release the appcast has
+ * offered, read from the history of public/appcast.xml. Sparkle offers an item
+ * only when its build number is higher than the installed app's
+ * CFBundleVersion, so a release whose build is not higher than the one before
+ * it reaches nobody. A release that publishes public/appcast.xml adds its line
+ * here; the test of the live appcast fails until it does.
+ */
+const MAC_BUILDS = new Map([
+  ["1.0.1", 2],
+  ["1.0.2", 3],
+  ["1.0.3", 4],
+  ["1.0.4", 5],
+  ["1.0.5", 6],
+  ["1.0.6", 7],
+  ["1.0.7", 8],
+  ["1.0.8", 9],
+  ["1.0.9", 10],
+  ["1.1.0", 13],
+  ["1.2", 14],
+  ["1.2.1", 15],
+  ["1.2.2", 16],
+  ["1.2.3", 17],
+  ["1.3.0", 18],
+  ["1.5.0", 19],
+  ["1.5.1", 20],
+  ["1.6.0", 21],
+  ["1.7.0", 22],
+  ["1.8.0", 23],
+  ["1.8.1", 24],
+  ["1.9.0", 25],
+  ["1.9.1", 26],
+]);
+
+/** Below zero, zero or above zero as version a is below, equal to or above b, part by part, a missing part counting as 0. */
+function compareVersions(a, b) {
+  const [x, y] = [a, b].map((version) => version.split(".").map(BigInt));
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const [p, q] = [x[i] ?? 0n, y[i] ?? 0n];
+    if (p !== q) return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
 /** A refusal of something legal XML allows but a Sparkle feed never needs, told apart from a parse error. */
 const feedRefusal = (message) => Object.assign(new Error(message), { refusal: true });
 
@@ -1543,6 +1632,8 @@ const childrenNamed = (element, uri, local) => element.children.filter((child) =
  * reads as Sparkle's.
  */
 const sparkleName = (node) => (node.uri === SPARKLE_NS ? `sparkle:${node.local}` : node.name);
+/** The namespace of every namespace declaration (xmlns and xmlns:<prefix>), which binds a prefix and is no attribute value Sparkle reads. */
+const XMLNS_NS = "http://www.w3.org/2000/xmlns/";
 /** The children of `element` Sparkle files under `name`. */
 const sparkleChildren = (element, name) => element.children.filter((child) => sparkleName(child) === name);
 /** The value of the attribute of `element` Sparkle files under `name`, or undefined. */
@@ -1552,9 +1643,12 @@ const sparkleAttribute = (element, name) => element.attributes.find((a) => spark
  * The items Sparkle reads, /rss/channel/item, each with what it says of its
  * short version (the version when it holds exactly one child Sparkle reads as
  * sparkle:shortVersionString, null otherwise; how many it holds; whether that
- * element holds markup or a comment) and its enclosures, the children Sparkle
- * reads as enclosure, each with its url, its length and whether it gives a
- * version of its own. `stray` counts every other element named enclosure in
+ * element holds markup or a comment), the same of its build number
+ * (sparkle:version), and its enclosures, the children Sparkle reads as
+ * enclosure, each with its url, its length, every value Sparkle reads as its
+ * EdDSA signature, and whether it gives a version or a build number of its
+ * own, as an attribute of that local name in any namespace, a namespace
+ * declaration aside. `stray` counts every other element named enclosure in
  * the document, in any namespace. Throws when the appcast cannot be read (see
  * xmlTree).
  */
@@ -1566,14 +1660,21 @@ function appcastItems(xml) {
     .map((item) => {
       const versions = sparkleChildren(item, "sparkle:shortVersionString");
       const [only] = versions.length === 1 ? versions : [];
+      const builds = sparkleChildren(item, "sparkle:version");
+      const [build] = builds.length === 1 ? builds : [];
       return {
         version: only ? only.text : null,
         versions: versions.length,
         markup: Boolean(only?.children.length || only?.comments),
+        build: build ? build.text : null,
+        builds: builds.length,
+        buildMarkup: Boolean(build?.children.length || build?.comments),
         enclosures: sparkleChildren(item, "enclosure").map((enclosure) => ({
-          versioned: enclosure.attributes.some((a) => a.local === "shortVersionString"),
+          versioned: enclosure.attributes.some((a) => a.uri !== XMLNS_NS && a.local === "shortVersionString"),
+          built: enclosure.attributes.some((a) => a.uri !== XMLNS_NS && a.local === "version"),
           url: sparkleAttribute(enclosure, "url"),
           length: sparkleAttribute(enclosure, "length"),
+          signatures: enclosure.attributes.filter((a) => sparkleName(a) === "sparkle:edSignature").map((a) => a.value),
         })),
       };
     });
@@ -1585,19 +1686,53 @@ function appcastItems(xml) {
 const enclosuresOf = (items) => items.flatMap(({ version, enclosures }) => enclosures.map((enclosure) => ({ ...enclosure, version })));
 
 /**
- * What is wrong with the disk images an appcast offers, given `sources` (see
- * windowsUpdateProblems). The appcast must be well formed XML that holds only
- * what a Sparkle feed needs; every enclosure must sit in an item Sparkle reads,
- * whose one short version is plain text and is not overridden on the
- * enclosure. An enclosure on github.com must be exactly the release asset of
- * that version, of a release that did not ship from public/downloads, and the
- * length Sparkle is told must be the size that release's record states. An
- * enclosure on the Blob host, as every one was through 1.9.0, is left as it
- * is, and any other host is refused, so a misspelled host cannot skip these
- * checks. Sparkle's signature is over the whole disk image, which is not here,
- * so it is not checked.
+ * What is wrong with an item's build number, the sparkle:version Sparkle
+ * compares with the installed app's CFBundleVersion to decide whether the item
+ * is an update: it is a positive integer with no leading zero, the build
+ * `builds` lists for this release when it lists one, higher than every build
+ * it lists for an earlier release and lower than every build it lists for a
+ * later one.
  */
-function appcastProblems(xml, sources) {
+function buildNumberProblems(version, build, builds) {
+  if (!/^[1-9][0-9]*$/.test(build) || !Number.isSafeInteger(Number(build))) {
+    return [`the build number ${JSON.stringify(build)} is not a positive integer`];
+  }
+  const number = Number(build);
+  const problems = [];
+  const listed = builds.get(version);
+  if (listed !== undefined && number !== listed) problems.push(`the build number ${number} is not ${listed}, the build MAC_BUILDS lists for ${version}`);
+  // Only a plain version can be placed among the others; any other is refused
+  // on its own.
+  if (!/^\d+\.\d+\.\d+$/.test(version ?? "")) return problems;
+  for (const [release, other] of builds) {
+    const order = compareVersions(release, version);
+    if (order < 0 && number <= other) problems.push(`the build number ${number} is not higher than ${other}, the build of ${release}, an earlier release`);
+    if (order > 0 && number >= other) problems.push(`the build number ${number} is not lower than ${other}, the build of ${release}, a later release`);
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with the disk images an appcast offers, given `sources` (see
+ * windowsUpdateProblems) and `builds`, the build number of each release (see
+ * MAC_BUILDS). The appcast must be well formed XML that holds only what a
+ * Sparkle feed needs; every enclosure must sit in an item Sparkle reads, whose
+ * one short version is plain text and is not overridden on the enclosure, and
+ * whose one build number is plain text that buildNumberProblems accepts and is
+ * not overridden on the enclosure either (Sparkle reads an enclosure's own
+ * sparkle:version first). Every enclosure carries exactly one EdDSA signature
+ * of 64 bytes as canonical base64, the shape Sparkle can check; the signature
+ * itself is over the whole disk image, which is not here, so only the test
+ * that downloads the release verifies it. An enclosure on github.com must be
+ * exactly the release asset of that version, of a release that did not ship
+ * from public/downloads, and the length Sparkle is told must be the size that
+ * release's record states. An enclosure on the Blob host, as every one was
+ * through 1.9.0, must be exactly https://<Blob host>/Koegaki-<version>.dmg, the
+ * url every one of them had, and may name only a release with no record, or
+ * one that shipped from public/downloads (see legacyHostProblem); any other
+ * host is refused, so a misspelled host cannot skip these checks.
+ */
+function appcastProblems(xml, sources, builds = MAC_BUILDS) {
   const problems = [];
   let read;
   try {
@@ -1611,19 +1746,38 @@ function appcastProblems(xml, sources) {
   if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
   // Every item's version is checked, an item without a disk image included,
   // since Sparkle shows that version too.
-  for (const { version, versions, markup, enclosures } of items) {
+  for (const { version, versions, markup, build, builds: buildCount, buildMarkup, enclosures } of items) {
     const at = `item ${version}`;
     if (version === null) problems.push(`an item holds ${versions} short versions, not one`);
     else if (markup) problems.push(`${at}: its short version holds markup, not only text`);
     else if (!/^\d+\.\d+\.\d+$/.test(version)) problems.push(`${at}: the short version ${JSON.stringify(version)} is not a plain version`);
+    if (build === null) problems.push(`${at}: it holds ${buildCount} build numbers (sparkle:version), not one`);
+    else if (buildMarkup) problems.push(`${at}: its build number holds markup, not only text`);
+    else problems.push(...buildNumberProblems(version, build, builds).map((problem) => `${at}: ${problem}`));
     if (enclosures.length === 0) problems.push(`${at}: it offers no disk image, and every item in this feed must`);
   }
-  for (const { version, versioned, url, length } of enclosuresOf(items)) {
+  for (const { version, versioned, built, url, length, signatures } of enclosuresOf(items)) {
     const at = `item ${version}`;
     if (versioned) problems.push(`${at}: the enclosure gives a short version on its enclosure, which Sparkle would show instead of the item's`);
+    if (built) problems.push(`${at}: the enclosure gives a build number on its enclosure, which Sparkle reads instead of the item's`);
+    if (signatures.length !== 1) problems.push(`${at}: the enclosure carries ${signatures.length} EdDSA signatures (sparkle:edSignature), not one`);
+    else if (canonicalBase64(signatures[0])?.length !== 64) {
+      problems.push(`${at}: the EdDSA signature ${JSON.stringify(signatures[0])} is not 64 bytes as canonical base64, the only signature Sparkle can check`);
+    }
     const host = hostOf(url);
     if (host !== "github.com") {
       if (host !== BLOB_HOST) problems.push(`${at}: the enclosure url ${url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
+      else if (url !== `https://${BLOB_HOST}/${ASSET_NAME.dmg(version)}`) {
+        problems.push(`${at}: the enclosure url ${url} is not https://${BLOB_HOST}/${ASSET_NAME.dmg(version)}, where the Blob host served the disk image of ${version}`);
+      }
+      // Neither the release the item offers nor one the url's file names may
+      // be a release published on GitHub. A server decodes the path, so the
+      // name is read decoded; a path that does not decode names nothing.
+      const named = decodedPath(url)?.match(/\/Koegaki-(\d+\.\d+\.\d+)\.dmg$/)?.[1];
+      for (const release of new Set([version, named])) {
+        const legacy = release ? legacyHostProblem(release, sources) : undefined;
+        if (legacy) problems.push(`${at}: the enclosure url ${url} is not on github.com, and ${legacy}`);
+      }
       continue;
     }
     const asset = githubAssetUrl(version, "dmg");
@@ -1645,32 +1799,45 @@ function appcastProblems(xml, sources) {
   return problems;
 }
 
-/** An appcast of one item, laid out as Tools/make-appcast.sh writes it. */
-const appcastOf = (version, url, length) => `<?xml version="1.0" standalone="yes"?>
+/** The EdDSA signature the appcast carried for the 1.9.0 disk image, a real one to build test feeds with. */
+const SIGNATURE_1_9_0 = "P9sOI9lFDNNgn0KabhORO522YuO5qGTLNvEJbmUuzCArQgyCa+f3phDKLhOhSHmFZZ39SrSjUpnkx7U/U47gDg==";
+
+/**
+ * An appcast of one item, laid out as Tools/make-appcast.sh writes it, with
+ * the build number MAC_BUILDS lists for the version and 1.9.0's signature
+ * unless `build` or `signature` says otherwise; null leaves either out.
+ */
+const appcastOf = (version, url, length, { build = MAC_BUILDS.get(version), signature = SIGNATURE_1_9_0 } = {}) => `<?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>${version}</title>
-            <sparkle:version>25</sparkle:version>
+            <title>${version}</title>${build === null ? "" : `
+            <sparkle:version>${build}</sparkle:version>`}
             <sparkle:shortVersionString>${version}</sparkle:shortVersionString>
-            <enclosure url="${url}" length="${length}" type="application/octet-stream" sparkle:edSignature="c2lnbmF0dXJl"/>
+            <enclosure url="${url}" length="${length}" type="application/octet-stream"${signature === null ? "" : ` sparkle:edSignature="${signature}"`}/>
         </item>
     </channel>
 </rss>
 `;
 
 test("the appcast offers a GitHub hosted disk image only at its release asset url, with the size its record states", () => {
+  // The check holds a listed release to its build exactly, so every release the
+  // appcast offers must be listed in MAC_BUILDS, and the site's Mac download
+  // link, once it moves to GitHub, is the same asset (liveAppcastProblems).
   const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
-  const enclosures = enclosuresOf(appcastItems(xml).items);
-  assert.ok(enclosures.length > 0 && enclosures.every((e) => e.version && e.url && e.length), `the appcast enclosures did not parse: ${JSON.stringify(enclosures)}`);
-  assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), []);
-  // The site's Mac download link, once it moves to GitHub, is the same asset.
-  if (hostOf(SITE.downloadUrl) === "github.com") {
-    const offered = enclosures.find((e) => SITE.downloadUrl === githubAssetUrl(e.version, "dmg"));
-    assert.ok(offered, `the Mac download link ${SITE.downloadUrl} is not the GitHub release asset of a version the appcast offers`);
-    assert.ok(releaseRecord(offered.version), `the Mac download link is on GitHub but no releases/${offered.version}.json records that release`);
-    assert.equal(frozenReleaseProblem(offered.version, RELEASE_SOURCES), undefined, "the Mac download link names a GitHub release that does not exist");
+  assert.deepEqual(liveAppcastProblems(xml, SITE.downloadUrl, RELEASE_SOURCES), []);
+});
+
+test("MAC_BUILDS lists the Mac releases in order, their build numbers rising with their versions", () => {
+  const releases = [...MAC_BUILDS];
+  for (const [i, [version, build]] of releases.entries()) {
+    assert.match(version, /^\d+(?:\.\d+){1,2}$/, `MAC_BUILDS lists ${JSON.stringify(version)}, which is not a version`);
+    assert.ok(Number.isSafeInteger(build) && build > 0, `MAC_BUILDS lists ${JSON.stringify(build)} for ${version}, which is not a positive integer`);
+    if (i === 0) continue;
+    const [before, beforeBuild] = releases[i - 1];
+    assert.ok(compareVersions(before, version) < 0, `MAC_BUILDS lists ${before} before ${version}`);
+    assert.ok(beforeBuild < build, `MAC_BUILDS lists build ${build} for ${version}, not higher than ${beforeBuild} for ${before}`);
   }
 });
 
@@ -1690,10 +1857,15 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
   // A release on GitHub has no installer in public/downloads, so the sources
   // find none there unless a case names `file`.
   const check = (change) => {
-    const { url = github, length = size, file, xml = appcastOf(version, url, length) } = change;
+    const { url = github, length = size, file, builds, xml = appcastOf(version, url, length) } = change;
     const recorded = "record" in change ? change.record : record;
-    return appcastProblems(xml, { installer: () => file, record: () => recorded });
+    return appcastProblems(xml, change.sources ?? { installer: () => file, record: () => recorded }, builds);
   };
+  // A build table of its own for the cases that need releases around this one,
+  // so they hold whatever ships next.
+  const listed = new Map([["1.9.0", 25], ["1.9.1", 26]]);
+  const blob = (release) => `https://${BLOB_HOST}/Koegaki-${release}.dmg`;
+  const withBuild = (text) => appcastOf(version, github, size).replace("<sparkle:version>25<", `<sparkle:version>${text}<`);
   // A second item, newer and broken, beside the good one.
   const withSecondItem = (open, enclosure) =>
     appcastOf(version, github, size).replace(
@@ -1831,6 +2003,72 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
     ],
     ["a record of another disk image", { record: recordWith((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki.dmg"))) }, /records the disk image at/],
+    ["a Blob enclosure for a release published on GitHub", { url: blob(version) }, /item 1\.9\.0: the enclosure url .* is not on github\.com, and releases\/1\.9\.0\.json records 1\.9\.0 as a GitHub release/],
+    [
+      "a Blob enclosure naming a release published on GitHub, in the item of one with no record",
+      {
+        xml: appcastOf("1.8.5", blob("1.9.1"), 1, { build: 24 }),
+        builds: listed,
+        sources: { installer: () => undefined, record: (release) => (release === "1.9.1" ? record : undefined) },
+      },
+      /item 1\.8\.5: the enclosure url .*Koegaki-1\.9\.1\.dmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
+    ],
+    [
+      "a Blob enclosure whose percent encoded file name names a release published on GitHub, in the item of 1.9.0",
+      {
+        xml: appcastOf(version, `https://${BLOB_HOST}/Koegaki-%31.9.1%2Edmg`, 1),
+        sources: { installer: (release) => (release === version ? Buffer.from("MZ") : undefined), record: (release) => (release === version || release === "1.9.1" ? record : undefined) },
+      },
+      /Koegaki-%31\.9\.1%2Edmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
+    ],
+    ["a record whose disk image size is one byte off", { record: recordWith((r) => (r.artifacts.dmg.size += 1)) }, /enclosure length/],
+    [
+      "a Blob enclosure that serves the Windows installer as the disk image",
+      { url: `https://${BLOB_HOST}/Koegaki-${version}-setup.exe`, file: Buffer.from("MZ") },
+      new RegExp(`the enclosure url .*-setup\\.exe is not https://${escaped(BLOB_HOST)}/Koegaki-1\\.9\\.0\\.dmg`),
+    ],
+    [
+      "a Blob enclosure for another release's disk image",
+      { xml: appcastOf("1.8.5", blob("1.8.4"), 1, { build: 24 }), record: undefined, builds: listed },
+      /item 1\.8\.5: the enclosure url .*Koegaki-1\.8\.4\.dmg is not https:.*Koegaki-1\.8\.5\.dmg/,
+    ],
+    ["no build number", { xml: appcastOf(version, github, size, { build: null }) }, /item 1\.9\.0: it holds 0 build numbers/],
+    ["two build numbers", { xml: appcastOf(version, github, size).replace("<sparkle:version>", "<sparkle:version>25</sparkle:version>\n            <sparkle:version>") }, /holds 2 build numbers/],
+    [
+      "a second build number under another prefix for the same namespace",
+      { xml: appcastOf(version, github, size).replace("<sparkle:version>", `<s:version xmlns:s="${SPARKLE_NS}">99</s:version>\n            <sparkle:version>`) },
+      /holds 2 build numbers/,
+    ],
+    ["a build number that is not a number", { xml: withBuild("twenty-five") }, /build number "twenty-five" is not a positive integer/],
+    ["a build number with a fraction", { xml: withBuild("25.1") }, /build number "25\.1" is not a positive integer/],
+    ["a build number of zero", { xml: withBuild("0") }, /build number "0" is not a positive integer/],
+    ["a build number with a leading zero", { xml: withBuild("025") }, /build number "025" is not a positive integer/],
+    ["a build number with space around it", { xml: withBuild(" 25 ") }, /build number " 25 " is not a positive integer/],
+    // Foundation's reader counts the comment's text, so Sparkle reads 259.
+    ["a comment inside the build number", { xml: withBuild("25<!--9-->") }, /build number holds markup/],
+    ["a build number other than the one listed for the release", { xml: withBuild("26") }, /the build number 26 is not 25, the build MAC_BUILDS lists for 1\.9\.0/],
+    [
+      "a newer release whose build number is not higher than the one before it",
+      { xml: appcastOf("1.9.2", blob("1.9.2"), 1, { build: 26 }), record: undefined, builds: listed },
+      /item 1\.9\.2: the build number 26 is not higher than 26, the build of 1\.9\.1/,
+    ],
+    [
+      "an older release whose build number is not lower than a later one",
+      { xml: appcastOf("1.8.5", blob("1.8.5"), 1, { build: 25 }), record: undefined, builds: listed },
+      /item 1\.8\.5: the build number 25 is not lower than 25, the build of 1\.9\.0/,
+    ],
+    ["a build number on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure sparkle:version="99" ') }, /build number on its enclosure/],
+    ["no EdDSA signature", { xml: appcastOf(version, github, size, { signature: null }) }, /carries 0 EdDSA signatures/],
+    ["an empty EdDSA signature", { xml: appcastOf(version, github, size, { signature: "" }) }, /EdDSA signature "" is not 64 bytes/],
+    ["an EdDSA signature of 63 bytes", { xml: appcastOf(version, github, size, { signature: Buffer.alloc(63, 7).toString("base64") }) }, /EdDSA signature .* is not 64 bytes/],
+    ["an EdDSA signature of 9 bytes", { xml: appcastOf(version, github, size, { signature: "c2lnbmF0dXJl" }) }, /EdDSA signature "c2lnbmF0dXJl" is not 64 bytes/],
+    ["an EdDSA signature with its padding cut", { xml: appcastOf(version, github, size, { signature: SIGNATURE_1_9_0.slice(0, -2) }) }, /EdDSA signature .* is not 64 bytes/],
+    ["an EdDSA signature with a character after it", { xml: appcastOf(version, github, size, { signature: `${SIGNATURE_1_9_0}!` }) }, /EdDSA signature .* is not 64 bytes/],
+    [
+      "a second EdDSA signature whose sparkle prefix is bound to another namespace",
+      { xml: appcastOf(version, github, size).replace("<enclosure ", `<enclosure xmlns:sparkle="urn:example:other" xmlns:s="${SPARKLE_NS}" s:edSignature="${SIGNATURE_1_9_0}" `) },
+      /carries 2 EdDSA signatures/,
+    ],
   ];
   const accepted = [
     ["the release asset with its recorded size", {}],
@@ -1861,6 +2099,14 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       },
     ],
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
+    ["a Blob enclosure for 1.9.0, which shipped from public/downloads, though a record of it exists", { url: blob(version), file: Buffer.from("MZ") }],
+    ["a build number written as CDATA", { xml: withBuild("<![CDATA[25]]>") }],
+    // A namespace declaration binds a prefix and gives Sparkle no value.
+    ["a namespace prefix named version declared on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure xmlns:version="urn:example:other" ') }],
+    ["a namespace prefix named shortVersionString declared on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure xmlns:shortVersionString="urn:example:other" ') }],
+    ["the EdDSA signature under another prefix bound to the Sparkle namespace", { xml: appcastOf(version, github, size).replace("sparkle:edSignature=", `xmlns:s="${SPARKLE_NS}" s:edSignature=`) }],
+    ["a newer release with a higher build number", { xml: appcastOf("1.9.2", blob("1.9.2"), 1, { build: 27 }), record: undefined, builds: listed }],
+    ["an older release with a lower build number", { xml: appcastOf("1.8.5", blob("1.8.5"), 1, { build: 24 }), record: undefined, builds: listed }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -1893,14 +2139,563 @@ test("public/downloads holds exactly the 12 installers published before GitHub r
   assert.deepEqual(readdirSync(new URL("../public/downloads/", import.meta.url)).sort(), FROZEN_DOWNLOADS);
 });
 
-test("every download link is on GitHub, koegaki.com or the Blob host, and one on koegaki.com names a file this deployment serves", () => {
-  // The GitHub links are held to their release elsewhere. From 1.9.1
-  // public/downloads gains nothing, so a link left on koegaki.com when its
-  // release moves to GitHub would serve a 404 there.
-  for (const [what, link] of [["Mac", SITE.downloadUrl], ["Windows", SITE.windowsDownloadUrl]]) {
-    const { host, pathname } = new URL(link);
-    assert.ok(["github.com", "koegaki.com", BLOB_HOST].includes(host), `the ${what} download link ${link} is on ${host}, which serves no release`);
-    if (host !== "koegaki.com") continue;
-    assert.ok(existsSync(new URL(`../public${pathname}`, import.meta.url)), `the ${what} download link ${link} names no file in public/`);
+/** Whether this deployment serves a file at this path, which is in public/. */
+const servedFromPublic = (pathname) => existsSync(new URL(`../public${pathname}`, import.meta.url));
+
+/**
+ * What is wrong with a download link of this kind ("dmg" or "exe"), given
+ * `sources` (see windowsUpdateProblems) and `serves` (see servedFromPublic).
+ * The link names a release by its file name and is exactly one of three urls
+ * for it. On github.com it is that release's asset, of a release with a record
+ * that did not ship from public/downloads. The hosts used before GitHub, as
+ * https://koegaki.com/downloads/<file>, which this deployment must serve, or
+ * https://<Blob host>/<file>, may name only a release with no record, or one
+ * that shipped from public/downloads (see legacyHostProblem). From 1.9.1
+ * public/downloads gains nothing, so a link left on koegaki.com when its
+ * release moves to GitHub would serve a 404 there.
+ */
+function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
+  const at = `the link ${link}`;
+  const file = typeof link === "string" && URL.canParse(link) ? new URL(link).pathname.split("/").at(-1) : undefined;
+  const version = file?.match(kind === "dmg" ? /^Koegaki-(\d+\.\d+\.\d+)\.dmg$/ : /^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)?.[1];
+  if (!version) return [`${at} names no ${kind === "dmg" ? "disk image" : "installer"} of a release`];
+  const host = hostOf(link);
+  const problems = [];
+  if (host === "github.com") {
+    const asset = githubAssetUrl(version, kind);
+    if (link !== asset) problems.push(`${at} is not ${asset}, the GitHub release asset of ${version}`);
+    if (!sources.record(version)) problems.push(`${at} is on GitHub but no releases/${version}.json records that release`);
+    const frozen = frozenReleaseProblem(version, sources);
+    if (frozen) problems.push(`${at}: ${frozen}`);
+    return problems;
   }
+  const legacyUrls = new Map([
+    ["koegaki.com", `https://koegaki.com/downloads/${ASSET_NAME[kind](version)}`],
+    [BLOB_HOST, `https://${BLOB_HOST}/${ASSET_NAME[kind](version)}`],
+  ]);
+  const legacyUrl = legacyUrls.get(host);
+  if (!legacyUrl) return [`${at} is on ${host}, which serves no release`];
+  if (link !== legacyUrl) problems.push(`${at} is not ${legacyUrl}`);
+  else if (host === "koegaki.com" && !serves(new URL(link).pathname)) problems.push(`${at} names no file in public/`);
+  const legacy = legacyHostProblem(version, sources);
+  if (legacy) problems.push(`${at} is not on github.com, and ${legacy}`);
+  return problems;
+}
+
+/**
+ * What is wrong with the update manifest the site serves, beside its Windows
+ * download link: what the updater would refuse (windowsUpdateProblems), and a
+ * link that does not name the release the manifest offers, or, on GitHub, is
+ * not that release's asset of a recorded release published there.
+ */
+function liveManifestProblems(manifest, link, sources) {
+  const problems = windowsUpdateProblems(manifest, sources, WINDOWS_UPDATER_PUBKEY);
+  const { version } = manifest;
+  if (typeof link !== "string" || !link.endsWith(`/Koegaki-${version}-setup.exe`)) {
+    problems.push(`the Windows download link ${link} does not name ${version}, the release the manifest offers`);
+  }
+  if (hostOf(link) === "github.com") {
+    const asset = githubAssetUrl(version, "exe");
+    if (link !== asset) problems.push(`the Windows download link ${link} is not ${asset}, the GitHub release asset of ${version}`);
+    if (!sources.record(version)) problems.push(`the Windows download link is on GitHub but no releases/${version}.json records ${version}`);
+    const frozen = frozenReleaseProblem(version, sources);
+    if (frozen) problems.push(`the Windows download link names a GitHub release that does not exist: ${frozen}`);
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with the appcast the site serves, beside its Mac download
+ * link: what appcastProblems refuses; an appcast that offers no disk image, or
+ * an enclosure with no version, url or length; a release MAC_BUILDS does not
+ * list, since publishing one adds its build there; and a Mac link that is not
+ * the url of a disk image the appcast offers, or, on GitHub, is not of a
+ * recorded release published there.
+ */
+function liveAppcastProblems(xml, link, sources) {
+  const problems = appcastProblems(xml, sources);
+  let items;
+  try {
+    ({ items } = appcastItems(xml));
+  } catch {
+    // appcastProblems has said why the appcast cannot be read.
+    return problems;
+  }
+  const enclosures = enclosuresOf(items);
+  if (enclosures.length === 0) problems.push("the appcast offers no disk image");
+  for (const { version, url, length } of enclosures) {
+    if (!version || !url || !length) problems.push(`item ${version}: the enclosure gives no ${!url ? "url" : !length ? "length" : "version"}`);
+  }
+  for (const { version } of items) {
+    if (!MAC_BUILDS.has(version)) problems.push(`the appcast offers ${version}, for which MAC_BUILDS lists no build; add the build number that release published`);
+  }
+  // The Mac link serves the disk image the appcast offers, from the same url,
+  // whichever host that is; appcastProblems holds that url to its release.
+  const offered = enclosures.find((enclosure) => enclosure.url === link);
+  if (!offered) {
+    problems.push(`the Mac download link ${link} is not the url of a disk image the appcast offers`);
+  } else if (hostOf(link) === "github.com") {
+    if (!sources.record(offered.version)) problems.push(`the Mac download link is on GitHub but no releases/${offered.version}.json records ${offered.version}`);
+    const frozen = frozenReleaseProblem(offered.version, sources);
+    if (frozen) problems.push(`the Mac download link names a GitHub release that does not exist: ${frozen}`);
+  }
+  return problems;
+}
+
+/** What is wrong with the site's two download links, given as { dmg, exe }. */
+function liveLinkProblems(links, sources) {
+  return Object.entries(links).flatMap(([kind, link]) => downloadLinkProblems(kind, link, sources).map((problem) => `${kind === "dmg" ? "Mac" : "Windows"}: ${problem}`));
+}
+
+/** Every problem with the files and links the site serves for its releases, as the tests of each check them. */
+function liveReleaseProblems(manifest, xml, links, sources) {
+  return [
+    ...liveManifestProblems(manifest, links.exe, sources).map((problem) => `public/windows-updates.json: ${problem}`),
+    ...liveAppcastProblems(xml, links.dmg, sources).map((problem) => `public/appcast.xml: ${problem}`),
+    ...liveLinkProblems(links, sources).map((problem) => `download link: ${problem}`),
+  ];
+}
+
+/** The site's download links, by kind. */
+const SITE_LINKS = { dmg: SITE.downloadUrl, exe: SITE.windowsDownloadUrl };
+
+test("the live release checks refuse an appcast with no release, a link the feeds do not offer, and a release MAC_BUILDS does not list", () => {
+  const manifest = publicJson("windows-updates.json");
+  const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
+  const { version } = manifest;
+  const [item] = appcastItems(xml).items;
+  assert.ok(item?.version, "the live appcast offers no release these cases can start from");
+  const seed = releaseRecord("1.9.0");
+  assert.ok(seed && RELEASE_SOURCES.installer("1.9.0"), "releases/1.9.0.json or its installer, which these cases use as an older release, is missing");
+  // 1.9.0's appcast as it was served, from the Blob host.
+  const appcast190 = appcastOf("1.9.0", `https://${BLOB_HOST}/Koegaki-1.9.0.dmg`, seed.artifacts.dmg.size);
+  const check = ({ m = manifest, x = xml, links = {} }) => liveReleaseProblems(m, x, { ...SITE_LINKS, ...links }, RELEASE_SOURCES);
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const refused = [
+    ["an appcast whose channel is empty", { x: '<rss version="2.0"><channel/></rss>' }, /appcast\.xml: the appcast offers no disk image/],
+    ["an appcast that is not a feed", { x: "<oops/>" }, /appcast\.xml: the appcast offers no disk image/],
+    ["an appcast that does not parse", { x: "<rss>" }, /appcast\.xml: the appcast is not well formed XML/],
+    [
+      "a Windows link to 1.9.0 beside a manifest that offers another release",
+      { links: { exe: "https://koegaki.com/downloads/Koegaki-1.9.0-setup.exe" } },
+      new RegExp(`windows-updates\\.json: the Windows download link .* does not name ${escaped(version)}`),
+    ],
+    ["the 1.9.0 appcast beside a Mac link to a release on GitHub", { x: appcast190 }, /appcast\.xml: the Mac download link .* is not the url of a disk image the appcast offers/],
+    ["a Mac link to 1.9.0 on the Blob host beside the appcast", { links: { dmg: `https://${BLOB_HOST}/Koegaki-1.9.0.dmg` } }, /appcast\.xml: the Mac download link .*Koegaki-1\.9\.0\.dmg is not the url of a disk image the appcast offers/],
+    ["a Mac link on the Blob host to a release nobody published", { links: { dmg: `https://${BLOB_HOST}/Koegaki-9.9.9.dmg` } }, /appcast\.xml: the Mac download link .*Koegaki-9\.9\.9\.dmg is not the url of a disk image the appcast offers/],
+    [
+      "the 1.9.0 appcast with no enclosure length, beside its own Mac link",
+      { x: appcast190.replace(/ length="\d+"/, ""), links: { dmg: `https://${BLOB_HOST}/Koegaki-1.9.0.dmg` } },
+      /appcast\.xml: item 1\.9\.0: the enclosure gives no length/,
+    ],
+    ["a Windows link on a host that serves no release", { links: { exe: `https://example.com/Koegaki-${version}-setup.exe` } }, /download link: Windows: .* is on example\.com, which serves no release/],
+    [
+      "an appcast item MAC_BUILDS does not list",
+      { x: xml.replaceAll(`>${item.version}<`, ">9.9.9<") },
+      /appcast\.xml: the appcast offers 9\.9\.9, for which MAC_BUILDS lists no build/,
+    ],
+  ];
+  const accepted = [
+    ["the live files and links as published", {}],
+    ["the 1.9.0 appcast beside its own Mac link on the Blob host, and the live manifest", { x: appcast190, links: { dmg: `https://${BLOB_HOST}/Koegaki-1.9.0.dmg` } }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+});
+
+test("every download link is a GitHub release asset, or names a release with no record on koegaki.com or the Blob host", () => {
+  assert.deepEqual(liveLinkProblems(SITE_LINKS, RELEASE_SOURCES), []);
+});
+
+test("the download link check refuses a recorded release off GitHub, a link on any other host, and a link to no release", () => {
+  // Three releases from the repository as it is: one published on GitHub, so
+  // recorded with no installer in public/downloads; 1.9.0, recorded only for
+  // the self tests although public/downloads holds it; and one public/downloads
+  // holds that no record names.
+  const versionOf = ({ version }) => version;
+  const github = releaseRecords().filter(({ version }) => version && !RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
+  const seed = releaseRecords().filter(({ version }) => version && RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
+  const unrecorded = FROZEN_DOWNLOADS.map((name) => name.match(/^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)[1]).filter((version) => !releaseRecord(version)).at(-1);
+  assert.ok(github && seed && unrecorded, `the releases these cases need are missing: ${JSON.stringify({ github, seed, unrecorded })}`);
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const offGithub = (release) => new RegExp(`records ${escaped(release)} as a GitHub release`);
+  const blob = (kind, release) => `https://${BLOB_HOST}/${ASSET_NAME[kind](release)}`;
+  const site = (release) => `https://koegaki.com/downloads/${ASSET_NAME.exe(release)}`;
+  const refused = [
+    ["a Mac link on the Blob host for a release published on GitHub", ["dmg", blob("dmg", github)], offGithub(github)],
+    ["a Windows link on the Blob host for a release published on GitHub", ["exe", blob("exe", github)], offGithub(github)],
+    ["a Windows link on koegaki.com for a release published on GitHub, though the file is served", ["exe", site(github), () => true], offGithub(github)],
+    ["a Windows link on koegaki.com naming a file this deployment does not serve", ["exe", site("1.1.0")], /names no file in public\//],
+    ["a link on another host", ["exe", `https://example.com/${ASSET_NAME.exe(unrecorded)}`], /is on example\.com, which serves no release/],
+    ["a koegaki.com link outside downloads", ["exe", `https://koegaki.com/${ASSET_NAME.exe(unrecorded)}`, () => true], /is not https:\/\/koegaki\.com\/downloads\//],
+    ["a Blob link over http", ["dmg", blob("dmg", unrecorded).replace(/^https:/, "http:")], /is not https:/],
+    ["a link that names no release", ["dmg", `https://${BLOB_HOST}/Koegaki.dmg`], /names no disk image of a release/],
+    ["a Mac link to an installer", ["dmg", githubAssetUrl(github, "exe")], /names no disk image of a release/],
+    ["a GitHub link to a release with no record", ["dmg", githubAssetUrl("9.9.9", "dmg")], /no releases\/9\.9\.9\.json records/],
+    ["a GitHub link to a release public/downloads holds", ["exe", githubAssetUrl(seed, "exe")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in public/downloads`)],
+    ["a GitHub link with a query", ["dmg", `${githubAssetUrl(github, "dmg")}?raw=1`], /is not https:\/\/github\.com\//],
+    ["a GitHub link in another repo", ["dmg", githubAssetUrl(github, "dmg").replace("/koegaki-releases/", "/koegaki/")], /is not https:\/\/github\.com\//],
+  ];
+  const accepted = [
+    ["the GitHub disk image of a release published on GitHub", ["dmg", githubAssetUrl(github, "dmg")]],
+    ["the GitHub installer of a release published on GitHub", ["exe", githubAssetUrl(github, "exe")]],
+    ["a Windows link on koegaki.com for 1.9.0, recorded only for the self tests", ["exe", site(seed)]],
+    ["a Mac link on the Blob host for 1.9.0, recorded only for the self tests", ["dmg", blob("dmg", seed)]],
+    ["a Windows link on koegaki.com for a release with no record", ["exe", site(unrecorded)]],
+    ["a Mac link on the Blob host for a release with no record", ["dmg", blob("dmg", unrecorded)]],
+  ];
+  const check = ([kind, link, serves]) => downloadLinkProblems(kind, link, RELEASE_SOURCES, serves);
+  const missed = refused.filter(([, args, expected]) => !check(args).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, args]) => [name, check(args)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+});
+
+/**
+ * The key the Mac app checks every update against, copied from the Koegaki
+ * repo (SUPublicEDKey in apps/KoegakiMac/project.yml and
+ * apps/KoegakiMac/Resources/Info.plist): a raw 32 byte Ed25519 key as base64.
+ * Sparkle verifies an enclosure's sparkle:edSignature over the whole disk
+ * image with it before it opens the image.
+ */
+const MAC_SPARKLE_PUBKEY = "2SAX2B+giN1G9pZlqlTMOA/Es0PWh1wPj+M3Et6WZVw=";
+
+/**
+ * What differs between a release as downloaded and its record, which the
+ * offline checks can hold only to its shape and to the signed installer
+ * digest. `assets` holds the downloaded disk image and installer by kind
+ * ("dmg", "exe"); each must have the size, SHA-256 and BLAKE2b-512 the record
+ * states. The record's updater signature, which the manifest must carry, must
+ * verify over the downloaded installer and name its file, and every Sparkle
+ * signature in `signatures`, what the appcast gives for this disk image, must
+ * verify over the downloaded disk image. `keys` holds the updater's key
+ * (`updater`, as WINDOWS_UPDATER_PUBKEY) and Sparkle's (`sparkle`, as
+ * MAC_SPARKLE_PUBKEY).
+ */
+function downloadedReleaseProblems(record, assets, signatures, keys) {
+  const problems = [];
+  for (const kind of ["dmg", "exe"]) {
+    const bytes = assets[kind];
+    if (!bytes) problems.push(`${kind}: nothing was downloaded`);
+    else problems.push(...assetBytesProblems(bytes, record.artifacts[kind], "the record").map((problem) => `${kind}: ${problem}`));
+  }
+  if (assets.exe) {
+    problems.push(...installerSignatureProblems(assets.exe, record.artifacts.exe.signature, record.version, keys.updater).map((problem) => `exe: ${problem}`));
+  }
+  if (assets.dmg) problems.push(...sparkleSignatureProblems(assets.dmg, signatures, keys.sparkle).map((problem) => `dmg: ${problem}`));
+  return problems;
+}
+
+/** Where downloaded `bytes` differ from the size, SHA-256 and BLAKE2b-512 that `expected` gives, as `source` states them. */
+function assetBytesProblems(bytes, expected, source) {
+  const problems = [];
+  if (bytes.length !== expected?.size) problems.push(`${bytes.length} bytes, not the ${expected?.size} ${source} states`);
+  for (const digest of ["sha256", "blake2b512"]) {
+    const actual = createHash(digest).update(bytes).digest("hex");
+    if (actual !== expected?.[digest]) problems.push(`${digest} ${actual} is not ${expected?.[digest]}, the digest ${source} states`);
+  }
+  return problems;
+}
+
+/**
+ * What the Windows updater refuses in a downloaded installer of `version`:
+ * `signature` does not verify over its BLAKE2b-512 digest with `key` (as
+ * WINDOWS_UPDATER_PUBKEY), or its trusted comment names another file.
+ */
+function installerSignatureProblems(bytes, signature, version, key) {
+  const digest = createHash("blake2b512").update(bytes).digest();
+  const { problems, trusted } = updaterSignatureProblems(digest, signature, key);
+  if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
+    return [...problems, `the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${version}_x64-setup.exe`];
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with an installer of `version` as the update manifest or the
+ * Windows download link serves it, from whichever host: its bytes are not the
+ * release's, as its record states them, or for a release with no record as the
+ * installer public/downloads holds (the bytes the offline checks hold the
+ * manifest's signature to), or `signature`, the one the manifest carries, does
+ * not verify over them with `key` (as WINDOWS_UPDATER_PUBKEY). `sources` is as
+ * windowsUpdateProblems takes it.
+ */
+function servedInstallerProblems(bytes, version, signature, sources, key) {
+  const record = sources.record(version);
+  const file = record ? undefined : sources.installer(version);
+  if (!record && !file) return [`neither releases/${version}.json nor public/downloads states the bytes of ${ASSET_NAME.exe(version)}`];
+  const hex = (digest) => createHash(digest).update(file).digest("hex");
+  const [expected, source] = record
+    ? [record.artifacts?.exe, `releases/${version}.json`]
+    : [{ size: file.length, sha256: hex("sha256"), blake2b512: hex("blake2b512") }, `public/downloads/${ASSET_NAME.exe(version)}`];
+  return [...assetBytesProblems(bytes, expected, source), ...installerSignatureProblems(bytes, signature, version, key)];
+}
+
+/** Each of `signatures` that does not verify over the disk image `bytes` with Sparkle's key `key` (as MAC_SPARKLE_PUBKEY), as a problem. */
+function sparkleSignatureProblems(bytes, signatures, key) {
+  if (signatures.length === 0) return [];
+  const raw = canonicalBase64(key);
+  if (raw?.length !== 32) return ["the Sparkle key is not 32 bytes as canonical base64"];
+  const publicKey = createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, raw]), format: "der", type: "spki" });
+  return signatures
+    .filter((signature) => {
+      const signed = canonicalBase64(signature);
+      return signed?.length !== 64 || !verify(null, bytes, publicKey, signed);
+    })
+    .map((signature) => `the Sparkle signature ${JSON.stringify(signature)} does not verify over the downloaded disk image`);
+}
+
+/**
+ * What is wrong with a disk image as an appcast enclosure's url serves it,
+ * from whichever host: its size is not the length the enclosure tells Sparkle,
+ * or it has no Sparkle signature, or one that does not verify over it with
+ * `key` (as MAC_SPARKLE_PUBKEY), or, when `sources` (as windowsUpdateProblems
+ * takes it) records `version`, the release the enclosure's item offers, its
+ * bytes are not the size, SHA-256 and BLAKE2b-512 that record states.
+ */
+function servedDiskImageProblems(bytes, version, length, signatures, sources, key) {
+  const problems = [];
+  if (!/^[1-9][0-9]*$/.test(length ?? "") || Number(length) !== bytes.length) {
+    problems.push(`${bytes.length} bytes, not the length ${JSON.stringify(length)} the enclosure states`);
+  }
+  if (signatures.length === 0) problems.push("no Sparkle signature to verify");
+  problems.push(...sparkleSignatureProblems(bytes, signatures, key));
+  const record = sources.record(version);
+  if (record) problems.push(...assetBytesProblems(bytes, record.artifacts?.dmg, `releases/${version}.json`));
+  return problems;
+}
+
+test("the served disk image check refuses another length, no signature, one that does not verify, and bytes its release's record does not describe", () => {
+  const dmg = createHash("sha512").update("a disk image made for this test").digest();
+  const rawKey = (key) => key.export({ format: "der", type: "spki" }).subarray(ED25519_SPKI_PREFIX.length).toString("base64");
+  const sparkle = generateKeyPairSync("ed25519");
+  const key = rawKey(sparkle.publicKey);
+  const signature = sign(null, dmg, sparkle.privateKey).toString("base64");
+  const flipped = Buffer.from(dmg);
+  flipped[0] ^= 0x01;
+  const hex = (digest, bytes) => createHash(digest).update(bytes).digest("hex");
+  const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
+  // The release of the disk image, 1.9.0, has no record unless a case gives
+  // one; recorded() records this disk image, `edit` changing that record.
+  const unrecorded = { record: () => undefined };
+  const recorded = (edit) => {
+    const record = { version: "1.9.0", artifacts: { dmg: { size: dmg.length, sha256: hex("sha256", dmg), blake2b512: hex("blake2b512", dmg) } } };
+    edit?.(record.artifacts.dmg);
+    return { record: (version) => (version === "1.9.0" ? record : undefined) };
+  };
+  // A case names `length` to change it, undefined for none.
+  const check = (change) => {
+    const { bytes = dmg, signatures = [signature], sparkleKey = key, sources = unrecorded } = change;
+    return servedDiskImageProblems(bytes, "1.9.0", "length" in change ? change.length : String(dmg.length), signatures, sources, sparkleKey);
+  };
+  const refused = [
+    [
+      "a recorded release's disk image one byte off, by its SHA-256",
+      { bytes: flipped, signatures: [sign(null, flipped, sparkle.privateKey).toString("base64")], sources: recorded() },
+      /^sha256 .* is not .*, the digest releases\/1\.9\.0\.json states$/,
+    ],
+    [
+      "a recorded release's disk image one byte off, by its BLAKE2b-512",
+      { bytes: flipped, signatures: [sign(null, flipped, sparkle.privateKey).toString("base64")], sources: recorded() },
+      /^blake2b512 .* is not .*, the digest releases\/1\.9\.0\.json states$/,
+    ],
+    [
+      "a recorded release's disk image one byte short",
+      { bytes: dmg.subarray(0, -1), length: String(dmg.length - 1), signatures: [sign(null, dmg.subarray(0, -1), sparkle.privateKey).toString("base64")], sources: recorded() },
+      /^\d+ bytes, not the \d+ releases\/1\.9\.0\.json states$/,
+    ],
+    ["a record whose disk image size is one byte off", { sources: recorded((r) => (r.size += 1)) }, /^\d+ bytes, not the \d+ releases\/1\.9\.0\.json states$/],
+    ["a record whose disk image SHA-256 is wrong", { sources: recorded((r) => (r.sha256 = flippedHex(r.sha256))) }, /^sha256 .* the digest releases\/1\.9\.0\.json states$/],
+    ["a record whose disk image BLAKE2b-512 is wrong", { sources: recorded((r) => (r.blake2b512 = flippedHex(r.blake2b512))) }, /^blake2b512 .* the digest releases\/1\.9\.0\.json states$/],
+    ["a disk image one byte longer than its enclosure says", { length: String(dmg.length - 1) }, /bytes, not the length "63"/],
+    ["an enclosure length that is not a whole number", { length: `${dmg.length}.0` }, /bytes, not the length "64\.0"/],
+    ["no enclosure length", { length: undefined }, /bytes, not the length undefined/],
+    ["no signature", { signatures: [] }, /no Sparkle signature/],
+    ["a disk image one byte off", { bytes: flipped, length: String(flipped.length) }, /Sparkle signature .* does not verify/],
+    ["a signature by another key", { sparkleKey: rawKey(generateKeyPairSync("ed25519").publicKey) }, /Sparkle signature .* does not verify/],
+    ["a second signature that does not verify", { signatures: [signature, SIGNATURE_1_9_0] }, /Sparkle signature .* does not verify/],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  assert.deepEqual(check({}), [], "a disk image of its stated length, signed, was refused");
+  assert.deepEqual(check({ sources: recorded() }), [], "a disk image its release's record describes, of its stated length and signed, was refused");
+});
+
+test("the served installer check refuses bytes that are not the release's, on any host, and a signature that does not verify over them", () => {
+  // The 1.9.0 installer public/downloads holds stands in for a downloaded one,
+  // with its real updater signature, both as releases/1.9.0.json records it
+  // and as a release with no record, which public/downloads alone describes.
+  const record = releaseRecord("1.9.0");
+  const exe = RELEASE_SOURCES.installer("1.9.0");
+  assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
+  const unrecorded = { installer: RELEASE_SOURCES.installer, record: () => undefined };
+  const otherSignature = releaseRecords().find(({ version }) => version && version !== "1.9.0")?.record.artifacts.exe.signature;
+  assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
+  const flipped = Buffer.from(exe);
+  flipped[Math.floor(exe.length / 2)] ^= 0x01;
+  const check = (change) => {
+    const { bytes = exe, version = "1.9.0", signature = record.artifacts.exe.signature, sources = RELEASE_SOURCES } = change;
+    return servedInstallerProblems(bytes, version, signature, sources, WINDOWS_UPDATER_PUBKEY);
+  };
+  const refused = [
+    ["an installer one byte off, by its SHA-256", { bytes: flipped }, /^sha256 .* is not .*, the digest releases\/1\.9\.0\.json states$/],
+    ["an installer one byte off, by its BLAKE2b-512", { bytes: flipped }, /^blake2b512 .* is not .*, the digest releases\/1\.9\.0\.json states$/],
+    ["an installer one byte off, by its updater signature", { bytes: flipped }, /^the installer signature does not verify$/],
+    ["an installer one byte short", { bytes: exe.subarray(0, -1) }, /^\d+ bytes, not the \d+ releases\/1\.9\.0\.json states$/],
+    [
+      "an unrecorded release's installer one byte off, by its SHA-256",
+      { bytes: flipped, sources: unrecorded },
+      /^sha256 .* is not .*, the digest public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/,
+    ],
+    [
+      "an unrecorded release's installer one byte off, by its BLAKE2b-512",
+      { bytes: flipped, sources: unrecorded },
+      /^blake2b512 .* is not .*, the digest public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/,
+    ],
+    ["an unrecorded release's installer one byte off, by its updater signature", { bytes: flipped, sources: unrecorded }, /^the installer signature does not verify$/],
+    ["an unrecorded release's installer one byte short", { bytes: exe.subarray(0, -1), sources: unrecorded }, /^\d+ bytes, not the \d+ public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/],
+    ["an updater signature of another release", { signature: otherSignature }, /^the installer signature does not verify$/],
+    [
+      "another version than the file its updater signature names",
+      { version: "1.9.9", sources: { installer: () => exe, record: () => undefined } },
+      /^the trusted comment .* does not name Koegaki_1\.9\.9_x64-setup\.exe$/,
+    ],
+    ["a release neither recorded nor in public/downloads", { sources: { installer: () => undefined, record: () => undefined } }, /^neither releases\/1\.9\.0\.json nor public\/downloads/],
+  ];
+  const accepted = [
+    ["the recorded release, as signed", {}],
+    ["a release public/downloads alone describes, as signed", { sources: unrecorded }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+});
+
+test(
+  "the release assets downloaded from GitHub match their records and signatures",
+  { skip: process.env.RELEASE_FETCH === "1" ? false : "needs the network: run with RELEASE_FETCH=1, as the top of this file says" },
+  async (t) => {
+    const manifest = publicJson("windows-updates.json");
+    const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
+    // Run alone, this test first holds the live files and links to every
+    // offline check of them (liveReleaseProblems, which the offline tests of
+    // those files use too), so they serve exactly the urls the records state,
+    // agree on the release they offer, and carry the record's signature and one
+    // well formed Sparkle signature per disk image; what is downloaded below is
+    // then what they serve.
+    assert.deepEqual(liveReleaseProblems(manifest, xml, SITE_LINKS, RELEASE_SOURCES), [], "the live release files and links");
+    const target = manifest.platforms["windows-x86_64"];
+    const enclosures = enclosuresOf(appcastItems(xml).items);
+    const served = [target.url, ...enclosures.map(({ url }) => url), SITE.downloadUrl, SITE.windowsDownloadUrl];
+    const versions = new Set(served.filter((url) => hostOf(url) === "github.com").map((url) => url.match(/\/releases\/download\/v(\d+\.\d+\.\d+)\//)?.[1]));
+    const downloaded = new Map();
+    const download = async (url) => {
+      if (!downloaded.has(url)) {
+        const response = await fetch(url, { signal: AbortSignal.timeout(10 * 60_000) });
+        assert.ok(response.ok, `${url} answered HTTP ${response.status}`);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        t.diagnostic(`${url} (served from ${new URL(response.url).host}): ${bytes.length} bytes, sha256 ${createHash("sha256").update(bytes).digest("hex")}`);
+        downloaded.set(url, bytes);
+      }
+      return downloaded.get(url);
+    };
+    for (const version of versions) {
+      const record = releaseRecord(version);
+      assert.ok(record, `no releases/${version}.json records ${version}, which the site serves from GitHub`);
+      const assets = {};
+      for (const kind of ["dmg", "exe"]) assets[kind] = await download(record.artifacts[kind].url);
+      const signatures = enclosures.filter(({ url }) => url === record.artifacts.dmg.url).flatMap((enclosure) => enclosure.signatures);
+      if (signatures.length === 0) t.diagnostic(`no appcast item offers ${record.artifacts.dmg.url}, so no Sparkle signature of it is checked`);
+      // Where the manifest offers this installer, the signature verified is
+      // the one it carries, which is what the updater checks.
+      const checked = structuredClone(record);
+      if (target.url === record.artifacts.exe.url) checked.artifacts.exe.signature = target.signature;
+      const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: MAC_SPARKLE_PUBKEY };
+      assert.deepEqual(downloadedReleaseProblems(checked, assets, signatures, keys), [], `${version} as GitHub serves it`);
+      t.diagnostic(
+        `${version}: both assets match releases/${version}.json in size, SHA-256 and BLAKE2b-512; the updater signature and ${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"} verify over the downloaded bytes`,
+      );
+    }
+    // The installer the manifest offers and the one the Windows link serves,
+    // from whichever host, are the release's bytes, and the signature the
+    // manifest carries verifies over them; the preflight holds the link to the
+    // manifest's release.
+    for (const url of new Set([target.url, SITE_LINKS.exe])) {
+      const problems = servedInstallerProblems(await download(url), manifest.version, target.signature, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY);
+      assert.deepEqual(problems, [], `the installer at ${url}`);
+      const source = RELEASE_SOURCES.record(manifest.version) ? `releases/${manifest.version}.json records` : "public/downloads holds";
+      t.diagnostic(`${manifest.version}: ${url} is the installer ${source}, and the manifest's updater signature verifies over it`);
+    }
+    // Every disk image the appcast offers, from whichever host serves it, has
+    // the length its enclosure states and the Sparkle signature it carries,
+    // and is the disk image its release's record states when one records it;
+    // the preflight holds the appcast to at least one.
+    for (const { version, url, length, signatures } of enclosures) {
+      const problems = servedDiskImageProblems(await download(url), version, length, signatures, RELEASE_SOURCES, MAC_SPARKLE_PUBKEY);
+      assert.deepEqual(problems, [], `item ${version}: the disk image at ${url}`);
+      const recorded = RELEASE_SOURCES.record(version) ? `, the disk image releases/${version}.json records,` : "";
+      t.diagnostic(`item ${version}: ${url} is the ${length} bytes the appcast states${recorded} and its Sparkle signature verifies over them`);
+    }
+  },
+);
+
+test("the download check refuses bytes that differ from the record and signatures that do not verify over them", () => {
+  // The 1.9.0 installer public/downloads holds stands in for a downloaded one,
+  // with its real record and updater signature. No disk image is here, so one
+  // is made up, recorded, and signed with a key made for this test.
+  const record = structuredClone(releaseRecord("1.9.0"));
+  const exe = RELEASE_SOURCES.installer("1.9.0");
+  assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
+  const hex = (digest, bytes) => createHash(digest).update(bytes).digest("hex");
+  const dmg = createHash("sha512").update("a disk image made for this test").digest();
+  Object.assign(record.artifacts.dmg, { size: dmg.length, sha256: hex("sha256", dmg), blake2b512: hex("blake2b512", dmg) });
+  const rawKey = (key) => key.export({ format: "der", type: "spki" }).subarray(ED25519_SPKI_PREFIX.length).toString("base64");
+  const sparkle = generateKeyPairSync("ed25519");
+  const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: rawKey(sparkle.publicKey) };
+  const edSignature = sign(null, dmg, sparkle.privateKey).toString("base64");
+  const otherSignature = releaseRecords().find(({ version }) => version && version !== "1.9.0")?.record.artifacts.exe.signature;
+  assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
+  const flipped = (bytes, at) => {
+    const copy = Buffer.from(bytes);
+    copy[at] ^= 0x01;
+    return copy;
+  };
+  const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
+  const check = (change) => {
+    const { assets = { dmg, exe }, signatures = [edSignature], key = keys, edit } = change;
+    const copy = structuredClone(record);
+    edit?.(copy);
+    return downloadedReleaseProblems(copy, assets, signatures, key);
+  };
+  const refused = [
+    ["an installer one byte off", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: sha256 .* is not/],
+    ["an installer one byte off, by its BLAKE2b-512", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: blake2b512 .* is not/],
+    ["an installer one byte off, by its updater signature", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: the installer signature does not verify/],
+    ["an installer one byte short", { assets: { dmg, exe: exe.subarray(0, -1) } }, /exe: \d+ bytes, not the \d+ the record states/],
+    ["a record whose installer size is one byte off", { edit: (r) => (r.artifacts.exe.size += 1) }, /exe: \d+ bytes, not the \d+ the record states/],
+    ["a record whose installer SHA-256 is wrong", { edit: (r) => (r.artifacts.exe.sha256 = flippedHex(r.artifacts.exe.sha256)) }, /exe: sha256 .* is not/],
+    ["a record whose installer BLAKE2b-512 is wrong", { edit: (r) => (r.artifacts.exe.blake2b512 = flippedHex(r.artifacts.exe.blake2b512)) }, /exe: blake2b512 .* is not/],
+    ["a record whose disk image size is one byte off", { edit: (r) => (r.artifacts.dmg.size -= 1) }, /dmg: \d+ bytes, not the \d+ the record states/],
+    ["a record whose disk image SHA-256 is wrong", { edit: (r) => (r.artifacts.dmg.sha256 = flippedHex(r.artifacts.dmg.sha256)) }, /dmg: sha256 .* is not/],
+    ["a record whose disk image BLAKE2b-512 is wrong", { edit: (r) => (r.artifacts.dmg.blake2b512 = flippedHex(r.artifacts.dmg.blake2b512)) }, /dmg: blake2b512 .* is not/],
+    ["an updater signature of another release", { edit: (r) => (r.artifacts.exe.signature = otherSignature) }, /exe: the installer signature does not verify/],
+    ["a record of another version than the file its updater signature names", { edit: (r) => (r.version = "1.9.9") }, /exe: the trusted comment .* does not name Koegaki_1\.9\.9_x64-setup\.exe/],
+    ["a disk image one byte off", { assets: { dmg: flipped(dmg, 0), exe } }, /dmg: the Sparkle signature .* does not verify/],
+    ["a Sparkle signature by another key", { key: { ...keys, sparkle: rawKey(generateKeyPairSync("ed25519").publicKey) } }, /dmg: the Sparkle signature .* does not verify/],
+    ["a Sparkle signature cut short", { signatures: [edSignature.slice(0, -4)] }, /dmg: the Sparkle signature .* does not verify/],
+    ["a second Sparkle signature that does not verify", { signatures: [edSignature, SIGNATURE_1_9_0] }, /dmg: the Sparkle signature .* does not verify/],
+    ["no disk image downloaded", { assets: { exe } }, /dmg: nothing was downloaded/],
+    ["no installer downloaded", { assets: { dmg } }, /exe: nothing was downloaded/],
+  ];
+  const accepted = [
+    ["the release as recorded and signed", {}],
+    ["a disk image no appcast item offers, so with no Sparkle signature to check", { signatures: [] }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
 });
