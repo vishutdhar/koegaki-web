@@ -7,8 +7,11 @@
 // offline checks, downloads from GitHub both assets of every release they
 // serve from there, holds each to its record in releases/ (size, SHA-256 and
 // BLAKE2b-512), and verifies the manifest's updater signature over the
-// downloaded installer; then it downloads every disk image the appcast offers,
-// from whichever host, and holds it to its enclosure's length and Sparkle
+// downloaded installer; then it downloads the installer the manifest and the
+// Windows link serve, from whichever host, and holds it to its record, or to
+// the installer public/downloads holds, and to the manifest's updater
+// signature; then it downloads every disk image the appcast offers, from
+// whichever host, and holds it to its enclosure's length and Sparkle
 // signature. Without RELEASE_FETCH=1 it is reported as skipped, never as
 // passed.
 // Run it alone with
@@ -2374,28 +2377,60 @@ const MAC_SPARKLE_PUBKEY = "2SAX2B+giN1G9pZlqlTMOA/Es0PWh1wPj+M3Et6WZVw=";
 function downloadedReleaseProblems(record, assets, signatures, keys) {
   const problems = [];
   for (const kind of ["dmg", "exe"]) {
-    const artifact = record.artifacts[kind];
     const bytes = assets[kind];
-    if (!bytes) {
-      problems.push(`${kind}: nothing was downloaded`);
-      continue;
-    }
-    if (bytes.length !== artifact.size) problems.push(`${kind}: ${bytes.length} bytes, not the ${artifact.size} the record states`);
-    for (const digest of ["sha256", "blake2b512"]) {
-      const actual = createHash(digest).update(bytes).digest("hex");
-      if (actual !== artifact[digest]) problems.push(`${kind}: ${digest} ${actual} is not ${artifact[digest]}, the digest the record states`);
-    }
+    if (!bytes) problems.push(`${kind}: nothing was downloaded`);
+    else problems.push(...assetBytesProblems(bytes, record.artifacts[kind], "the record").map((problem) => `${kind}: ${problem}`));
   }
   if (assets.exe) {
-    const digest = createHash("blake2b512").update(assets.exe).digest();
-    const { problems: signatureProblems, trusted } = updaterSignatureProblems(digest, record.artifacts.exe.signature, keys.updater);
-    problems.push(...signatureProblems.map((problem) => `exe: ${problem}`));
-    if (!trusted?.split("\t").includes(`file:Koegaki_${record.version}_x64-setup.exe`)) {
-      problems.push(`exe: the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${record.version}_x64-setup.exe`);
-    }
+    problems.push(...installerSignatureProblems(assets.exe, record.artifacts.exe.signature, record.version, keys.updater).map((problem) => `exe: ${problem}`));
   }
   if (assets.dmg) problems.push(...sparkleSignatureProblems(assets.dmg, signatures, keys.sparkle).map((problem) => `dmg: ${problem}`));
   return problems;
+}
+
+/** Where downloaded `bytes` differ from the size, SHA-256 and BLAKE2b-512 that `expected` gives, as `source` states them. */
+function assetBytesProblems(bytes, expected, source) {
+  const problems = [];
+  if (bytes.length !== expected?.size) problems.push(`${bytes.length} bytes, not the ${expected?.size} ${source} states`);
+  for (const digest of ["sha256", "blake2b512"]) {
+    const actual = createHash(digest).update(bytes).digest("hex");
+    if (actual !== expected?.[digest]) problems.push(`${digest} ${actual} is not ${expected?.[digest]}, the digest ${source} states`);
+  }
+  return problems;
+}
+
+/**
+ * What the Windows updater refuses in a downloaded installer of `version`:
+ * `signature` does not verify over its BLAKE2b-512 digest with `key` (as
+ * WINDOWS_UPDATER_PUBKEY), or its trusted comment names another file.
+ */
+function installerSignatureProblems(bytes, signature, version, key) {
+  const digest = createHash("blake2b512").update(bytes).digest();
+  const { problems, trusted } = updaterSignatureProblems(digest, signature, key);
+  if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
+    return [...problems, `the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${version}_x64-setup.exe`];
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with an installer of `version` as the update manifest or the
+ * Windows download link serves it, from whichever host: its bytes are not the
+ * release's, as its record states them, or for a release with no record as the
+ * installer public/downloads holds (the bytes the offline checks hold the
+ * manifest's signature to), or `signature`, the one the manifest carries, does
+ * not verify over them with `key` (as WINDOWS_UPDATER_PUBKEY). `sources` is as
+ * windowsUpdateProblems takes it.
+ */
+function servedInstallerProblems(bytes, version, signature, sources, key) {
+  const record = sources.record(version);
+  const file = record ? undefined : sources.installer(version);
+  if (!record && !file) return [`neither releases/${version}.json nor public/downloads states the bytes of ${ASSET_NAME.exe(version)}`];
+  const hex = (digest) => createHash(digest).update(file).digest("hex");
+  const [expected, source] = record
+    ? [record.artifacts?.exe, `releases/${version}.json`]
+    : [{ size: file.length, sha256: hex("sha256"), blake2b512: hex("blake2b512") }, `public/downloads/${ASSET_NAME.exe(version)}`];
+  return [...assetBytesProblems(bytes, expected, source), ...installerSignatureProblems(bytes, signature, version, key)];
 }
 
 /** Each of `signatures` that does not verify over the disk image `bytes` with Sparkle's key `key` (as MAC_SPARKLE_PUBKEY), as a problem. */
@@ -2455,6 +2490,57 @@ test("the served disk image check refuses another length, no signature, or one t
   assert.deepEqual(check({}), [], "a disk image of its stated length, signed, was refused");
 });
 
+test("the served installer check refuses bytes that are not the release's, on any host, and a signature that does not verify over them", () => {
+  // The 1.9.0 installer public/downloads holds stands in for a downloaded one,
+  // with its real updater signature, both as releases/1.9.0.json records it
+  // and as a release with no record, which public/downloads alone describes.
+  const record = releaseRecord("1.9.0");
+  const exe = RELEASE_SOURCES.installer("1.9.0");
+  assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
+  const unrecorded = { installer: RELEASE_SOURCES.installer, record: () => undefined };
+  const otherSignature = releaseRecords().find(({ version }) => version && version !== "1.9.0")?.record.artifacts.exe.signature;
+  assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
+  const flipped = Buffer.from(exe);
+  flipped[Math.floor(exe.length / 2)] ^= 0x01;
+  const check = (change) => {
+    const { bytes = exe, version = "1.9.0", signature = record.artifacts.exe.signature, sources = RELEASE_SOURCES } = change;
+    return servedInstallerProblems(bytes, version, signature, sources, WINDOWS_UPDATER_PUBKEY);
+  };
+  const refused = [
+    ["an installer one byte off, by its SHA-256", { bytes: flipped }, /^sha256 .* is not .*, the digest releases\/1\.9\.0\.json states$/],
+    ["an installer one byte off, by its BLAKE2b-512", { bytes: flipped }, /^blake2b512 .* is not .*, the digest releases\/1\.9\.0\.json states$/],
+    ["an installer one byte off, by its updater signature", { bytes: flipped }, /^the installer signature does not verify$/],
+    ["an installer one byte short", { bytes: exe.subarray(0, -1) }, /^\d+ bytes, not the \d+ releases\/1\.9\.0\.json states$/],
+    [
+      "an unrecorded release's installer one byte off, by its SHA-256",
+      { bytes: flipped, sources: unrecorded },
+      /^sha256 .* is not .*, the digest public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/,
+    ],
+    [
+      "an unrecorded release's installer one byte off, by its BLAKE2b-512",
+      { bytes: flipped, sources: unrecorded },
+      /^blake2b512 .* is not .*, the digest public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/,
+    ],
+    ["an unrecorded release's installer one byte off, by its updater signature", { bytes: flipped, sources: unrecorded }, /^the installer signature does not verify$/],
+    ["an unrecorded release's installer one byte short", { bytes: exe.subarray(0, -1), sources: unrecorded }, /^\d+ bytes, not the \d+ public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/],
+    ["an updater signature of another release", { signature: otherSignature }, /^the installer signature does not verify$/],
+    [
+      "another version than the file its updater signature names",
+      { version: "1.9.9", sources: { installer: () => exe, record: () => undefined } },
+      /^the trusted comment .* does not name Koegaki_1\.9\.9_x64-setup\.exe$/,
+    ],
+    ["a release neither recorded nor in public/downloads", { sources: { installer: () => undefined, record: () => undefined } }, /^neither releases\/1\.9\.0\.json nor public\/downloads/],
+  ];
+  const accepted = [
+    ["the recorded release, as signed", {}],
+    ["a release public/downloads alone describes, as signed", { sources: unrecorded }],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+});
+
 test(
   "the release assets downloaded from GitHub match their records and signatures",
   { skip: process.env.RELEASE_FETCH === "1" ? false : "needs the network: run with RELEASE_FETCH=1, as the top of this file says" },
@@ -2499,6 +2585,16 @@ test(
       t.diagnostic(
         `${version}: both assets match releases/${version}.json in size, SHA-256 and BLAKE2b-512; the updater signature and ${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"} verify over the downloaded bytes`,
       );
+    }
+    // The installer the manifest offers and the one the Windows link serves,
+    // from whichever host, are the release's bytes, and the signature the
+    // manifest carries verifies over them; the preflight holds the link to the
+    // manifest's release.
+    for (const url of new Set([target.url, SITE_LINKS.exe])) {
+      const problems = servedInstallerProblems(await download(url), manifest.version, target.signature, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY);
+      assert.deepEqual(problems, [], `the installer at ${url}`);
+      const source = RELEASE_SOURCES.record(manifest.version) ? `releases/${manifest.version}.json records` : "public/downloads holds";
+      t.diagnostic(`${manifest.version}: ${url} is the installer ${source}, and the manifest's updater signature verifies over it`);
     }
     // Every disk image the appcast offers, from whichever host serves it, has
     // the length its enclosure states and the Sparkle signature it carries;
