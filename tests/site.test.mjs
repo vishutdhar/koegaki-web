@@ -1359,16 +1359,9 @@ function updaterSelfTestRelease() {
 }
 
 test("the Windows updater manifest names the installer its signature covers", () => {
-  const manifest = publicJson("windows-updates.json");
-  assert.deepEqual(windowsUpdateProblems(manifest, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY), []);
   // The site's own download link serves the same release the updater offers,
-  // and once it moves to GitHub, the same release asset.
-  assert.ok(SITE.windowsDownloadUrl.endsWith(`/Koegaki-${manifest.version}-setup.exe`), `the download link does not name ${manifest.version}`);
-  if (hostOf(SITE.windowsDownloadUrl) === "github.com") {
-    assert.equal(SITE.windowsDownloadUrl, githubAssetUrl(manifest.version, "exe"), "the Windows download link is not the GitHub release asset");
-    assert.ok(releaseRecord(manifest.version), `the Windows download link is on GitHub but no releases/${manifest.version}.json records that release`);
-    assert.equal(frozenReleaseProblem(manifest.version, RELEASE_SOURCES), undefined, "the Windows download link names a GitHub release that does not exist");
-  }
+  // and once it moves to GitHub, the same release asset (liveManifestProblems).
+  assert.deepEqual(liveManifestProblems(publicJson("windows-updates.json"), SITE.windowsDownloadUrl, RELEASE_SOURCES), []);
 });
 
 test("the updater manifest check refuses a damaged manifest, signature, installer or key", () => {
@@ -1820,22 +1813,11 @@ const appcastOf = (version, url, length, { build = MAC_BUILDS.get(version), sign
 `;
 
 test("the appcast offers a GitHub hosted disk image only at its release asset url, with the size its record states", () => {
-  const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
-  const enclosures = enclosuresOf(appcastItems(xml).items);
-  assert.ok(enclosures.length > 0 && enclosures.every((e) => e.version && e.url && e.length), `the appcast enclosures did not parse: ${JSON.stringify(enclosures)}`);
-  assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), []);
   // The check holds a listed release to its build exactly, so every release the
-  // appcast offers must be listed: publishing one adds its build to MAC_BUILDS.
-  for (const { version } of appcastItems(xml).items) {
-    assert.ok(MAC_BUILDS.has(version), `the appcast offers ${version}, for which MAC_BUILDS lists no build; add the build number that release published`);
-  }
-  // The site's Mac download link, once it moves to GitHub, is the same asset.
-  if (hostOf(SITE.downloadUrl) === "github.com") {
-    const offered = enclosures.find((e) => SITE.downloadUrl === githubAssetUrl(e.version, "dmg"));
-    assert.ok(offered, `the Mac download link ${SITE.downloadUrl} is not the GitHub release asset of a version the appcast offers`);
-    assert.ok(releaseRecord(offered.version), `the Mac download link is on GitHub but no releases/${offered.version}.json records that release`);
-    assert.equal(frozenReleaseProblem(offered.version, RELEASE_SOURCES), undefined, "the Mac download link names a GitHub release that does not exist");
-  }
+  // appcast offers must be listed in MAC_BUILDS, and the site's Mac download
+  // link, once it moves to GitHub, is the same asset (liveAppcastProblems).
+  const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
+  assert.deepEqual(liveAppcastProblems(xml, SITE.downloadUrl, RELEASE_SOURCES), []);
 });
 
 test("MAC_BUILDS lists the Mac releases in order, their build numbers rising with their versions", () => {
@@ -2181,10 +2163,118 @@ function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
   return problems;
 }
 
-test("every download link is a GitHub release asset, or names a release with no record on koegaki.com or the Blob host", () => {
-  for (const [kind, link] of [["dmg", SITE.downloadUrl], ["exe", SITE.windowsDownloadUrl]]) {
-    assert.deepEqual(downloadLinkProblems(kind, link, RELEASE_SOURCES), [], `the ${kind === "dmg" ? "Mac" : "Windows"} download link`);
+/**
+ * What is wrong with the update manifest the site serves, beside its Windows
+ * download link: what the updater would refuse (windowsUpdateProblems), and a
+ * link that does not name the release the manifest offers, or, on GitHub, is
+ * not that release's asset of a recorded release published there.
+ */
+function liveManifestProblems(manifest, link, sources) {
+  const problems = windowsUpdateProblems(manifest, sources, WINDOWS_UPDATER_PUBKEY);
+  const { version } = manifest;
+  if (typeof link !== "string" || !link.endsWith(`/Koegaki-${version}-setup.exe`)) {
+    problems.push(`the Windows download link ${link} does not name ${version}, the release the manifest offers`);
   }
+  if (hostOf(link) === "github.com") {
+    const asset = githubAssetUrl(version, "exe");
+    if (link !== asset) problems.push(`the Windows download link ${link} is not ${asset}, the GitHub release asset of ${version}`);
+    if (!sources.record(version)) problems.push(`the Windows download link is on GitHub but no releases/${version}.json records ${version}`);
+    const frozen = frozenReleaseProblem(version, sources);
+    if (frozen) problems.push(`the Windows download link names a GitHub release that does not exist: ${frozen}`);
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with the appcast the site serves, beside its Mac download
+ * link: what appcastProblems refuses; an appcast that offers no disk image, or
+ * an enclosure with no version, url or length; a release MAC_BUILDS does not
+ * list, since publishing one adds its build there; and a Mac link on GitHub
+ * that is not the asset of a release the appcast offers, of a recorded release
+ * published there.
+ */
+function liveAppcastProblems(xml, link, sources) {
+  const problems = appcastProblems(xml, sources);
+  let items;
+  try {
+    ({ items } = appcastItems(xml));
+  } catch {
+    // appcastProblems has said why the appcast cannot be read.
+    return problems;
+  }
+  const enclosures = enclosuresOf(items);
+  if (enclosures.length === 0) problems.push("the appcast offers no disk image");
+  for (const { version, url, length } of enclosures) {
+    if (!version || !url || !length) problems.push(`item ${version}: the enclosure gives no ${!url ? "url" : !length ? "length" : "version"}`);
+  }
+  for (const { version } of items) {
+    if (!MAC_BUILDS.has(version)) problems.push(`the appcast offers ${version}, for which MAC_BUILDS lists no build; add the build number that release published`);
+  }
+  if (hostOf(link) === "github.com") {
+    const offered = enclosures.find((enclosure) => link === githubAssetUrl(enclosure.version, "dmg"));
+    if (!offered) {
+      problems.push(`the Mac download link ${link} is not the GitHub release asset of a release the appcast offers`);
+    } else {
+      if (!sources.record(offered.version)) problems.push(`the Mac download link is on GitHub but no releases/${offered.version}.json records ${offered.version}`);
+      const frozen = frozenReleaseProblem(offered.version, sources);
+      if (frozen) problems.push(`the Mac download link names a GitHub release that does not exist: ${frozen}`);
+    }
+  }
+  return problems;
+}
+
+/** What is wrong with the site's two download links, given as { dmg, exe }. */
+function liveLinkProblems(links, sources) {
+  return Object.entries(links).flatMap(([kind, link]) => downloadLinkProblems(kind, link, sources).map((problem) => `${kind === "dmg" ? "Mac" : "Windows"}: ${problem}`));
+}
+
+/** Every problem with the files and links the site serves for its releases, as the tests of each check them. */
+function liveReleaseProblems(manifest, xml, links, sources) {
+  return [
+    ...liveManifestProblems(manifest, links.exe, sources).map((problem) => `public/windows-updates.json: ${problem}`),
+    ...liveAppcastProblems(xml, links.dmg, sources).map((problem) => `public/appcast.xml: ${problem}`),
+    ...liveLinkProblems(links, sources).map((problem) => `download link: ${problem}`),
+  ];
+}
+
+/** The site's download links, by kind. */
+const SITE_LINKS = { dmg: SITE.downloadUrl, exe: SITE.windowsDownloadUrl };
+
+test("the live release checks refuse an appcast with no release, a link the feeds do not offer, and a release MAC_BUILDS does not list", () => {
+  const manifest = publicJson("windows-updates.json");
+  const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
+  const { version } = manifest;
+  const [item] = appcastItems(xml).items;
+  assert.ok(item?.version, "the live appcast offers no release these cases can start from");
+  const seed = releaseRecord("1.9.0");
+  assert.ok(seed && RELEASE_SOURCES.installer("1.9.0"), "releases/1.9.0.json or its installer, which these cases use as an older release, is missing");
+  // 1.9.0's appcast as it was served, from the Blob host.
+  const appcast190 = appcastOf("1.9.0", `https://${BLOB_HOST}/Koegaki-1.9.0.dmg`, seed.artifacts.dmg.size);
+  const check = ({ m = manifest, x = xml, links = {} }) => liveReleaseProblems(m, x, { ...SITE_LINKS, ...links }, RELEASE_SOURCES);
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const refused = [
+    ["an appcast whose channel is empty", { x: '<rss version="2.0"><channel/></rss>' }, /appcast\.xml: the appcast offers no disk image/],
+    ["an appcast that is not a feed", { x: "<oops/>" }, /appcast\.xml: the appcast offers no disk image/],
+    ["an appcast that does not parse", { x: "<rss>" }, /appcast\.xml: the appcast is not well formed XML/],
+    [
+      "a Windows link to 1.9.0 beside a manifest that offers another release",
+      { links: { exe: "https://koegaki.com/downloads/Koegaki-1.9.0-setup.exe" } },
+      new RegExp(`windows-updates\\.json: the Windows download link .* does not name ${escaped(version)}`),
+    ],
+    ["the 1.9.0 appcast beside a Mac link to a release on GitHub", { x: appcast190 }, /appcast\.xml: the Mac download link .* is not the GitHub release asset of a release the appcast offers/],
+    [
+      "an appcast item MAC_BUILDS does not list",
+      { x: xml.replaceAll(`>${item.version}<`, ">9.9.9<") },
+      /appcast\.xml: the appcast offers 9\.9\.9, for which MAC_BUILDS lists no build/,
+    ],
+  ];
+  const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  assert.deepEqual(check({}), [], "the live files and links as published were refused");
+});
+
+test("every download link is a GitHub release asset, or names a release with no record on koegaki.com or the Blob host", () => {
+  assert.deepEqual(liveLinkProblems(SITE_LINKS, RELEASE_SOURCES), []);
 });
 
 test("the download link check refuses a recorded release off GitHub, a link on any other host, and a link to no release", () => {
@@ -2295,16 +2385,13 @@ test(
   async (t) => {
     const manifest = publicJson("windows-updates.json");
     const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
-    // Run alone, this test first holds the live files to the offline checks,
-    // so the manifest, the appcast and the links serve exactly the urls the
-    // records state, the manifest carries the record's signature and every
-    // enclosure carries one well formed Sparkle signature; what is downloaded
-    // below is then what they serve.
-    assert.deepEqual(windowsUpdateProblems(manifest, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY), [], "public/windows-updates.json");
-    assert.deepEqual(appcastProblems(xml, RELEASE_SOURCES), [], "public/appcast.xml");
-    for (const [kind, link] of [["dmg", SITE.downloadUrl], ["exe", SITE.windowsDownloadUrl]]) {
-      assert.deepEqual(downloadLinkProblems(kind, link, RELEASE_SOURCES), [], `the ${kind === "dmg" ? "Mac" : "Windows"} download link`);
-    }
+    // Run alone, this test first holds the live files and links to every
+    // offline check of them (liveReleaseProblems, which the offline tests of
+    // those files use too), so they serve exactly the urls the records state,
+    // agree on the release they offer, and carry the record's signature and one
+    // well formed Sparkle signature per disk image; what is downloaded below is
+    // then what they serve.
+    assert.deepEqual(liveReleaseProblems(manifest, xml, SITE_LINKS, RELEASE_SOURCES), [], "the live release files and links");
     const target = manifest.platforms["windows-x86_64"];
     const enclosures = enclosuresOf(appcastItems(xml).items);
     const served = [target.url, ...enclosures.map(({ url }) => url), SITE.downloadUrl, SITE.windowsDownloadUrl];
