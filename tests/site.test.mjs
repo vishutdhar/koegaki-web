@@ -12,8 +12,8 @@
 // the installer public/downloads holds, and to the manifest's updater
 // signature; then it downloads every disk image the appcast offers, from
 // whichever host, and holds it to its enclosure's length and Sparkle
-// signature. Without RELEASE_FETCH=1 it is reported as skipped, never as
-// passed.
+// signature, and to its record when one records its release. Without
+// RELEASE_FETCH=1 it is reported as skipped, never as passed.
 // Run it alone with
 //
 //   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub" tests/site.test.mjs
@@ -2451,19 +2451,23 @@ function sparkleSignatureProblems(bytes, signatures, key) {
  * What is wrong with a disk image as an appcast enclosure's url serves it,
  * from whichever host: its size is not the length the enclosure tells Sparkle,
  * or it has no Sparkle signature, or one that does not verify over it with
- * `key` (as MAC_SPARKLE_PUBKEY).
+ * `key` (as MAC_SPARKLE_PUBKEY), or, when `sources` (as windowsUpdateProblems
+ * takes it) records `version`, the release the enclosure's item offers, its
+ * bytes are not the size, SHA-256 and BLAKE2b-512 that record states.
  */
-function servedDiskImageProblems(bytes, length, signatures, key) {
+function servedDiskImageProblems(bytes, version, length, signatures, sources, key) {
   const problems = [];
   if (!/^[1-9][0-9]*$/.test(length ?? "") || Number(length) !== bytes.length) {
     problems.push(`${bytes.length} bytes, not the length ${JSON.stringify(length)} the enclosure states`);
   }
   if (signatures.length === 0) problems.push("no Sparkle signature to verify");
   problems.push(...sparkleSignatureProblems(bytes, signatures, key));
+  const record = sources.record(version);
+  if (record) problems.push(...assetBytesProblems(bytes, record.artifacts?.dmg, `releases/${version}.json`));
   return problems;
 }
 
-test("the served disk image check refuses another length, no signature, or one that does not verify", () => {
+test("the served disk image check refuses another length, no signature, one that does not verify, and bytes its release's record does not describe", () => {
   const dmg = createHash("sha512").update("a disk image made for this test").digest();
   const rawKey = (key) => key.export({ format: "der", type: "spki" }).subarray(ED25519_SPKI_PREFIX.length).toString("base64");
   const sparkle = generateKeyPairSync("ed25519");
@@ -2471,12 +2475,40 @@ test("the served disk image check refuses another length, no signature, or one t
   const signature = sign(null, dmg, sparkle.privateKey).toString("base64");
   const flipped = Buffer.from(dmg);
   flipped[0] ^= 0x01;
+  const hex = (digest, bytes) => createHash(digest).update(bytes).digest("hex");
+  const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
+  // The release of the disk image, 1.9.0, has no record unless a case gives
+  // one; recorded() records this disk image, `edit` changing that record.
+  const unrecorded = { record: () => undefined };
+  const recorded = (edit) => {
+    const record = { version: "1.9.0", artifacts: { dmg: { size: dmg.length, sha256: hex("sha256", dmg), blake2b512: hex("blake2b512", dmg) } } };
+    edit?.(record.artifacts.dmg);
+    return { record: (version) => (version === "1.9.0" ? record : undefined) };
+  };
   // A case names `length` to change it, undefined for none.
   const check = (change) => {
-    const { bytes = dmg, signatures = [signature], sparkleKey = key } = change;
-    return servedDiskImageProblems(bytes, "length" in change ? change.length : String(dmg.length), signatures, sparkleKey);
+    const { bytes = dmg, signatures = [signature], sparkleKey = key, sources = unrecorded } = change;
+    return servedDiskImageProblems(bytes, "1.9.0", "length" in change ? change.length : String(dmg.length), signatures, sources, sparkleKey);
   };
   const refused = [
+    [
+      "a recorded release's disk image one byte off, by its SHA-256",
+      { bytes: flipped, signatures: [sign(null, flipped, sparkle.privateKey).toString("base64")], sources: recorded() },
+      /^sha256 .* is not .*, the digest releases\/1\.9\.0\.json states$/,
+    ],
+    [
+      "a recorded release's disk image one byte off, by its BLAKE2b-512",
+      { bytes: flipped, signatures: [sign(null, flipped, sparkle.privateKey).toString("base64")], sources: recorded() },
+      /^blake2b512 .* is not .*, the digest releases\/1\.9\.0\.json states$/,
+    ],
+    [
+      "a recorded release's disk image one byte short",
+      { bytes: dmg.subarray(0, -1), length: String(dmg.length - 1), signatures: [sign(null, dmg.subarray(0, -1), sparkle.privateKey).toString("base64")], sources: recorded() },
+      /^\d+ bytes, not the \d+ releases\/1\.9\.0\.json states$/,
+    ],
+    ["a record whose disk image size is one byte off", { sources: recorded((r) => (r.size += 1)) }, /^\d+ bytes, not the \d+ releases\/1\.9\.0\.json states$/],
+    ["a record whose disk image SHA-256 is wrong", { sources: recorded((r) => (r.sha256 = flippedHex(r.sha256))) }, /^sha256 .* the digest releases\/1\.9\.0\.json states$/],
+    ["a record whose disk image BLAKE2b-512 is wrong", { sources: recorded((r) => (r.blake2b512 = flippedHex(r.blake2b512))) }, /^blake2b512 .* the digest releases\/1\.9\.0\.json states$/],
     ["a disk image one byte longer than its enclosure says", { length: String(dmg.length - 1) }, /bytes, not the length "63"/],
     ["an enclosure length that is not a whole number", { length: `${dmg.length}.0` }, /bytes, not the length "64\.0"/],
     ["no enclosure length", { length: undefined }, /bytes, not the length undefined/],
@@ -2488,6 +2520,7 @@ test("the served disk image check refuses another length, no signature, or one t
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   assert.deepEqual(check({}), [], "a disk image of its stated length, signed, was refused");
+  assert.deepEqual(check({ sources: recorded() }), [], "a disk image its release's record describes, of its stated length and signed, was refused");
 });
 
 test("the served installer check refuses bytes that are not the release's, on any host, and a signature that does not verify over them", () => {
@@ -2597,11 +2630,14 @@ test(
       t.diagnostic(`${manifest.version}: ${url} is the installer ${source}, and the manifest's updater signature verifies over it`);
     }
     // Every disk image the appcast offers, from whichever host serves it, has
-    // the length its enclosure states and the Sparkle signature it carries;
+    // the length its enclosure states and the Sparkle signature it carries,
+    // and is the disk image its release's record states when one records it;
     // the preflight holds the appcast to at least one.
     for (const { version, url, length, signatures } of enclosures) {
-      assert.deepEqual(servedDiskImageProblems(await download(url), length, signatures, MAC_SPARKLE_PUBKEY), [], `item ${version}: the disk image at ${url}`);
-      t.diagnostic(`item ${version}: ${url} is the ${length} bytes the appcast states, and its Sparkle signature verifies over them`);
+      const problems = servedDiskImageProblems(await download(url), version, length, signatures, RELEASE_SOURCES, MAC_SPARKLE_PUBKEY);
+      assert.deepEqual(problems, [], `item ${version}: the disk image at ${url}`);
+      const recorded = RELEASE_SOURCES.record(version) ? `, the disk image releases/${version}.json records,` : "";
+      t.diagnostic(`item ${version}: ${url} is the ${length} bytes the appcast states${recorded} and its Sparkle signature verifies over them`);
     }
   },
 );
