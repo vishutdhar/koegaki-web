@@ -4,10 +4,11 @@
 //
 // One test needs the network and runs only when asked to. With RELEASE_FETCH=1
 // it holds the live update manifest, appcast and download links to the
-// offline checks, downloads from GitHub both assets of every release they
-// serve from there, holds each to its record in releases/ (size, SHA-256 and
-// BLAKE2b-512), and verifies the manifest's updater signature over the
-// downloaded installer; then it downloads the installer the manifest and the
+// offline checks, downloads from GitHub every asset the record of each release
+// they serve from there states (both, or one for a release that shipped on one
+// platform only), holds each to that record in releases/ (size, SHA-256 and
+// BLAKE2b-512), and verifies the updater signature over each downloaded
+// installer; then it downloads the installer the manifest and the
 // Windows link serve, from whichever host, and holds it to its record, or to
 // the installer public/downloads holds, and to the manifest's updater
 // signature; then it downloads every disk image the appcast offers, from
@@ -953,7 +954,9 @@ test("the model index check refuses what the app readers refuse", () => {
  * bytes the checks below once read from this repository are no longer here.
  * Tools/publish-release.sh in the Koegaki repo uploads them, downloads each one
  * back to compare, and writes what it published to releases/<version>.json,
- * outside public/ so the site never serves it:
+ * outside public/ so the site never serves it. A release that ships on one
+ * platform only, as 1.12.0 ships on the Mac, publishes and records that
+ * platform's artifact alone, so a record states a dmg, an exe or both:
  *
  *   { "version": "1.9.1", "note": "optional text",
  *     "artifacts": {
@@ -979,10 +982,14 @@ const SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle";
 /** The Vercel Blob host the disk images and the updater's installers through 1.9.0 were served from. */
 const BLOB_HOST = "npdal36mxz3kcwxv.public.blob.vercel-storage.com";
 const ASSET_NAME = { dmg: (version) => `Koegaki-${version}.dmg`, exe: (version) => `Koegaki-${version}-setup.exe` };
+/** What each kind of asset is called in a problem. */
+const ASSET_WORD = { dmg: "disk image", exe: "installer" };
 /** The one url a GitHub release asset of this version and kind ("dmg" or "exe") is served from. */
 const githubAssetUrl = (version, kind) => `${GITHUB_DOWNLOAD}/v${version}/${ASSET_NAME[kind](version)}`;
 const RECORD_FIELDS = { dmg: ["url", "size", "sha256", "blake2b512"], exe: ["url", "size", "sha256", "blake2b512", "signature"] };
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+/** The kinds of artifact a well formed record states, "dmg", "exe" or both, in that order. */
+const recordedKinds = (record) => Object.keys(RECORD_FIELDS).filter((kind) => Object.hasOwn(record.artifacts, kind));
 
 /** The parsed releases/<version>.json, or undefined when there is none or the version could not name one. */
 function releaseRecord(version) {
@@ -1001,8 +1008,13 @@ function releaseRecordProblems(record, version) {
   }
   if (record.version !== version) problems.push(`the record names version ${JSON.stringify(record.version)}, not ${version}`);
   if ("note" in record && typeof record.note !== "string") problems.push("the note is not a string");
-  if (!isPlainObject(record.artifacts) || !sameKeys(record.artifacts, ["dmg", "exe"])) return [...problems, "artifacts is not exactly a dmg and an exe"];
-  for (const [kind, fields] of Object.entries(RECORD_FIELDS)) {
+  if (!isPlainObject(record.artifacts)) return [...problems, "artifacts is not an object"];
+  const kinds = Object.keys(record.artifacts);
+  if (kinds.length === 0 || !kinds.every((kind) => Object.hasOwn(RECORD_FIELDS, kind))) {
+    return [...problems, `artifacts holds ${JSON.stringify(kinds)}, not a dmg, an exe or both`];
+  }
+  for (const kind of kinds) {
+    const fields = RECORD_FIELDS[kind];
     const artifact = record.artifacts[kind];
     if (!isPlainObject(artifact)) {
       problems.push(`${kind} is not an object`);
@@ -1032,6 +1044,45 @@ function releaseRecords() {
   });
 }
 
+/**
+ * The record of a release that ships on the Mac only, as 1.12.0 does: its disk
+ * image and no installer, while the update manifest and the Windows download
+ * link stay at the release before it. It is here for the self tests alone,
+ * which try every check that reads a record against it; the real
+ * releases/1.12.0.json lands with the release. Its digests are of
+ * MAC_ONLY_DMG, bytes made for these tests.
+ */
+const MAC_ONLY_DMG = createHash("sha512").update("the disk image of a Mac only release, made for the self tests").digest();
+const MAC_ONLY_RECORD = Object.freeze({
+  version: "1.12.0",
+  artifacts: Object.freeze({
+    dmg: Object.freeze({
+      url: githubAssetUrl("1.12.0", "dmg"),
+      size: MAC_ONLY_DMG.length,
+      sha256: createHash("sha256").update(MAC_ONLY_DMG).digest("hex"),
+      blake2b512: createHash("blake2b512").update(MAC_ONLY_DMG).digest("hex"),
+    }),
+  }),
+});
+
+/** `sources` (see windowsUpdateProblems), finding MAC_ONLY_RECORD as the record of its release. */
+const withMacOnlyRelease = (sources) => ({
+  installer: sources.installer,
+  record: (version) => (version === MAC_ONLY_RECORD.version ? MAC_ONLY_RECORD : sources.record(version)),
+});
+
+/** `sources`, finding the record of `version` without its `kind` artifact, as a release that shipped on the other platform only states it. */
+const withoutArtifact = (sources, version, kind) => ({
+  installer: sources.installer,
+  record: (release) => {
+    const record = sources.record(release);
+    if (release !== version || !record) return record;
+    const copy = structuredClone(record);
+    delete copy.artifacts[kind];
+    return copy;
+  },
+});
+
 test("every release record has the published shape and describes the same bytes as an installer public/downloads still holds", () => {
   const records = releaseRecords();
   assert.ok(records.length > 0, "releases/ holds no record");
@@ -1052,15 +1103,18 @@ test("every release record has the published shape and describes the same bytes 
   }
 });
 
-test("the release record check refuses a record that is malformed or names another release", () => {
+test("the release record check refuses a record that is malformed or names another release, and passes a disk image, an installer or both", () => {
   const record = releaseRecord("1.9.0");
   assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
   const refused = [
     ["another version", (r) => (r.version = "1.9.1"), /names version "1\.9\.1"/],
     ["an unknown top level key", (r) => (r.extra = 1), /the record holds/],
     ["a note that is not text", (r) => (r.note = 7), /note is not a string/],
-    ["no dmg", (r) => delete r.artifacts.dmg, /artifacts is not exactly/],
-    ["a third artifact", (r) => (r.artifacts.zip = {}), /artifacts is not exactly/],
+    ["no artifact at all", (r) => (r.artifacts = {}), /artifacts holds \[\], not a dmg, an exe or both/],
+    ["artifacts that are a list", (r) => (r.artifacts = [r.artifacts.dmg, r.artifacts.exe]), /artifacts is not an object/],
+    ["no artifacts", (r) => delete r.artifacts, /artifacts is not an object/],
+    ["a third artifact", (r) => (r.artifacts.zip = {}), /artifacts holds .*"zip"/],
+    ["an artifact named after an object property", (r) => (r.artifacts.toString = r.artifacts.dmg), /artifacts holds .*"toString"/],
     ["an exe with no signature", (r) => delete r.artifacts.exe.signature, /exe holds/],
     ["a dmg with a signature", (r) => (r.artifacts.dmg.signature = "x"), /dmg holds/],
     ["an empty signature", (r) => (r.artifacts.exe.signature = ""), /exe: signature/],
@@ -1074,15 +1128,45 @@ test("the release record check refuses a record that is malformed or names anoth
     ["a short digest", (r) => (r.artifacts.dmg.blake2b512 = r.artifacts.dmg.blake2b512.slice(2)), /dmg: blake2b512/],
     ["a digest that is not hex", (r) => (r.artifacts.exe.blake2b512 = `${r.artifacts.exe.blake2b512.slice(1)}g`), /exe: blake2b512/],
   ];
-  const problemsAfter = (mutate) => {
-    const copy = structuredClone(record);
+  // A release that ships on the Mac only records its disk image alone; the
+  // same checks hold that one artifact, and an installer added beside it is
+  // held to every field an installer needs.
+  const macOnly = MAC_ONLY_RECORD.version;
+  const macOnlyRefused = [
+    ["an empty installer beside the disk image", (r) => (r.artifacts.exe = {}), /exe holds/],
+    [
+      "an installer with no url beside the disk image",
+      (r) => {
+        r.artifacts.exe = structuredClone(record.artifacts.exe);
+        delete r.artifacts.exe.url;
+      },
+      /exe: url undefined is not/,
+    ],
+    ["an installer that is not an object beside the disk image", (r) => (r.artifacts.exe = null), /exe is not an object/],
+    ["no disk image either", (r) => delete r.artifacts.dmg, /artifacts holds \[\]/],
+    ["a disk image url on another tag", (r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(`/v${macOnly}/`, "/v1.11.1/")), /dmg: url/],
+    ["a disk image with a signature", (r) => (r.artifacts.dmg.signature = "x"), /dmg holds/],
+    ["a disk image with no size", (r) => delete r.artifacts.dmg.size, /dmg: size undefined/],
+    ["another version", (r) => (r.version = "1.11.1"), /names version "1\.11\.1"/],
+  ];
+  const problemsAfter = (mutate, from = record, version = "1.9.0") => {
+    const copy = structuredClone(from);
     mutate(copy);
-    return releaseRecordProblems(copy, "1.9.0");
+    return releaseRecordProblems(copy, version);
   };
-  const missed = refused.filter(([, mutate, expected]) => !problemsAfter(mutate).some((p) => expected.test(p)));
+  const missed = [
+    ...refused.filter(([, mutate, expected]) => !problemsAfter(mutate).some((p) => expected.test(p))),
+    ...macOnlyRefused.filter(([, mutate, expected]) => !problemsAfter(mutate, MAC_ONLY_RECORD, macOnly).some((p) => expected.test(p))),
+  ];
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
-  assert.deepEqual(problemsAfter(() => {}), [], "the record as committed was refused");
-  assert.deepEqual(problemsAfter((r) => delete r.note), [], "a record with no note was refused");
+  const accepted = [
+    ["the record as committed", [() => {}]],
+    ["a record with no note", [(r) => delete r.note]],
+    ["a disk image alone, as a Mac only release records it", [() => {}, MAC_ONLY_RECORD, macOnly]],
+    ["an installer alone, as a Windows only release would record it", [(r) => delete r.artifacts.dmg]],
+  ];
+  const wronglyRefused = accepted.map(([name, args]) => [name, problemsAfter(...args)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
 });
 
 /**
@@ -1523,17 +1607,48 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
   assert.deepEqual(versionRefused, [], "these versions were refused");
 });
 
+/**
+ * What is wrong with the updater signature a release record of `version`
+ * states: it does not verify over the installer digest the record states, with
+ * the key every installed Windows build checks, or its trusted comment names
+ * another file than that version's installer. A record of a Mac only release
+ * states no installer, and so no signature.
+ */
+function recordSignatureProblems(record, version) {
+  if (!record.artifacts.exe) return [];
+  const { blake2b512, signature } = record.artifacts.exe;
+  const { problems, trusted } = updaterSignatureProblems(Buffer.from(blake2b512, "hex"), signature, WINDOWS_UPDATER_PUBKEY);
+  if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) return [...problems, `the trusted comment ${JSON.stringify(trusted)} names another file`];
+  return problems;
+}
+
 test("every release record states the installer digest its updater signature covers", () => {
   // The record of a release served from GitHub is the only copy of its digests
   // in this repository, so a digest changed by one byte must fail here even
   // where no manifest offers that release.
   for (const { name, version, record } of releaseRecords()) {
     assert.deepEqual(releaseRecordProblems(record, version), [], `releases/${name}`);
-    const { blake2b512, signature } = record.artifacts.exe;
-    const { problems, trusted } = updaterSignatureProblems(Buffer.from(blake2b512, "hex"), signature, WINDOWS_UPDATER_PUBKEY);
-    assert.deepEqual(problems, [], `releases/${name}`);
-    assert.ok(trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`), `releases/${name}: the trusted comment ${JSON.stringify(trusted)} names another file`);
+    assert.deepEqual(recordSignatureProblems(record, version), [], `releases/${name}`);
   }
+});
+
+test("the record signature check refuses a digest or a version the signature does not cover, and passes a record with no installer", () => {
+  const record = releaseRecord("1.9.0");
+  assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
+  const flippedDigest = structuredClone(record);
+  flippedDigest.artifacts.exe.blake2b512 = `${record.artifacts.exe.blake2b512[0] === "0" ? "1" : "0"}${record.artifacts.exe.blake2b512.slice(1)}`;
+  const refused = [
+    ["an installer digest one bit off", [flippedDigest, "1.9.0"], /^the installer signature does not verify$/],
+    ["the record read as another version", [record, "1.9.1"], /^the trusted comment .* names another file$/],
+  ];
+  const accepted = [
+    ["a record of a disk image and an installer", [record, "1.9.0"]],
+    ["a Mac only record, which states no installer and so no signature", [MAC_ONLY_RECORD, MAC_ONLY_RECORD.version]],
+  ];
+  const missed = refused.filter(([, args, expected]) => !recordSignatureProblems(...args).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const wronglyRefused = accepted.map(([name, args]) => [name, recordSignatureProblems(...args)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
 });
 
 /**
@@ -2149,8 +2264,10 @@ const servedFromPublic = (pathname) => existsSync(new URL(`../public${pathname}`
  * What is wrong with a download link of this kind ("dmg" or "exe"), given
  * `sources` (see windowsUpdateProblems) and `serves` (see servedFromPublic).
  * The link names a release by its file name and is exactly one of three urls
- * for it. On github.com it is that release's asset, of a release with a record
- * that did not ship from public/downloads. The hosts used before GitHub, as
+ * for it. On github.com it is that release's asset, of a release whose record
+ * states an asset of this kind, since a release that shipped on one platform
+ * only has none of the other, and that did not ship from public/downloads.
+ * The hosts used before GitHub, as
  * https://koegaki.com/downloads/<file>, which this deployment must serve, or
  * https://<Blob host>/<file>, may name only a release with no record, or one
  * that shipped from public/downloads (see legacyHostProblem). From 1.9.1
@@ -2167,7 +2284,9 @@ function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
   if (host === "github.com") {
     const asset = githubAssetUrl(version, kind);
     if (link !== asset) problems.push(`${at} is not ${asset}, the GitHub release asset of ${version}`);
-    if (!sources.record(version)) problems.push(`${at} is on GitHub but no releases/${version}.json records that release`);
+    const record = sources.record(version);
+    if (!record) problems.push(`${at} is on GitHub but no releases/${version}.json records that release`);
+    else if (!isPlainObject(record.artifacts?.[kind])) problems.push(`${at} is on GitHub but releases/${version}.json records no ${ASSET_WORD[kind]} of ${version}`);
     const frozen = frozenReleaseProblem(version, sources);
     if (frozen) problems.push(`${at}: ${frozen}`);
     return problems;
@@ -2189,7 +2308,8 @@ function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
  * What is wrong with the update manifest the site serves, beside its Windows
  * download link: what the updater would refuse (windowsUpdateProblems), and a
  * link that does not name the release the manifest offers, or, on GitHub, is
- * not that release's asset of a recorded release published there.
+ * not that release's asset of a recorded release published there whose record
+ * states an installer.
  */
 function liveManifestProblems(manifest, link, sources) {
   const problems = windowsUpdateProblems(manifest, sources, WINDOWS_UPDATER_PUBKEY);
@@ -2200,7 +2320,9 @@ function liveManifestProblems(manifest, link, sources) {
   if (hostOf(link) === "github.com") {
     const asset = githubAssetUrl(version, "exe");
     if (link !== asset) problems.push(`the Windows download link ${link} is not ${asset}, the GitHub release asset of ${version}`);
-    if (!sources.record(version)) problems.push(`the Windows download link is on GitHub but no releases/${version}.json records ${version}`);
+    const record = sources.record(version);
+    if (!record) problems.push(`the Windows download link is on GitHub but no releases/${version}.json records ${version}`);
+    else if (!isPlainObject(record.artifacts?.exe)) problems.push(`the Windows download link is on GitHub but releases/${version}.json records no installer of ${version}`);
     const frozen = frozenReleaseProblem(version, sources);
     if (frozen) problems.push(`the Windows download link names a GitHub release that does not exist: ${frozen}`);
   }
@@ -2213,10 +2335,11 @@ function liveManifestProblems(manifest, link, sources) {
  * an enclosure with no version, url or length; a release MAC_BUILDS does not
  * list, since publishing one adds its build there; and a Mac link that is not
  * the url of a disk image the appcast offers, or, on GitHub, is not of a
- * recorded release published there.
+ * recorded release published there whose record states a disk image.
+ * `builds` is as appcastProblems takes it.
  */
-function liveAppcastProblems(xml, link, sources) {
-  const problems = appcastProblems(xml, sources);
+function liveAppcastProblems(xml, link, sources, builds = MAC_BUILDS) {
+  const problems = appcastProblems(xml, sources, builds);
   let items;
   try {
     ({ items } = appcastItems(xml));
@@ -2230,7 +2353,7 @@ function liveAppcastProblems(xml, link, sources) {
     if (!version || !url || !length) problems.push(`item ${version}: the enclosure gives no ${!url ? "url" : !length ? "length" : "version"}`);
   }
   for (const { version } of items) {
-    if (!MAC_BUILDS.has(version)) problems.push(`the appcast offers ${version}, for which MAC_BUILDS lists no build; add the build number that release published`);
+    if (!builds.has(version)) problems.push(`the appcast offers ${version}, for which MAC_BUILDS lists no build; add the build number that release published`);
   }
   // The Mac link serves the disk image the appcast offers, from the same url,
   // whichever host that is; appcastProblems holds that url to its release.
@@ -2238,7 +2361,11 @@ function liveAppcastProblems(xml, link, sources) {
   if (!offered) {
     problems.push(`the Mac download link ${link} is not the url of a disk image the appcast offers`);
   } else if (hostOf(link) === "github.com") {
-    if (!sources.record(offered.version)) problems.push(`the Mac download link is on GitHub but no releases/${offered.version}.json records ${offered.version}`);
+    const record = sources.record(offered.version);
+    if (!record) problems.push(`the Mac download link is on GitHub but no releases/${offered.version}.json records ${offered.version}`);
+    else if (!isPlainObject(record.artifacts?.dmg)) {
+      problems.push(`the Mac download link is on GitHub but releases/${offered.version}.json records no disk image of ${offered.version}`);
+    }
     const frozen = frozenReleaseProblem(offered.version, sources);
     if (frozen) problems.push(`the Mac download link names a GitHub release that does not exist: ${frozen}`);
   }
@@ -2251,10 +2378,10 @@ function liveLinkProblems(links, sources) {
 }
 
 /** Every problem with the files and links the site serves for its releases, as the tests of each check them. */
-function liveReleaseProblems(manifest, xml, links, sources) {
+function liveReleaseProblems(manifest, xml, links, sources, builds = MAC_BUILDS) {
   return [
     ...liveManifestProblems(manifest, links.exe, sources).map((problem) => `public/windows-updates.json: ${problem}`),
-    ...liveAppcastProblems(xml, links.dmg, sources).map((problem) => `public/appcast.xml: ${problem}`),
+    ...liveAppcastProblems(xml, links.dmg, sources, builds).map((problem) => `public/appcast.xml: ${problem}`),
     ...liveLinkProblems(links, sources).map((problem) => `download link: ${problem}`),
   ];
 }
@@ -2272,7 +2399,20 @@ test("the live release checks refuse an appcast with no release, a link the feed
   assert.ok(seed && RELEASE_SOURCES.installer("1.9.0"), "releases/1.9.0.json or its installer, which these cases use as an older release, is missing");
   // 1.9.0's appcast as it was served, from the Blob host.
   const appcast190 = appcastOf("1.9.0", `https://${BLOB_HOST}/Koegaki-1.9.0.dmg`, seed.artifacts.dmg.size);
-  const check = ({ m = manifest, x = xml, links = {} }) => liveReleaseProblems(m, x, { ...SITE_LINKS, ...links }, RELEASE_SOURCES);
+  // A Mac only release, MAC_ONLY_RECORD, on the appcast and the Mac link, as
+  // release day leaves them: the manifest and the Windows link stay where they
+  // are. Its build is the one MAC_BUILDS lists once it ships, the next one
+  // until then. Only the cases that name it read MAC_ONLY_RECORD, so the real
+  // record of that release, once it lands, is what the live files are held to.
+  const macOnlySources = withMacOnlyRelease(RELEASE_SOURCES);
+  const macOnly = MAC_ONLY_RECORD.version;
+  const macOnlyBuild = MAC_BUILDS.get(macOnly) ?? Math.max(...MAC_BUILDS.values()) + 1;
+  const macOnlyBuilds = new Map([...MAC_BUILDS, [macOnly, macOnlyBuild]]);
+  const macOnlyAppcast = appcastOf(macOnly, MAC_ONLY_RECORD.artifacts.dmg.url, MAC_ONLY_RECORD.artifacts.dmg.size, { build: macOnlyBuild });
+  const macOnlyManifest = structuredClone(manifest);
+  macOnlyManifest.version = macOnly;
+  macOnlyManifest.platforms["windows-x86_64"].url = githubAssetUrl(macOnly, "exe");
+  const check = ({ m = manifest, x = xml, links = {}, from = RELEASE_SOURCES, builds = MAC_BUILDS }) => liveReleaseProblems(m, x, { ...SITE_LINKS, ...links }, from, builds);
   const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const refused = [
     ["an appcast whose channel is empty", { x: '<rss version="2.0"><channel/></rss>' }, /appcast\.xml: the appcast offers no disk image/],
@@ -2297,10 +2437,29 @@ test("the live release checks refuse an appcast with no release, a link the feed
       { x: xml.replaceAll(`>${item.version}<`, ">9.9.9<") },
       /appcast\.xml: the appcast offers 9\.9\.9, for which MAC_BUILDS lists no build/,
     ],
+    [
+      "a manifest and a Windows link offering a Mac only release",
+      { m: macOnlyManifest, links: { exe: githubAssetUrl(macOnly, "exe") }, from: macOnlySources },
+      new RegExp(`windows-updates\\.json: the Windows download link is on GitHub but releases/${escaped(macOnly)}\\.json records no installer of ${escaped(macOnly)}`),
+    ],
+    [
+      "a Windows link to a Mac only release beside the manifest as published",
+      { links: { exe: githubAssetUrl(macOnly, "exe") }, from: macOnlySources },
+      new RegExp(`download link: Windows: .* is on GitHub but releases/${escaped(macOnly)}\\.json records no installer of ${escaped(macOnly)}`),
+    ],
+    [
+      "the appcast and the Mac link as published, their release recorded as Windows only",
+      { from: withoutArtifact(RELEASE_SOURCES, item.version, "dmg") },
+      new RegExp(`appcast\\.xml: the Mac download link is on GitHub but releases/${escaped(item.version)}\\.json records no disk image of ${escaped(item.version)}`),
+    ],
   ];
   const accepted = [
     ["the live files and links as published", {}],
     ["the 1.9.0 appcast beside its own Mac link on the Blob host, and the live manifest", { x: appcast190, links: { dmg: `https://${BLOB_HOST}/Koegaki-1.9.0.dmg` } }],
+    [
+      "a Mac only release on the appcast and the Mac link, beside the manifest and the Windows link as published",
+      { x: macOnlyAppcast, links: { dmg: MAC_ONLY_RECORD.artifacts.dmg.url }, from: macOnlySources, builds: macOnlyBuilds },
+    ],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -2313,15 +2472,20 @@ test("every download link is a GitHub release asset, or names a release with no 
 });
 
 test("the download link check refuses a recorded release off GitHub, a link on any other host, and a link to no release", () => {
-  // Three releases from the repository as it is: one published on GitHub, so
-  // recorded with no installer in public/downloads; 1.9.0, recorded only for
-  // the self tests although public/downloads holds it; and one public/downloads
-  // holds that no record names.
+  // Three releases from the repository as it is: one published on GitHub for
+  // both platforms, so recorded with both assets and no installer in
+  // public/downloads; 1.9.0, recorded only for the self tests although
+  // public/downloads holds it; and one public/downloads holds that no record
+  // names. MAC_ONLY_RECORD stands for a release published for the Mac only.
   const versionOf = ({ version }) => version;
-  const github = releaseRecords().filter(({ version }) => version && !RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
+  const github = releaseRecords()
+    .filter(({ version, record }) => version && !RELEASE_SOURCES.installer(version) && record?.artifacts?.dmg && record?.artifacts?.exe)
+    .map(versionOf)
+    .at(-1);
   const seed = releaseRecords().filter(({ version }) => version && RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
   const unrecorded = FROZEN_DOWNLOADS.map((name) => name.match(/^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)[1]).filter((version) => !releaseRecord(version)).at(-1);
   assert.ok(github && seed && unrecorded, `the releases these cases need are missing: ${JSON.stringify({ github, seed, unrecorded })}`);
+  const macOnly = MAC_ONLY_RECORD.version;
   const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const offGithub = (release) => new RegExp(`records ${escaped(release)} as a GitHub release`);
   const blob = (kind, release) => `https://${BLOB_HOST}/${ASSET_NAME[kind](release)}`;
@@ -2340,16 +2504,24 @@ test("the download link check refuses a recorded release off GitHub, a link on a
     ["a GitHub link to a release public/downloads holds", ["exe", githubAssetUrl(seed, "exe")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in public/downloads`)],
     ["a GitHub link with a query", ["dmg", `${githubAssetUrl(github, "dmg")}?raw=1`], /is not https:\/\/github\.com\//],
     ["a GitHub link in another repo", ["dmg", githubAssetUrl(github, "dmg").replace("/koegaki-releases/", "/koegaki/")], /is not https:\/\/github\.com\//],
+    ["a Windows link on GitHub to a Mac only release", ["exe", githubAssetUrl(macOnly, "exe")], new RegExp(`is on GitHub but releases/${escaped(macOnly)}\\.json records no installer of ${escaped(macOnly)}`)],
+    [
+      "a Mac link on GitHub to a release recorded as Windows only",
+      ["dmg", githubAssetUrl(github, "dmg"), undefined, withoutArtifact(RELEASE_SOURCES, github, "dmg")],
+      new RegExp(`is on GitHub but releases/${escaped(github)}\\.json records no disk image of ${escaped(github)}`),
+    ],
+    ["a Windows link on koegaki.com to a Mac only release, though the file is served", ["exe", site(macOnly), () => true], offGithub(macOnly)],
   ];
   const accepted = [
     ["the GitHub disk image of a release published on GitHub", ["dmg", githubAssetUrl(github, "dmg")]],
     ["the GitHub installer of a release published on GitHub", ["exe", githubAssetUrl(github, "exe")]],
+    ["the GitHub disk image of a Mac only release", ["dmg", githubAssetUrl(macOnly, "dmg")]],
     ["a Windows link on koegaki.com for 1.9.0, recorded only for the self tests", ["exe", site(seed)]],
     ["a Mac link on the Blob host for 1.9.0, recorded only for the self tests", ["dmg", blob("dmg", seed)]],
     ["a Windows link on koegaki.com for a release with no record", ["exe", site(unrecorded)]],
     ["a Mac link on the Blob host for a release with no record", ["dmg", blob("dmg", unrecorded)]],
   ];
-  const check = ([kind, link, serves]) => downloadLinkProblems(kind, link, RELEASE_SOURCES, serves);
+  const check = ([kind, link, serves, sources = withMacOnlyRelease(RELEASE_SOURCES)]) => downloadLinkProblems(kind, link, sources, serves);
   const missed = refused.filter(([, args, expected]) => !check(args).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const wronglyRefused = accepted.map(([name, args]) => [name, check(args)]).filter(([, problems]) => problems.length);
@@ -2369,26 +2541,47 @@ const MAC_SPARKLE_PUBKEY = "2SAX2B+giN1G9pZlqlTMOA/Es0PWh1wPj+M3Et6WZVw=";
  * What differs between a release as downloaded and its record, which the
  * offline checks can hold only to its shape and to the signed installer
  * digest. `assets` holds the downloaded disk image and installer by kind
- * ("dmg", "exe"); each must have the size, SHA-256 and BLAKE2b-512 the record
- * states. The record's updater signature, which the manifest must carry, must
- * verify over the downloaded installer and name its file, and every Sparkle
- * signature in `signatures`, what the appcast gives for this disk image, must
- * verify over the downloaded disk image. `keys` holds the updater's key
+ * ("dmg", "exe"); each the record states must have been downloaded, with the
+ * size, SHA-256 and BLAKE2b-512 the record states, so a release that shipped
+ * on one platform only is held to its one asset. Where the record states an
+ * installer, its updater signature, which the manifest must carry, must verify
+ * over the downloaded installer and name its file; where it states a disk
+ * image, every Sparkle signature in `signatures`, what the appcast gives for
+ * it, must verify over the downloaded disk image. `keys` holds the updater's key
  * (`updater`, as WINDOWS_UPDATER_PUBKEY) and Sparkle's (`sparkle`, as
  * MAC_SPARKLE_PUBKEY).
  */
 function downloadedReleaseProblems(record, assets, signatures, keys) {
   const problems = [];
-  for (const kind of ["dmg", "exe"]) {
+  const kinds = recordedKinds(record);
+  for (const kind of kinds) {
     const bytes = assets[kind];
     if (!bytes) problems.push(`${kind}: nothing was downloaded`);
     else problems.push(...assetBytesProblems(bytes, record.artifacts[kind], "the record").map((problem) => `${kind}: ${problem}`));
   }
-  if (assets.exe) {
+  if (kinds.includes("exe") && assets.exe) {
     problems.push(...installerSignatureProblems(assets.exe, record.artifacts.exe.signature, record.version, keys.updater).map((problem) => `exe: ${problem}`));
   }
-  if (assets.dmg) problems.push(...sparkleSignatureProblems(assets.dmg, signatures, keys.sparkle).map((problem) => `dmg: ${problem}`));
+  if (kinds.includes("dmg") && assets.dmg) problems.push(...sparkleSignatureProblems(assets.dmg, signatures, keys.sparkle).map((problem) => `dmg: ${problem}`));
   return problems;
+}
+
+/**
+ * What the test that downloads a release fetches for one record and holds the
+ * downloads to: `urls`, the url of each asset the record states, by kind, so a
+ * release that shipped on one platform only fetches its one asset;
+ * `signatures`, the Sparkle signatures the appcast's `enclosures` give for its
+ * disk image, if it has one; and `checked`, the record carrying, where the
+ * manifest's `target` offers its installer, the signature the manifest
+ * carries, which is what the updater checks.
+ */
+function releaseDownloads(record, target, enclosures) {
+  const { dmg, exe } = record.artifacts;
+  const urls = Object.fromEntries(recordedKinds(record).map((kind) => [kind, record.artifacts[kind].url]));
+  const signatures = dmg ? enclosures.filter(({ url }) => url === dmg.url).flatMap((enclosure) => enclosure.signatures) : [];
+  const checked = structuredClone(record);
+  if (exe && target.url === exe.url) checked.artifacts.exe.signature = target.signature;
+  return { urls, signatures, checked };
 }
 
 /** Where downloaded `bytes` differ from the size, SHA-256 and BLAKE2b-512 that `expected` gives, as `source` states them. */
@@ -2534,7 +2727,7 @@ test("the served installer check refuses bytes that are not the release's, on an
   const exe = RELEASE_SOURCES.installer("1.9.0");
   assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
   const unrecorded = { installer: RELEASE_SOURCES.installer, record: () => undefined };
-  const otherSignature = releaseRecords().find(({ version }) => version && version !== "1.9.0")?.record.artifacts.exe.signature;
+  const otherSignature = releaseRecords().find(({ version, record }) => version && version !== "1.9.0" && record?.artifacts?.exe)?.record.artifacts.exe.signature;
   assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
   const flipped = Buffer.from(exe);
   flipped[Math.floor(exe.length / 2)] ^= 0x01;
@@ -2608,18 +2801,15 @@ test(
     for (const version of versions) {
       const record = releaseRecord(version);
       assert.ok(record, `no releases/${version}.json records ${version}, which the site serves from GitHub`);
+      const { urls, signatures, checked } = releaseDownloads(record, target, enclosures);
       const assets = {};
-      for (const kind of ["dmg", "exe"]) assets[kind] = await download(record.artifacts[kind].url);
-      const signatures = enclosures.filter(({ url }) => url === record.artifacts.dmg.url).flatMap((enclosure) => enclosure.signatures);
-      if (signatures.length === 0) t.diagnostic(`no appcast item offers ${record.artifacts.dmg.url}, so no Sparkle signature of it is checked`);
-      // Where the manifest offers this installer, the signature verified is
-      // the one it carries, which is what the updater checks.
-      const checked = structuredClone(record);
-      if (target.url === record.artifacts.exe.url) checked.artifacts.exe.signature = target.signature;
+      for (const [kind, url] of Object.entries(urls)) assets[kind] = await download(url);
+      if (record.artifacts.dmg && signatures.length === 0) t.diagnostic(`no appcast item offers ${record.artifacts.dmg.url}, so no Sparkle signature of it is checked`);
       const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: MAC_SPARKLE_PUBKEY };
       assert.deepEqual(downloadedReleaseProblems(checked, assets, signatures, keys), [], `${version} as GitHub serves it`);
+      const verified = [record.artifacts.exe && "the updater signature", record.artifacts.dmg && `${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"}`].filter(Boolean);
       t.diagnostic(
-        `${version}: both assets match releases/${version}.json in size, SHA-256 and BLAKE2b-512; the updater signature and ${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"} verify over the downloaded bytes`,
+        `${version}: ${Object.keys(urls).map((kind) => `the ${ASSET_WORD[kind]}`).join(" and ")} match releases/${version}.json in size, SHA-256 and BLAKE2b-512; ${verified.join(" and ")} verify over the downloaded bytes`,
       );
     }
     // The installer the manifest offers and the one the Windows link serves,
@@ -2659,7 +2849,7 @@ test("the download check refuses bytes that differ from the record and signature
   const sparkle = generateKeyPairSync("ed25519");
   const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: rawKey(sparkle.publicKey) };
   const edSignature = sign(null, dmg, sparkle.privateKey).toString("base64");
-  const otherSignature = releaseRecords().find(({ version }) => version && version !== "1.9.0")?.record.artifacts.exe.signature;
+  const otherSignature = releaseRecords().find(({ version, record }) => version && version !== "1.9.0" && record?.artifacts?.exe)?.record.artifacts.exe.signature;
   assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
   const flipped = (bytes, at) => {
     const copy = Buffer.from(bytes);
@@ -2667,12 +2857,15 @@ test("the download check refuses bytes that differ from the record and signature
     return copy;
   };
   const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
+  // A case names `from` to start from another record, as MAC_ONLY_RECORD.
   const check = (change) => {
-    const { assets = { dmg, exe }, signatures = [edSignature], key = keys, edit } = change;
-    const copy = structuredClone(record);
+    const { assets = { dmg, exe }, signatures = [edSignature], key = keys, edit, from = record } = change;
+    const copy = structuredClone(from);
     edit?.(copy);
     return downloadedReleaseProblems(copy, assets, signatures, key);
   };
+  // A Mac only release states, and so downloads, its disk image alone.
+  const macOnly = { from: MAC_ONLY_RECORD, assets: { dmg: MAC_ONLY_DMG }, signatures: [sign(null, MAC_ONLY_DMG, sparkle.privateKey).toString("base64")] };
   const refused = [
     ["an installer one byte off", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: sha256 .* is not/],
     ["an installer one byte off, by its BLAKE2b-512", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: blake2b512 .* is not/],
@@ -2692,13 +2885,64 @@ test("the download check refuses bytes that differ from the record and signature
     ["a second Sparkle signature that does not verify", { signatures: [edSignature, SIGNATURE_1_9_0] }, /dmg: the Sparkle signature .* does not verify/],
     ["no disk image downloaded", { assets: { exe } }, /dmg: nothing was downloaded/],
     ["no installer downloaded", { assets: { dmg } }, /exe: nothing was downloaded/],
+    ["a Mac only release whose disk image is one byte off", { ...macOnly, assets: { dmg: flipped(MAC_ONLY_DMG, 0) } }, /dmg: sha256 .* is not/],
+    ["a Mac only release whose Sparkle signature does not verify", { ...macOnly, signatures: [edSignature] }, /dmg: the Sparkle signature .* does not verify/],
+    ["a Mac only release with nothing downloaded", { ...macOnly, assets: {} }, /dmg: nothing was downloaded/],
+    ["a Windows only release whose installer is one byte off", { edit: (r) => delete r.artifacts.dmg, assets: { exe: flipped(exe, Math.floor(exe.length / 2)) }, signatures: [] }, /exe: the installer signature does not verify/],
   ];
   const accepted = [
     ["the release as recorded and signed", {}],
     ["a disk image no appcast item offers, so with no Sparkle signature to check", { signatures: [] }],
+    ["a Mac only release, its disk image as recorded and signed", macOnly],
+    ["a Windows only release, its installer as recorded and signed", { edit: (r) => delete r.artifacts.dmg, assets: { exe }, signatures: [] }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const wronglyRefused = accepted.map(([name, change]) => [name, check(change)]).filter(([, problems]) => problems.length);
   assert.deepEqual(wronglyRefused, [], "these were refused");
+});
+
+test("the release download fetches every asset its record states and no other, each with the signature the feeds carry for it", () => {
+  const record = releaseRecord("1.9.0");
+  assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
+  const windowsOnly = structuredClone(record);
+  delete windowsOnly.artifacts.dmg;
+  // The manifest offers the recorded installer, with a signature of its own so
+  // the cases tell it from the record's; the appcast offers both disk images,
+  // one more, and an enclosure with no url, which no record's disk image is.
+  const target = { url: record.artifacts.exe.url, signature: "the manifest's signature" };
+  const enclosures = [
+    { url: record.artifacts.dmg.url, signatures: ["the 1.9.0 disk image's"] },
+    { url: MAC_ONLY_RECORD.artifacts.dmg.url, signatures: ["the Mac only disk image's"] },
+    { url: "https://example.com/Koegaki.dmg", signatures: ["another disk image's"] },
+    { url: undefined, signatures: ["an enclosure with no url's"] },
+  ];
+  const withManifestSignature = (from) => {
+    const copy = structuredClone(from);
+    copy.artifacts.exe.signature = target.signature;
+    return copy;
+  };
+  const cases = [
+    [
+      "a release of both, its installer the manifest's",
+      [record, target],
+      { urls: { dmg: record.artifacts.dmg.url, exe: record.artifacts.exe.url }, signatures: ["the 1.9.0 disk image's"], checked: withManifestSignature(record) },
+    ],
+    [
+      "a release of both, its installer not the manifest's",
+      [record, { ...target, url: githubAssetUrl("1.9.1", "exe") }],
+      { urls: { dmg: record.artifacts.dmg.url, exe: record.artifacts.exe.url }, signatures: ["the 1.9.0 disk image's"], checked: record },
+    ],
+    [
+      "a Mac only release",
+      [MAC_ONLY_RECORD, target],
+      { urls: { dmg: MAC_ONLY_RECORD.artifacts.dmg.url }, signatures: ["the Mac only disk image's"], checked: structuredClone(MAC_ONLY_RECORD) },
+    ],
+    [
+      "a Windows only release, its installer the manifest's",
+      [windowsOnly, target],
+      { urls: { exe: record.artifacts.exe.url }, signatures: [], checked: withManifestSignature(windowsOnly) },
+    ],
+  ];
+  for (const [name, [from, offered], expected] of cases) assert.deepEqual(releaseDownloads(from, offered, enclosures), expected, name);
 });
