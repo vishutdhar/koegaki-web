@@ -38,6 +38,14 @@ const koegakiCommon = {
   offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
 };
 
+/**
+ * The custom vocabulary row of a comparison about Windows only. Since Windows
+ * 1.10.0 custom words also bias the English model toward their words (Koegaki
+ * spec 2026-10-06), which the Mac does not do yet, so koegakiCommon.vocab
+ * stays true only where the Mac is described.
+ */
+const windowsVocab = "Custom words in Latin, Greek or Cyrillic letters, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC. Replacements turn a phrase you say into the text you choose.";
+
 export const COMPARISONS: Comparison[] = [
   {
     slug: "superwhisper",
@@ -173,12 +181,12 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Press Win+H and Windows will take dictation, as long as you are online. Koegaki does the same job on your own PC, with the network unplugged.",
     asOf: "September 2026",
-    lastModified: "2026-10-05",
+    lastModified: "2026-10-08",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Microsoft's online speech service. An internet connection is required." },
       { label: "Works offline", koegaki: koegakiCommon.offline, other: "No." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "Win+H toggles a voice typing bar on; it stays on until you stop it." },
-      { label: "Custom vocabulary", koegaki: koegakiCommon.vocab, other: "None documented by Microsoft." },
+      { label: "Custom vocabulary", koegaki: windowsVocab, other: "None documented by Microsoft." },
       { label: "Price", koegaki: koegakiCommon.price, other: "Included with Windows." },
       { label: "Mac version", koegaki: "Yes, same licence.", other: "No." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "No." },
@@ -195,7 +203,7 @@ export const COMPARISONS: Comparison[] = [
         paragraphs: [
           "Your voice stays on your PC. Windows voice typing sends your speech to Microsoft's servers to be recognised. Koegaki runs the speech model locally, so it works on a plane, behind a corporate firewall, and on documents you are not allowed to send anywhere.",
           "Hold-to-talk. Hold Ctrl+Alt+D, or a shortcut you choose, speak, and release. There is no bar to open; releasing the key ends capture, and Koegaki then transcribes and inserts what you said. A program running as administrator is the exception: Windows does not let an ordinary app type into it, so Koegaki copies the text for you to paste.",
-          "Custom words and replacements. Add a name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. Say a short word and a replacement types the full phrase. Both are rules applied on your PC, the same way every time.",
+          "Custom words and replacements. Add a name as a custom word and Koegaki writes it your way when it hears it split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC. Say a short word and a replacement types the full phrase. The spelling and the replacement are rules applied on your PC, the same way every time.",
         ],
       },
     ],

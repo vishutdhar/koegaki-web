@@ -106,7 +106,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     linkLabel: "Dictation for Windows",
     operatingSystem: "Windows 10, Windows 11",
-    lastModified: "2026-10-05",
+    lastModified: "2026-10-08",
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
     description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in almost any program. Recognition runs on your PC, not the cloud. ${price} one-time.`,

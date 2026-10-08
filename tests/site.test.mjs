@@ -381,7 +381,7 @@ const REVIEWED_SENTENCES = new Map([
   ],
   [
     "With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC.",
-    "Windows only (the /windows page): since 1.10.0 the custom words list is passed to the English model, the default, as hotwords for its beam search, so those words are recognised more often (spec 2026-10-06 items 1 and 2), while the Multilingual model is not biased; the list stays on the PC; the app's What's new says the same (spec item 6, 4adbf089)",
+    "Windows only (the /windows page and /vs/windows-voice-typing): since 1.10.0 the custom words list is passed to the English model, the default, as hotwords for its beam search, so those words are recognised more often (spec 2026-10-06 items 1 and 2), while the Multilingual model is not biased; the list stays on the PC; the app's What's new says the same (spec item 6, 4adbf089)",
   ],
 ]);
 
