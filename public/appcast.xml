@@ -3,17 +3,18 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.9.1</title>
-            <pubDate>Tue, 06 Oct 2026 11:11:03 -0400</pubDate>
-            <sparkle:version>26</sparkle:version>
-            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
+            <title>1.10.0</title>
+            <pubDate>Wed, 07 Oct 2026 22:38:22 -0400</pubDate>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.9.1</h2>
+            <description><![CDATA[<h2>Koegaki 1.10.0</h2>
 <ul>
-    <li>New versions of Koegaki, from the website or as an update in the app, now download from GitHub. Updates are still offered and installed the same way, and your settings, models and data stay where they are.</li>
+    <li>Custom words now also fix close misspellings, so a name heard almost right is written the way you saved it.</li>
+    <li>On Windows, custom words now help Koegaki hear your names and terms, not just spell them. Words on your list are recognized more often, and they still never leave your PC.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.9.1/Koegaki-1.9.1.dmg" length="31399495" type="application/octet-stream" sparkle:edSignature="lf8VyWgR0udqCTeL5qkhMmDoCDr0sjU0uKH1PF8p1I2kiHYrDOT14EVuB8eGHRKPjlNnj3XpBEZZRwge23BvDA=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.10.0/Koegaki-1.10.0.dmg" length="31431976" type="application/octet-stream" sparkle:edSignature="8bEWmdDhsWO8G6d8QwsP8GtmmNjkvke1J39hmRCXozR5dfRgUC+kNREeE1kxLWzVV/GVhtbjXVFuY2sMr4iSCA=="/>
         </item>
     </channel>
 </rss>
