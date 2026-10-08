@@ -3,18 +3,18 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.11.0</title>
-            <pubDate>Thu, 08 Oct 2026 08:05:37 -0400</pubDate>
-            <sparkle:version>28</sparkle:version>
-            <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
+            <title>1.11.1</title>
+            <pubDate>Thu, 08 Oct 2026 12:40:30 -0400</pubDate>
+            <sparkle:version>29</sparkle:version>
+            <sparkle:shortVersionString>1.11.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.11.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.11.1</h2>
 <ul>
-    <li>When all Koegaki hears is a laugh, a hum or a lone um, it now types nothing.</li>
-    <li>On Windows, removing Koegaki through winget now runs quietly, with no uninstall wizard.</li>
+    <li>On the Mac, sound cues no longer hold up a dictation when the audio output is slow or unavailable.</li>
+    <li>On Windows, custom words and replacements now match in every case, including letters that change length when folded, such as ß and SS.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.0/Koegaki-1.11.0.dmg" length="31457000" type="application/octet-stream" sparkle:edSignature="Vm62Mf/Ex1tqBupfZLGvA7IWXFlXCG+ZI9V7FMB1GOGNcHIIVNu1GrPrGpTMcXQGBOBFN1OnUe4sH8YTbLX6Cw=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.1/Koegaki-1.11.1.dmg" length="31490639" type="application/octet-stream" sparkle:edSignature="jcCDXzty7fHdWjymu2zExC/tsdi9+NjVYlBqd89jhBnmAP7lYLCFk6iISpCpWBp0Ya3cdl7QPQ5C9Vk2648aAQ=="/>
         </item>
     </channel>
 </rss>

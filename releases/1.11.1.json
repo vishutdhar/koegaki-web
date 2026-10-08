@@ -1,0 +1,18 @@
+{
+  "version": "1.11.1",
+  "artifacts": {
+    "dmg": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.1/Koegaki-1.11.1.dmg",
+      "size": 31490639,
+      "sha256": "4252f10ead9a617e8b90f52184ae110eeccfff8a62de108a7f7abff098c52694",
+      "blake2b512": "73c8a10b28ec6db5a2dc3b2672ca72f510a0030d68301cd9d59945c5753066769d3ddef12a3dd150cf4bcf074b76592ed7bcca67232baf9634025f0d573f7e87"
+    },
+    "exe": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.1/Koegaki-1.11.1-setup.exe",
+      "size": 14597405,
+      "sha256": "485fb99ee77d3708f3d25ad35deb3392b56122261a8a2ed2f1ae8dc9be5757c9",
+      "blake2b512": "4adfbbfcf414ab5012c4d624b8e9515d13e17b141e52ebc35d79cdd23b6c19f3253552936753ff16865bbc6398e17b8058c9d025784eaae0026ddd2c0d879645",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3BsaWFYVmplUDY5ZFJLbjg1UnZwV3k3VGsrV0hPZXg5eTFTV2FXdGJTeGFWcVNSeUlGb3ppR0VRM216T2Mwd1JHSEcwMFl5S2FWQXRoZ0VtMkF0L1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNDc2NjI3CWZpbGU6S29lZ2FraV8xLjExLjFfeDY0LXNldHVwLmV4ZQpycExHWVdNRzZSNkZFTkVMN2pDWEs2Y1hDRWVEUWJoQmhUOHpBTjVadXdFRnd4eXIyaWdMM3ArMWNxaXJlMFU1OE9nUmlsM3JJQ1RWU241Yjd1czVEdz09Cg=="
+    }
+  }
+}

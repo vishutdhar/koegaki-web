@@ -1,11 +1,11 @@
 {
-  "version": "1.11.0",
-  "notes": "When all Koegaki hears is a laugh, a hum or a lone um, it now types nothing. Removing Koegaki through winget now runs quietly, with no uninstall wizard.",
-  "pub_date": "2026-10-08T12:08:04Z",
+  "version": "1.11.1",
+  "notes": "Custom words and replacements now match in every case, including letters that change length when folded, such as ß and SS.",
+  "pub_date": "2026-10-08T16:42:17Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3R6K2U0eGhvY3pvSFpoRWNGSTlzODBOb0xKQUVmbnczS2FJUDNnVENhampmN1F6WEJQQmdQYW0wQzJBNU9YbDNDclhPQTVMV3h2bFZ6OFYydDNxVUFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNDYxMTg4CWZpbGU6S29lZ2FraV8xLjExLjBfeDY0LXNldHVwLmV4ZQpNMkNpQzVaOXIrRDZETWlEbmJIN3dJc3hNOU83ZDRNQndWZVpDSXQ0eFMwaHFFV3BmcWFlQkhmT21NMzJIaDZJazJkUkk3RHc2WDlsOTIvWkFaL0FDQT09Cg==",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.0/Koegaki-1.11.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3BsaWFYVmplUDY5ZFJLbjg1UnZwV3k3VGsrV0hPZXg5eTFTV2FXdGJTeGFWcVNSeUlGb3ppR0VRM216T2Mwd1JHSEcwMFl5S2FWQXRoZ0VtMkF0L1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNDc2NjI3CWZpbGU6S29lZ2FraV8xLjExLjFfeDY0LXNldHVwLmV4ZQpycExHWVdNRzZSNkZFTkVMN2pDWEs2Y1hDRWVEUWJoQmhUOHpBTjVadXdFRnd4eXIyaWdMM3ArMWNxaXJlMFU1OE9nUmlsM3JJQ1RWU241Yjd1czVEdz09Cg==",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.1/Koegaki-1.11.1-setup.exe"
     }
   }
 }
