@@ -1,11 +1,11 @@
 {
-  "version": "1.9.1",
-  "notes": "New versions of Koegaki, from the website or as an update in the app, now download from GitHub. Updates are still offered and installed the same way, and your settings, models and data stay where they are.",
-  "pub_date": "2026-10-06T15:22:47Z",
+  "version": "1.10.0",
+  "notes": "Custom words now help Koegaki hear your names and terms, not just spell them. Words on your list are recognized more often, and they still never leave your PC. Close misspellings are fixed too, so a name heard almost right is written the way you saved it.",
+  "pub_date": "2026-10-08T02:44:44Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3NCNHJ2ZG1BZkxPK095Z2ZlZXgwajJJWjYwUXRwOUNsaDlXRjhaeko3L201L29Db3dBWTFMNUg4eXIyTytPRmo5TG5FYWhhWmU5aDhMaWxwTkxvb1FjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjk5OTA2CWZpbGU6S29lZ2FraV8xLjkuMV94NjQtc2V0dXAuZXhlCktmbnljczZmOENXSjlFWVhvbURzdk9CamtBT3V3dSs4cXVrSzNMK0VXbkY2aUtjWUFXREtGbytTdi9uaGxFcGFkT0NkVmNNbVJpNTkyS3QzaEtsRkFnPT0K",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.9.1/Koegaki-1.9.1-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2o0Z24zVEpLTVFXc3l3YnNVdXI0T1Nzdi9oZmdwTXYxMmczdTB2TE1NV0ZSY0lFUysxWkMrOTZFNnRkNXUyQmtTbmZSQXovb3hJMlUxTTRIb1ppTUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNDI3Mzg4CWZpbGU6S29lZ2FraV8xLjEwLjBfeDY0LXNldHVwLmV4ZQpSWnlSMGpHY29YcGRzUllQVGgwZGoyb0FremhzZ0ljd3hxaVIwUTNBeWxhRlEwN2pwOTNTeTR5bTgzUFBjc3EremZNMHYwaEtBOUE3SzFFSHc4SmRBUT09Cg==",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.10.0/Koegaki-1.10.0-setup.exe"
     }
   }
 }
