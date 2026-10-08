@@ -3,18 +3,18 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.10.0</title>
-            <pubDate>Wed, 07 Oct 2026 22:38:22 -0400</pubDate>
-            <sparkle:version>27</sparkle:version>
-            <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
+            <title>1.11.0</title>
+            <pubDate>Thu, 08 Oct 2026 08:05:37 -0400</pubDate>
+            <sparkle:version>28</sparkle:version>
+            <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.10.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.11.0</h2>
 <ul>
-    <li>Custom words now also fix close misspellings, so a name heard almost right is written the way you saved it.</li>
-    <li>On Windows, custom words now help Koegaki hear your names and terms, not just spell them. Words on your list are recognized more often, and they still never leave your PC.</li>
+    <li>When all Koegaki hears is a laugh, a hum or a lone um, it now types nothing.</li>
+    <li>On Windows, removing Koegaki through winget now runs quietly, with no uninstall wizard.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.10.0/Koegaki-1.10.0.dmg" length="31431976" type="application/octet-stream" sparkle:edSignature="8bEWmdDhsWO8G6d8QwsP8GtmmNjkvke1J39hmRCXozR5dfRgUC+kNREeE1kxLWzVV/GVhtbjXVFuY2sMr4iSCA=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.0/Koegaki-1.11.0.dmg" length="31457000" type="application/octet-stream" sparkle:edSignature="Vm62Mf/Ex1tqBupfZLGvA7IWXFlXCG+ZI9V7FMB1GOGNcHIIVNu1GrPrGpTMcXQGBOBFN1OnUe4sH8YTbLX6Cw=="/>
         </item>
     </channel>
 </rss>
