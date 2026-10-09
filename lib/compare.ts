@@ -34,15 +34,16 @@ const koegakiCommon = {
   price: `${price}, ${trial}. Every feature included, free updates for life.`,
   platforms: "macOS 14+ and Windows 10 & 11, one licence for both.",
   trigger: "Hold a shortcut you choose (push-to-talk), or toggle with one press.",
-  vocab: "Custom words in Latin, Greek or Cyrillic letters, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This changes how a word is written, not what is heard. Replacements turn a phrase you say into the text you choose.",
+  vocab: "Custom words in Latin, Greek or Cyrillic letters, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your computer. Replacements turn a phrase you say into the text you choose.",
   offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
 };
 
 /**
- * The custom vocabulary row of a comparison about Windows only. Since Windows
- * 1.10.0 custom words also bias the English model toward their words (Koegaki
- * spec 2026-10-06), which the Mac does not do yet, so koegakiCommon.vocab
- * stays true only where the Mac is described.
+ * The custom vocabulary row of a comparison about Windows only, which says the
+ * words stay on your PC. Custom words bias the English model toward their
+ * words on Windows since 1.10.0 (Koegaki spec 2026-10-06) and on the Mac since
+ * 1.12.0 (spec 2026-10-08-mac-decode-time-biasing), so koegakiCommon.vocab
+ * says the same for both platforms, with your computer in place of your PC.
  */
 const windowsVocab = "Custom words in Latin, Greek or Cyrillic letters, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC. Replacements turn a phrase you say into the text you choose.";
 
@@ -98,7 +99,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
     asOf: "September 2026",
-    lastModified: "2026-10-05",
+    lastModified: "2026-10-08",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
       { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. On desktop, a recording that failed to send can be retried from History after you reconnect." },
@@ -140,7 +141,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Your Mac can already take dictation. Here is what changes when you use Koegaki instead, and when the built-in one is enough.",
     asOf: "September 2026",
-    lastModified: "2026-10-05",
+    lastModified: "2026-10-08",
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On-device for general text in supported languages once the language is downloaded, as shown in Keyboard settings; dictation into search boxes and other languages go to Apple's servers." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "A key press toggles dictation on; it stays on until you stop it, or stops after 30 seconds of silence." },
