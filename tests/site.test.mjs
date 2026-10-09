@@ -369,15 +369,20 @@ function exampleProblems(block) {
 /**
  * Sentences in a passage about custom words that use a word the check refuses
  * but were reviewed against the app (Koegaki spec 2026-10-04 and the code at
- * afd62e12) and say nothing it does not do, each with the reason. The check
- * fails closed: an honest sentence that trips it is reviewed and added here;
- * there is no other way past it. The route test drops an entry the site no
- * longer says.
+ * afd62e12; for Windows, spec 2026-10-06-windows-hotwords and the 1.10.0
+ * release, 4adbf089) and say nothing it does not do, each with the reason. The
+ * check fails closed: an honest sentence that trips it is reviewed and added
+ * here; there is no other way past it. The route test drops an entry the site
+ * no longer says.
  */
 const REVIEWED_SENTENCES = new Map([
   [
     "And the model is always on your Mac, for every language it supports, with nothing falling back to a server.",
     "about the speech model, which does run on the Mac for every language it supports, not about custom words",
+  ],
+  [
+    "With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC.",
+    "Windows only (the /windows page and /vs/windows-voice-typing): since 1.10.0 the custom words list is passed to the English model, the default, as hotwords for its beam search, so those words are recognised more often (spec 2026-10-06 items 1 and 2), while the Multilingual model is not biased; the list stays on the PC; the app's What's new says the same (spec item 6, 4adbf089)",
   ],
 ]);
 
@@ -387,11 +392,14 @@ const sentencesOf = (block) => block.split(/(?<=[.!?])\s+/);
 /**
  * What a page says about custom words that the app does not do (Koegaki spec
  * 2026-10-04). A custom word changes how a run of words the recognizer already
- * heard is written, never what Koegaki hears (item 2), and recognizer biasing
- * is out of that spec's scope, so no sentence about custom words may use the
- * words of learning, training, teaching, biasing, recognition, understanding,
- * accuracy, unknown words or misspellings, in any form of those words. They ship on both platforms, so
- * none may call them missing; they apply only to Latin, Greek and Cyrillic
+ * heard is written (item 2). On Windows since 1.10.0 the list also biases the
+ * English model toward its words (spec 2026-10-06, which amends item 2 for
+ * Windows); the Multilingual model is not biased, and the Mac does not bias
+ * yet. So no sentence about custom words may use the words of learning,
+ * training, teaching, biasing, recognition, understanding, accuracy, unknown
+ * words or misspellings, in any form of those words, unless it is reviewed
+ * against those limits and listed in REVIEWED_SENTENCES. They ship on both
+ * platforms, so none may call them missing; they apply only to Latin, Greek and Cyrillic
  * terms (item 4), so none may promise every language or script; and every
  * example it quotes must be one the app's case table proves.
  *

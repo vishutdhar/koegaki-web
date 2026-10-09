@@ -106,7 +106,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     linkLabel: "Dictation for Windows",
     operatingSystem: "Windows 10, Windows 11",
-    lastModified: "2026-10-05",
+    lastModified: "2026-10-08",
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
     description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in almost any program. Recognition runs on your PC, not the cloud. ${price} one-time.`,
@@ -133,7 +133,7 @@ export const LANDING_PAGES: LandingPage[] = [
         paragraphs: [
           "The Vocabulary page holds two lists. Custom words are the names, products and jargon you use, one per row, spelled exactly as you want them. When Koegaki hears one split into separate words, hyphenated, or with an apostrophe left out or changed, it writes your spelling, so “post hog” becomes PostHog.",
           "A lone lowercase letter stays a word of its own unless your spelling keeps it apart or every word is a single letter, so “x code” stays as it is, while “X code” becomes Xcode and “a w s” becomes AWS. Koegaki also fixes the capitals of a name like GitHub or Freedom Terminal, so “github” becomes GitHub. A single word that is all capitals or capitalised only at its start, such as US or Swift, is never rewritten for case alone, so “tell us now” stays as it is. Custom words apply to terms written in Latin, Greek or Cyrillic letters.",
-          "Replacements turn a phrase you say into the text you choose, such as a short word for your email address. They run last, so where both lists match the same words, the replacement wins. Both lists are rules applied on your PC, the same way every time. They change how words are written, not what Koegaki hears: a custom word fixes a term Koegaki already hears in some form, and a word it hears as something else needs a replacement.",
+          "Replacements turn a phrase you say into the text you choose, such as a short word for your email address. They run last, so where both lists match the same words, the replacement wins. Your spellings and your replacements are rules applied on your PC, the same way every time. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC. That help makes a word more likely to be heard, not certain, so for a word Koegaki still hears as something else, add a replacement.",
         ],
       },
       {
@@ -157,7 +157,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Can I add my own words?",
-        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This works for terms in Latin, Greek or Cyrillic letters, and it changes how a word is written, not what Koegaki hears, so for a word it hears as something else, add a replacement on the same page.",
+        a: "Yes. Add names, products and jargon under Custom words on the Vocabulary page, spelled the way you want them. When Koegaki hears one split, hyphenated or with a different apostrophe, it writes your spelling, so “post hog” becomes PostHog, though a lone lowercase letter, as in “x code”, usually stays a word of its own. This works for terms in Latin, Greek or Cyrillic letters. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your PC. For a word Koegaki still hears as something else, add a replacement on the same page.",
       },
       {
         q: "Does it work without internet?",
