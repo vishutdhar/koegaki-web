@@ -8,7 +8,7 @@ import { COMPARISONS } from "@/lib/compare";
  * last changed. Bump the date in the same change that edits the page; the
  * landing and comparison pages carry theirs in lib/pages.ts and lib/compare.ts.
  */
-const HOME_LAST_MODIFIED = "2026-10-05";
+const HOME_LAST_MODIFIED = "2026-10-08";
 const PRIVACY_LAST_MODIFIED = "2026-10-05";
 
 export default function sitemap(): MetadataRoute.Sitemap {
