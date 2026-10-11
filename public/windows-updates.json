@@ -1,11 +1,11 @@
 {
-  "version": "1.11.1",
-  "notes": "Custom words and replacements now match in every case, including letters that change length when folded, such as ß and SS.",
-  "pub_date": "2026-10-08T16:42:17Z",
+  "version": "1.12.3",
+  "notes": "From this version on, after Koegaki restarts itself for a model update or to recover the microphone, an app update installed later opens the new version instead of leaving it waiting unseen in the background. When Koegaki restarts itself, for a model update or to recover the microphone, it now gives changes made in Settings time to save first. If a change cannot be saved when you choose Restart now for a model update, Koegaki says so and does not restart. If Koegaki restarts itself for a model update or to recover the microphone and the new copy cannot launch, the one you were using now keeps running instead of closing.",
+  "pub_date": "2026-10-11T16:19:40Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3BsaWFYVmplUDY5ZFJLbjg1UnZwV3k3VGsrV0hPZXg5eTFTV2FXdGJTeGFWcVNSeUlGb3ppR0VRM216T2Mwd1JHSEcwMFl5S2FWQXRoZ0VtMkF0L1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNDc2NjI3CWZpbGU6S29lZ2FraV8xLjExLjFfeDY0LXNldHVwLmV4ZQpycExHWVdNRzZSNkZFTkVMN2pDWEs2Y1hDRWVEUWJoQmhUOHpBTjVadXdFRnd4eXIyaWdMM3ArMWNxaXJlMFU1OE9nUmlsM3JJQ1RWU241Yjd1czVEdz09Cg==",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.11.1/Koegaki-1.11.1-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3E3TEhsS0pTaUJQWVFVUWZUcTJHRjVJTUlLS1VVUU1Zb3BZamkxckJyUnJDWStJb3A4eHNiUUIzOTZYd0V3Wkl0UmFrL3JUWGFveXZrM200ZXVMZ1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNzM1NDg0CWZpbGU6S29lZ2FraV8xLjEyLjNfeDY0LXNldHVwLmV4ZQpraVBWNm1JZHNSQnl5R2RqTVZRYTZYZmdGVEZhNW5tbzJWMStnaFNkU0lOenFhYXVvWURIVTNyKzdHYklFV0tueVIrRWJ3VG94UFltb2xIKzd6WnRCdz09Cg==",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.12.3/Koegaki-1.12.3-setup.exe"
     }
   }
 }
