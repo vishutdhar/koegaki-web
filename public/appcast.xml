@@ -3,20 +3,22 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.12.3</title>
-            <pubDate>Sat, 10 Oct 2026 06:53:23 -0400</pubDate>
-            <sparkle:version>33</sparkle:version>
-            <sparkle:shortVersionString>1.12.3</sparkle:shortVersionString>
+            <title>1.13.0</title>
+            <pubDate>Mon, 12 Oct 2026 07:02:09 -0400</pubDate>
+            <sparkle:version>34</sparkle:version>
+            <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.12.3</h2>
+            <description><![CDATA[<h2>Koegaki 1.13.0</h2>
 <ul>
-    <li>On the Mac, cleanup now reads a word that opens with an accent or vowel mark as one word, as Koegaki on Windows does.</li>
-    <li>On Windows, from this version on, after Koegaki restarts itself for a model update or to recover the microphone, an app update installed later opens the new version instead of leaving it waiting unseen in the background.</li>
-    <li>On Windows, when Koegaki restarts itself, for a model update or to recover the microphone, it now gives changes made in Settings time to save first. If a change cannot be saved when you choose Restart now for a model update, Koegaki says so and does not restart.</li>
-    <li>On Windows, if Koegaki restarts itself for a model update or to recover the microphone and the new copy cannot launch, the one you were using now keeps running instead of closing.</li>
+    <li>On the Mac, the cleanup model now downloads on its own after the speech model, so Clean turns on at once when you want it. Clean stays off until you turn it on, and once the model is on this Mac, the Home card offers to turn it on in one click.</li>
+    <li>On the Mac, the cleanup download waits while your Mac is on a connection it treats as costly, and does not start on an Intel Mac or when the disk lacks 2 GB to spare beyond the model. It and the speech model update after an app update also do not start while this Mac runs on battery below 20 percent, and go ahead once it is plugged in. Settings shows where each stands, and offers Download now when the connection or the battery holds one back, and when the disk holds back the cleanup model.</li>
+    <li>On Windows, the cleanup model now downloads on its own after the speech model, so Clean turns on at once when you want it. Clean stays off until you turn it on, and once the model is on this PC, the Home card offers to turn it on in one click.</li>
+    <li>On Windows, the cleanup download waits while your connection is metered, and does not start when the disk lacks 2 GB to spare beyond the model. Settings shows where it stands, and offers Download now when the connection or the disk holds it back.</li>
+    <li>On Windows, choosing Quit Koegaki in the tray, or Install and restart for an app update, now gives changes made in Settings time to save before Koegaki closes, as its own restarts already did.</li>
+    <li>On Windows, when Koegaki reopens itself after a crash, it now always checks the speech model files in full before loading them, even if the record of an earlier check could not be removed.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.12.3/Koegaki-1.12.3.dmg" length="31627394" type="application/octet-stream" sparkle:edSignature="fsU5rKRBUMIwRtSO5rsyMOZw3B5IvHNyCkL/nIn5E1EQbG1qLCCUtTC346/7YLcoAea1d8nChKnA+GJJWCMIDw=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.0/Koegaki-1.13.0.dmg" length="31694015" type="application/octet-stream" sparkle:edSignature="ShFDG2oBVWas2y73V0wHbkAEZ+1ilise+uxnoZp+8z4PSK8bfEldjt8z7O11XglOhfU8QN5vzsUfjl5DVNCpAw=="/>
         </item>
     </channel>
 </rss>
