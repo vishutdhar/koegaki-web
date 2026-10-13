@@ -942,85 +942,36 @@ function modelIndexProblems(index) {
 }
 
 /**
- * What JSON.parse forgives in the text of public/models.json that an app
- * reader refuses or reads differently, so the parsed check above would pass
- * an index a reader throws away or sees otherwise. Only members a reader
- * declares count; serde and the Mac decoder skip every other member whole.
- * - A number written with a fraction or an exponent where the Rust reader
- *   wants an integer literal: the schema, and bytes in the windows and linux
- *   blocks. JSON.parse reads 1673007552.0 as an integer and serde refuses it.
- *   The Mac decoder, the only reader of the mac block, accepts that form.
- * - A declared member named twice in one object. JSON.parse keeps the last;
- *   serde refuses a repeated field; the Mac decoder keeps the first. A set id
- *   twice in the linux block is the one exception: only serde reads it, and
- *   its map keeps the last, as JSON.parse does.
- * Expects text JSON.parse accepts.
+ * public/models.json is written in one canonical form: the text
+ * JSON.stringify(index, null, 2) writes, plus a newline, as every version of
+ * it has been, with every string well formed. JSON.parse forgives forms the
+ * readers refuse or read otherwise, so the parsed check above could pass an
+ * index a reader throws away or sees differently: 1673007552.0 parses here as
+ * an integer and serde refuses it for u64; a member named twice parses as its
+ * last value, where serde refuses a repeated field (and decodes every value of
+ * a repeated set id) and the Mac decoder keeps the first; a lone surrogate
+ * escape parses to a string serde refuses. None of them survives the round
+ * trip or the well formed test, so the parsed check sees what every reader
+ * sees. The rule is stricter than the readers on purpose; for a file a tool
+ * writes, one form costs nothing.
  */
 function modelIndexTextProblems(text) {
-  const BLOCKS = ["mac", "windows", "linux"];
-  const ENTRY_FIELDS = ["identity", "vad", "manifest", "label", "bytes", "min_app", "notes"];
-  // A member at `path` (the names leading to its object) that a reader declares.
-  const declared = (path, name) =>
-    path.length === 0
-      ? name === "schema" || BLOCKS.includes(name)
-      : BLOCKS.includes(path[0]) && (path.length === 1 || (path.length === 2 && ENTRY_FIELDS.includes(name)));
-  const repeatRefused = (path, name) => declared(path, name) && !(path.length === 1 && path[0] === "linux");
-  const integerOnly = (path) =>
-    (path.length === 1 && path[0] === "schema") ||
-    (path.length === 3 && (path[0] === "windows" || path[0] === "linux") && path[2] === "bytes");
+  const index = JSON.parse(text);
   const problems = [];
-  let i = 0;
-  const space = () => {
-    while (" \t\n\r".includes(text[i])) i++;
-  };
-  const string = () => {
-    const start = i++;
-    while (text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
-    i++;
-    return JSON.parse(text.slice(start, i));
-  };
-  const scalar = /-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null/y;
-  // One value at `path`, undeclared members included, so the scan keeps its place.
-  const value = (path) => {
-    space();
-    if (text[i] === "{") {
-      i++;
-      const seen = new Set();
-      space();
-      if (text[i] === "}") return void i++;
-      for (;;) {
-        space();
-        const name = string();
-        space();
-        i++; // the colon
-        if (seen.has(name) && repeatRefused(path, name)) {
-          problems.push(`${[...path, name].join(".")} is named twice in one object`);
-        }
-        seen.add(name);
-        value([...path, name]);
-        space();
-        if (text[i++] === "}") return;
-      }
-    }
-    if (text[i] === "[") {
-      i++;
-      space();
-      if (text[i] === "]") return void i++;
-      for (;;) {
-        value([...path, "[]"]);
-        space();
-        if (text[i++] === "]") return;
-      }
-    }
-    if (text[i] === '"') return void string();
-    scalar.lastIndex = i;
-    const token = scalar.exec(text)[0];
-    i += token.length;
-    if (integerOnly(path) && !/^-?[0-9]+$/.test(token)) {
-      problems.push(`${path.join(".")} is ${token}, not written as an integer`);
-    }
-  };
-  value([]);
+  const canonical = `${JSON.stringify(index, null, 2)}\n`;
+  if (text !== canonical) {
+    const [given, written] = [text.split("\n"), canonical.split("\n")];
+    let line = 0;
+    while (given[line] === written[line]) line++;
+    problems.push(
+      `line ${line + 1} reads ${JSON.stringify(given[line] ?? "")} where JSON.stringify(index, null, 2) writes ${JSON.stringify(written[line] ?? "")}`,
+    );
+  }
+  const strings = (v) =>
+    typeof v === "string" ? [v] : v && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...strings(x)]) : [];
+  for (const s of strings(index)) {
+    if (!s.isWellFormed()) problems.push(`the string ${JSON.stringify(s)} is not well formed`);
+  }
   return problems;
 }
 
@@ -1029,7 +980,7 @@ test("every model index entry passes the rules both app readers apply", () => {
   assert.deepEqual(modelIndexTextProblems(readFileSync(new URL("../public/models.json", import.meta.url), "utf8")), []);
 });
 
-test("the model index text check refuses number forms and repeated members the readers refuse", () => {
+test("the model index text check refuses every form but the canonical one", () => {
   const text = readFileSync(new URL("../public/models.json", import.meta.url), "utf8");
   // The linux cleanup entry is the only one at 1.14.0 with these bytes.
   const linuxCleanup = '"bytes": 1673007552,\n      "min_app": "1.14.0"';
@@ -1038,38 +989,44 @@ test("the model index text check refuses number forms and repeated members the r
     return text.replace(from, to);
   };
   const mutations = [
+    // Each of these parses here and a reader refuses it or reads it otherwise.
     ["linux bytes with a fraction", edit(linuxCleanup, linuxCleanup.replace("1673007552", "1673007552.0"))],
     ["linux bytes with an exponent", edit(linuxCleanup, linuxCleanup.replace("1673007552", "1.673007552e9"))],
-    ["a schema with a fraction", edit('"schema": 1,', '"schema": 1.0,')],
-    ["the linux block twice", edit('\n  "linux": {', '\n  "linux": {},\n  "linux": {')],
-    ["a linux entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "min_app": "1.14.0"`)],
     ["windows bytes with a fraction", edit('"bytes": 488914608,\n      "min_app": "1.7.0"', '"bytes": 488914608.0,\n      "min_app": "1.7.0"')],
+    ["a schema with a fraction", edit('"schema": 1,', '"schema": 1.0,')],
+    ["the schema twice", edit('"schema": 1,', '"schema": 1,\n  "schema": 1,')],
+    ["the linux block twice", edit('\n  "linux": {', '\n  "linux": {},\n  "linux": {')],
     ["the windows block twice", edit('\n  "windows": {', '\n  "windows": {},\n  "windows": {')],
     ["the mac block twice", edit('\n  "mac": {', '\n  "mac": {},\n  "mac": {')],
+    ["a malformed linux set id before the real one", edit('\n  "linux": {', '\n  "linux": {\n    "cleanup": {},')],
     ["a mac set id twice", edit('\n  "mac": {', '\n  "mac": {\n    "cleanup": {},')],
     ["a windows set id twice", edit('\n  "windows": {', '\n  "windows": {\n    "cleanup": {},')],
-    ["a mac entry field twice", edit('"min_app": "1.3.1",', '"min_app": "1.3.1",\n      "min_app": "1.3.1",')],
+    ["a linux entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "min_app": "1.14.0"`)],
+    ["a member name spelled with an escape", edit(linuxCleanup, linuxCleanup.replace('"bytes"', '"by\\u0074es"'))],
+    ["a lone surrogate in a label", edit('"label": "Cleanup model"', '"label": "\\ud800"')],
+    // Stricter than the readers on purpose: one canonical form.
+    ["a mac entry field repeated with the same value", edit('"min_app": "1.3.1",', '"min_app": "1.3.1",\n      "min_app": "1.3.1",')],
+    ["mac bytes with a zero fraction", edit('"bytes": 1673007552,\n      "min_app": "1.3.1"', '"bytes": 1673007552.0,\n      "min_app": "1.3.1"')],
+    ["four space indentation", text.replace(/\n( +)/g, (m, sp) => `\n${sp}${sp}`)],
   ];
-  for (const [name, mutated] of mutations) JSON.parse(mutated);
+  for (const [, mutated] of mutations) assert.notEqual(mutated, text);
+  for (const [, mutated] of mutations) JSON.parse(mutated);
   const missed = mutations.filter(([, mutated]) => modelIndexTextProblems(mutated).length === 0);
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  // Written the canonical way, whatever they hold.
+  const canonical = (mutate) => {
+    const index = JSON.parse(text);
+    mutate(index);
+    return `${JSON.stringify(index, null, 2)}\n`;
+  };
   const accepted = [
     ["the index as published", text],
-    ["a string holding a dot and digits", edit('"label": "Cleanup model"', '"label": "Cleanup model 1.5e3"')],
-    ["a string holding an escaped quote", edit('"notes": ""', '"notes": "a \\"1.0\\": x"')],
-    // Members no reader reads: serde and the Mac decoder skip them whole.
-    ["a fraction inside an unknown entry field", edit(linuxCleanup, `${linuxCleanup},\n      "metadata": [1.5]`)],
-    ["a member repeated inside an unknown entry field", edit(linuxCleanup, `${linuxCleanup},\n      "metadata": {"x": 1, "x": 2}`)],
-    ["an unknown entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "metadata": 1,\n      "metadata": 2`)],
-    ["an unknown top level member with a fraction, twice", edit('"schema": 1,', '"schema": 1,\n  "generated": 1.5,\n  "generated": 2.5,')],
-    // The Mac decoder reads 1673007552.0 as the integer it is; only the Rust
-    // reader, which never reads the mac block, refuses that form.
-    ["mac bytes with a zero fraction", edit('"bytes": 1673007552,\n      "min_app": "1.3.1"', '"bytes": 1673007552.0,\n      "min_app": "1.3.1"')],
-    // Only the Rust reader reads the linux block, and it keeps the last of a
-    // repeated set id, as JSON.parse does.
-    ["a linux set id twice", edit('\n  "linux": {', '\n  "linux": {\n    "cleanup": {},')],
+    ["a string holding a dot and digits", canonical((i) => (i.linux.cleanup.label = "Cleanup model 1.5e3"))],
+    ["a string holding an escaped quote", canonical((i) => (i.mac.cleanup.notes = 'a "1.0": x'))],
+    ["a string beyond ASCII, a surrogate pair included", canonical((i) => (i.windows.cleanup.notes = "caf\u00e9 \u{1D11E}"))],
+    ["a fraction inside an unknown entry field", canonical((i) => (i.linux.cleanup.metadata = [1.5]))],
+    ["an unknown top level member with a fraction", canonical((i) => (i.generated = 1.5))],
   ];
-  for (const [, t] of accepted) JSON.parse(t);
   const refused = accepted.map(([name, t]) => [name, modelIndexTextProblems(t)]).filter(([, problems]) => problems.length);
   assert.deepEqual(refused, [], "these were refused");
 });
