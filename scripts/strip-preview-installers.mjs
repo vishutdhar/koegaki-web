@@ -122,6 +122,8 @@ function incompleteRecord(record, version) {
   for (const kind of Object.keys(artifacts)) {
     if (kind !== "dmg" && kind !== "exe" && kind !== "deb") problems.push(`${JSON.stringify(kind)}, which is not a dmg, an exe or a deb`);
   }
+  // The fields the publishing tool writes for each kind; the installer and the deb carry their updater signature.
+  const fields = { dmg: "blake2b512,sha256,size,url", exe: "blake2b512,sha256,signature,size,url", deb: "blake2b512,sha256,signature,size,url" };
   for (const [kind, name] of [["dmg", `Koegaki-${version}.dmg`], ["exe", `Koegaki-${version}-setup.exe`], ["deb", `Koegaki-${version}-amd64.deb`]]) {
     if (kind !== "exe" && !Object.hasOwn(artifacts, kind)) continue;
     const artifact = artifacts[kind];
@@ -129,6 +131,9 @@ function incompleteRecord(record, version) {
       problems.push(`no ${kind}`);
       continue;
     }
+    // A missing field is named below by its own check; an extra one is named here.
+    const extra = Object.keys(artifact).filter((key) => !fields[kind].split(",").includes(key));
+    if (extra.length) problems.push(`${kind} fields ${JSON.stringify(extra)}`);
     if (artifact.url !== `${GITHUB_DOWNLOAD}/v${version}/${name}`) problems.push(`${kind} url ${JSON.stringify(artifact.url)}`);
     if (!Number.isSafeInteger(artifact.size) || artifact.size <= 0) problems.push(`${kind} size ${JSON.stringify(artifact.size)}`);
     if (typeof artifact.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(artifact.sha256)) problems.push(`${kind} sha256 ${JSON.stringify(artifact.sha256)}`);

@@ -349,6 +349,10 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     ["a record whose deb is on another tag", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, url: GITHUB_DEB.url.replace("/v1.2.0/", "/v1.1.0/") })), incomplete],
     ["a record whose deb size is text", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, size: "5" })), incomplete],
     ["a record whose deb digest is short", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, sha256: "e".repeat(63) })), incomplete],
+    // Each artifact holds exactly the fields the publishing tool writes for its kind.
+    ["a record whose deb holds another field", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, notes: "x" })), incomplete],
+    ["a record whose installer holds another field", writeRecord((r) => (r.artifacts.exe.notes = "x")), incomplete],
+    ["a record whose disk image holds a signature", writeRecord((r) => (r.artifacts.dmg.signature = "x")), incomplete],
     ["a record whose disk image is on another tag", writeRecord((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace("/v1.2.0/", "/v1.1.0/"))), incomplete],
     ["a record whose disk image digest is uppercase", writeRecord((r) => (r.artifacts.dmg.sha256 = "A".repeat(64))), incomplete],
     ["a record with no installer signature", writeRecord((r) => delete r.artifacts.exe.signature), /records another installer signature than public\/windows-updates\.json carries/],

@@ -72,7 +72,8 @@ three platform site with no further site code, and nothing Linux may show before
    dmg only, exe only, deb only, any two, all three. A deb holds exactly `url`, `size`, `sha256`,
    `blake2b512` and `signature`; its url is the release's `Koegaki-<ver>-amd64.deb` asset; its
    signature is a non empty string. Any other artifact kind is refused, as today. This follows the
-   publish tool, which writes the signature; a record without one is refused.
+   publish tool, which writes the signature; a record without one is refused. The pre-build step
+   holds every artifact of the record it checks to exactly its kind's fields, as the tests do.
 2. **The record's deb signature verifies.** Over the BLAKE2b-512 digest the record states, with the
    Linux updater key, and its trusted comment names `com.vishutdhar.Koegaki_<ver>_amd64.deb`.
 3. **`RELEASE_FETCH=1` fetches the deb.** For every release the site serves from GitHub, the Linux
@@ -86,9 +87,11 @@ three platform site with no further site code, and nothing Linux may show before
 ### The Linux feed
 
 5. **No Linux feed in this unit.** `public/linux-updates.json` is unit 5's: its signature and its
-   platform key are that unit's call. A test fails if the file appears, with "no release record
-   holds a deb" while none does, and with "the Linux feed has no checks yet" once one does, so the
-   feed can never ship unchecked. What unit 5 needs from the site, so it can replace that test:
+   platform key are that unit's call. A test fails if a Linux feed appears anywhere in `public/`
+   (a JSON file at any depth whose name says Linux, or any JSON file whose updater platforms name
+   a Linux target, so a feed shared with Windows counts), with "no release record holds a deb"
+   while none does, and with "the Linux feed has no checks yet" once one does, so the feed can
+   never ship unchecked. What unit 5 needs from the site, so it can replace that test:
    - the feed in the Tauri static shape the Windows feed uses (`version`, `notes`, `pub_date`,
      `platforms`), with the entry under the key the Linux updater reads for a deb install,
      `linux-x86_64-deb` (or `linux-x86_64`, which it reads next), holding `url` and `signature`;

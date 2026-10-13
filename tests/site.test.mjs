@@ -33,9 +33,10 @@
 import { test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 import { SaxesParser } from "saxes";
 import { LINUX_COPY_DATE, LINUX_RELEASE, SITE } from "../lib/site.ts";
@@ -3453,11 +3454,57 @@ test("the site these tests import offers exactly the Linux release the build fou
   if (release) for (const path of ROUTES) assert.ok(html(path).includes(release.url), `${path} does not offer the Linux download`);
 });
 
+/**
+ * The Linux update feeds a public folder would serve: every JSON file, at any
+ * depth, whose name says Linux, and every JSON file whose updater platforms
+ * name a Linux target, so a feed shared with Windows is one too. models.json
+ * is not a feed: its linux block is the Linux build's model list (Koegaki spec
+ * 2026-10-13-model-index-linux), and it has no platforms.
+ */
+function linuxFeedsIn(dir) {
+  return filesUnder(dir)
+    .filter((file) => file.endsWith(".json"))
+    .filter((file) => {
+      if (/linux/i.test(file)) return true;
+      let parsed;
+      try {
+        parsed = JSON.parse(readFileSync(new URL(file, dir), "utf8"));
+      } catch {
+        return false;
+      }
+      return isPlainObject(parsed?.platforms) && Object.keys(parsed.platforms).some((key) => /linux/i.test(key));
+    })
+    .sort();
+}
+
+test("the Linux feed check finds a feed by its name at any depth, or by a Linux platform in any feed", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "koegaki-feeds-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const write = (name, value) => {
+    mkdirSync(join(dir, dirname(name)), { recursive: true });
+    writeFileSync(join(dir, name), typeof value === "string" ? value : JSON.stringify(value));
+  };
+  const windows = { version: "1.13.1", platforms: { "windows-x86_64": { url: "u", signature: "s" } } };
+  write("windows-updates.json", windows);
+  write("models.json", { schema: 1, mac: {}, windows: {}, linux: { cleanup: {} } });
+  write("downloads/Koegaki-1.9.0-setup.exe", "MZ");
+  write("broken.json", "{");
+  write("linux-tux.png", "an image, not a feed");
+  const root = pathToFileURL(`${dir}/`);
+  assert.deepEqual(linuxFeedsIn(root), [], "a Windows feed, the model index, an installer, a broken file and an image are not Linux feeds");
+  write("linux-updates.json", {});
+  write("updates/Linux-Updates.json", {});
+  write("shared-updates.json", { ...windows, platforms: { ...windows.platforms, "linux-x86_64-deb": { url: "u", signature: "s" } } });
+  write("nested/deeper/feed.json", { platforms: { "linux-x86_64": {} } });
+  assert.deepEqual(linuxFeedsIn(root), ["linux-updates.json", "nested/deeper/feed.json", "shared-updates.json", "updates/Linux-Updates.json"]);
+});
+
 test("no Linux update feed is served until unit 5 adds its checks", () => {
   // Spec rule 5: the feed, its platform key and its signature are unit 5's
   // call. Until that unit replaces this test with the feed's own checks, a
-  // Linux feed must not ship, with a Linux release or without one.
-  const named = readdirSync(new URL("../public/", import.meta.url)).filter((name) => /linux/i.test(name));
+  // Linux feed must not ship, with a Linux release or without one, at any
+  // path in public/ and not as a Linux entry in another feed.
+  const named = linuxFeedsIn(new URL("../public/", import.meta.url));
   const debRecorded = releaseRecords().some(({ record }) => isPlainObject(record?.artifacts?.deb));
   assert.deepEqual(
     named,
