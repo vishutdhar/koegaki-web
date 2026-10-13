@@ -109,11 +109,16 @@ function checkOfferedInstaller(publicDir, frozen) {
  * for this version, as text, or "". The installer is always recorded, since
  * the manifest offers it. A release that ships on Windows alone has no disk
  * image, so its record leaves the dmg out; a dmg the record does state is held
- * to the same url, size and digests as the installer.
+ * to the same url, size and digests as the installer. Any other artifact is
+ * refused, as the site tests refuse it, so a misspelled dmg never passes for
+ * a Windows only record.
  */
 function incompleteRecord(record, version) {
   const problems = [];
   const artifacts = record.artifacts && typeof record.artifacts === "object" ? record.artifacts : {};
+  for (const kind of Object.keys(artifacts)) {
+    if (kind !== "dmg" && kind !== "exe") problems.push(`${JSON.stringify(kind)}, which is neither a dmg nor an exe`);
+  }
   for (const [kind, name] of [["dmg", `Koegaki-${version}.dmg`], ["exe", `Koegaki-${version}-setup.exe`]]) {
     if (kind === "dmg" && !Object.hasOwn(artifacts, kind)) continue;
     const artifact = artifacts[kind];

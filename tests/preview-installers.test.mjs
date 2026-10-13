@@ -313,6 +313,17 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     ["a record whose disk image is null", writeRecord((r) => (r.artifacts.dmg = null)), incomplete],
     ["a record whose disk image is text", writeRecord((r) => (r.artifacts.dmg = "Koegaki-1.2.0.dmg")), incomplete],
     ["a record whose disk image has no size", writeRecord((r) => delete r.artifacts.dmg.size), incomplete],
+    // The site tests accept a record that states a dmg, an exe or both, and
+    // nothing else, so a build refuses any other artifact as they do.
+    [
+      "a record whose disk image key is misspelled",
+      writeRecord((r) => {
+        r.artifacts.dmgg = r.artifacts.dmg;
+        delete r.artifacts.dmg;
+      }),
+      incomplete,
+    ],
+    ["a record with an artifact the site does not serve", writeRecord((r) => (r.artifacts.deb = { ...r.artifacts.dmg, url: r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki-1.2.0-amd64.deb") })), incomplete],
     ["a record whose disk image is on another tag", writeRecord((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace("/v1.2.0/", "/v1.1.0/"))), incomplete],
     ["a record whose disk image digest is uppercase", writeRecord((r) => (r.artifacts.dmg.sha256 = "A".repeat(64))), incomplete],
     ["a record with no installer signature", writeRecord((r) => delete r.artifacts.exe.signature), /records another installer signature than public\/windows-updates\.json carries/],
