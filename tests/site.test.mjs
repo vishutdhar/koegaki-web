@@ -3441,24 +3441,25 @@ test("the release download fetches every asset its record states and no other, e
 
 /**
  * Every file under `dir` (a URL), as paths relative to it joined with "/",
- * following symbolic links as Next does when it serves public/, each real
- * folder visited once so a link back up cannot loop. Read one with
- * readUnder: a name may hold "#" or "%", which a URL would read otherwise.
+ * following symbolic links as Next does when it serves public/: a folder
+ * reached under two names is listed under both, since both are served, and
+ * only a link back to a folder it is already inside is not followed, so a
+ * loop ends. Read one with readUnder: a name may hold "#" or "%", which a URL
+ * would read otherwise.
  */
 function filesUnder(dir) {
   const files = [];
-  const seen = new Set();
-  const walk = (folder, prefix) => {
+  const walk = (folder, prefix, inside) => {
     const real = realpathSync(folder);
-    if (seen.has(real)) return;
-    seen.add(real);
+    if (inside.has(real)) return;
+    const within = new Set(inside).add(real);
     for (const name of readdirSync(folder)) {
       const stat = statSync(join(folder, name), { throwIfNoEntry: false });
-      if (stat?.isDirectory()) walk(join(folder, name), `${prefix}${name}/`);
+      if (stat?.isDirectory()) walk(join(folder, name), `${prefix}${name}/`, within);
       else if (stat?.isFile()) files.push(`${prefix}${name}`);
     }
   };
-  walk(fileURLToPath(dir), "");
+  walk(fileURLToPath(dir), "", new Set());
   return files;
 }
 
@@ -3530,11 +3531,15 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
   symlinkSync(join(outside, "feed.json"), join(dir, "linked.json"));
   symlinkSync(join(outside, "more"), join(dir, "linked-folder"));
   symlinkSync(dir, join(dir, "nested", "loop"));
+  // Two names for one folder are two served paths: the one that says Linux counts.
+  write("linux/plain.json", { version: "1.14.0" });
+  symlinkSync(join(dir, "linux"), join(dir, "aaa"));
   assert.deepEqual(linuxFeedsIn(root), [
     "feed",
     "linked-folder/another.json",
     "linked.json",
     "linux-updates.json",
+    "linux/plain.json",
     "nested/100%25.json",
     "nested/deeper/feed.json",
     "nested/updates#stable.json",
