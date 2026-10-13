@@ -942,49 +942,85 @@ function modelIndexProblems(index) {
 }
 
 /**
- * What JSON.parse forgives in the text of public/models.json that the app
- * readers refuse, so the parsed check above cannot see it: a number written
- * with a fraction or an exponent (1673007552.0 parses here as an integer, and
- * the readers' integer fields take integer literals only) and a member named
- * twice in one object (JSON.parse keeps the last, the Rust reader refuses a
- * repeated field). Expects text JSON.parse accepts.
+ * What JSON.parse forgives in the text of public/models.json that an app
+ * reader refuses or reads differently, so the parsed check above would pass
+ * an index a reader throws away or sees otherwise. Only members a reader
+ * declares count; serde and the Mac decoder skip every other member whole.
+ * - A number written with a fraction or an exponent where the Rust reader
+ *   wants an integer literal: the schema, and bytes in the windows and linux
+ *   blocks. JSON.parse reads 1673007552.0 as an integer and serde refuses it.
+ *   The Mac decoder, the only reader of the mac block, accepts that form.
+ * - A declared member named twice in one object. JSON.parse keeps the last;
+ *   serde refuses a repeated field; the Mac decoder keeps the first. A set id
+ *   twice in the linux block is the one exception: only serde reads it, and
+ *   its map keeps the last, as JSON.parse does.
+ * Expects text JSON.parse accepts.
  */
 function modelIndexTextProblems(text) {
+  const BLOCKS = ["mac", "windows", "linux"];
+  const ENTRY_FIELDS = ["identity", "vad", "manifest", "label", "bytes", "min_app", "notes"];
+  // A member at `path` (the names leading to its object) that a reader declares.
+  const declared = (path, name) =>
+    path.length === 0
+      ? name === "schema" || BLOCKS.includes(name)
+      : BLOCKS.includes(path[0]) && (path.length === 1 || (path.length === 2 && ENTRY_FIELDS.includes(name)));
+  const repeatRefused = (path, name) => declared(path, name) && !(path.length === 1 && path[0] === "linux");
+  const integerOnly = (path) =>
+    (path.length === 1 && path[0] === "schema") ||
+    (path.length === 3 && (path[0] === "windows" || path[0] === "linux") && path[2] === "bytes");
   const problems = [];
-  // The member names seen in each open object, innermost last (null for an array).
-  const open = [];
-  const colon = /\s*:/y;
-  const number = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
-  for (let i = 0; i < text.length; ) {
-    const c = text[i];
-    if (c === "{" || c === "[") {
-      open.push(c === "{" ? new Set() : null);
+  let i = 0;
+  const space = () => {
+    while (" \t\n\r".includes(text[i])) i++;
+  };
+  const string = () => {
+    const start = i++;
+    while (text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+    i++;
+    return JSON.parse(text.slice(start, i));
+  };
+  const scalar = /-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null/y;
+  // One value at `path`, undeclared members included, so the scan keeps its place.
+  const value = (path) => {
+    space();
+    if (text[i] === "{") {
       i++;
-    } else if (c === "}" || c === "]") {
-      open.pop();
-      i++;
-    } else if (c === '"') {
-      let j = i + 1;
-      while (text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
-      const token = text.slice(i, j + 1);
-      i = j + 1;
-      // A string followed by a colon names a member of the innermost object.
-      colon.lastIndex = i;
-      if (colon.test(text)) {
-        const members = open.at(-1);
-        const name = JSON.parse(token);
-        if (members.has(name)) problems.push(`the member ${token} is named twice in one object`);
-        members.add(name);
+      const seen = new Set();
+      space();
+      if (text[i] === "}") return void i++;
+      for (;;) {
+        space();
+        const name = string();
+        space();
+        i++; // the colon
+        if (seen.has(name) && repeatRefused(path, name)) {
+          problems.push(`${[...path, name].join(".")} is named twice in one object`);
+        }
+        seen.add(name);
+        value([...path, name]);
+        space();
+        if (text[i++] === "}") return;
       }
-    } else if (c === "-" || (c >= "0" && c <= "9")) {
-      number.lastIndex = i;
-      const token = number.exec(text)[0];
-      if (!/^-?[0-9]+$/.test(token)) problems.push(`the number ${token} is not written as an integer`);
-      i += token.length;
-    } else {
-      i++;
     }
-  }
+    if (text[i] === "[") {
+      i++;
+      space();
+      if (text[i] === "]") return void i++;
+      for (;;) {
+        value([...path, "[]"]);
+        space();
+        if (text[i++] === "]") return;
+      }
+    }
+    if (text[i] === '"') return void string();
+    scalar.lastIndex = i;
+    const token = scalar.exec(text)[0];
+    i += token.length;
+    if (integerOnly(path) && !/^-?[0-9]+$/.test(token)) {
+      problems.push(`${path.join(".")} is ${token}, not written as an integer`);
+    }
+  };
+  value([]);
   return problems;
 }
 
@@ -1007,6 +1043,12 @@ test("the model index text check refuses number forms and repeated members the r
     ["a schema with a fraction", edit('"schema": 1,', '"schema": 1.0,')],
     ["the linux block twice", edit('\n  "linux": {', '\n  "linux": {},\n  "linux": {')],
     ["a linux entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "min_app": "1.14.0"`)],
+    ["windows bytes with a fraction", edit('"bytes": 488914608,\n      "min_app": "1.7.0"', '"bytes": 488914608.0,\n      "min_app": "1.7.0"')],
+    ["the windows block twice", edit('\n  "windows": {', '\n  "windows": {},\n  "windows": {')],
+    ["the mac block twice", edit('\n  "mac": {', '\n  "mac": {},\n  "mac": {')],
+    ["a mac set id twice", edit('\n  "mac": {', '\n  "mac": {\n    "cleanup": {},')],
+    ["a windows set id twice", edit('\n  "windows": {', '\n  "windows": {\n    "cleanup": {},')],
+    ["a mac entry field twice", edit('"min_app": "1.3.1",', '"min_app": "1.3.1",\n      "min_app": "1.3.1",')],
   ];
   for (const [name, mutated] of mutations) JSON.parse(mutated);
   const missed = mutations.filter(([, mutated]) => modelIndexTextProblems(mutated).length === 0);
@@ -1015,7 +1057,19 @@ test("the model index text check refuses number forms and repeated members the r
     ["the index as published", text],
     ["a string holding a dot and digits", edit('"label": "Cleanup model"', '"label": "Cleanup model 1.5e3"')],
     ["a string holding an escaped quote", edit('"notes": ""', '"notes": "a \\"1.0\\": x"')],
+    // Members no reader reads: serde and the Mac decoder skip them whole.
+    ["a fraction inside an unknown entry field", edit(linuxCleanup, `${linuxCleanup},\n      "metadata": [1.5]`)],
+    ["a member repeated inside an unknown entry field", edit(linuxCleanup, `${linuxCleanup},\n      "metadata": {"x": 1, "x": 2}`)],
+    ["an unknown entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "metadata": 1,\n      "metadata": 2`)],
+    ["an unknown top level member with a fraction, twice", edit('"schema": 1,', '"schema": 1,\n  "generated": 1.5,\n  "generated": 2.5,')],
+    // The Mac decoder reads 1673007552.0 as the integer it is; only the Rust
+    // reader, which never reads the mac block, refuses that form.
+    ["mac bytes with a zero fraction", edit('"bytes": 1673007552,\n      "min_app": "1.3.1"', '"bytes": 1673007552.0,\n      "min_app": "1.3.1"')],
+    // Only the Rust reader reads the linux block, and it keeps the last of a
+    // repeated set id, as JSON.parse does.
+    ["a linux set id twice", edit('\n  "linux": {', '\n  "linux": {\n    "cleanup": {},')],
   ];
+  for (const [, t] of accepted) JSON.parse(t);
   const refused = accepted.map(([name, t]) => [name, modelIndexTextProblems(t)]).filter(([, problems]) => problems.length);
   assert.deepEqual(refused, [], "these were refused");
 });
