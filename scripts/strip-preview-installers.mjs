@@ -23,8 +23,9 @@
 // stripped still cannot become production; and that releases/<version>.json,
 // which the publishing tool writes after uploading the release and
 // downloading it back, is a whole record of that release and carries the
-// manifest's signature. The tests verify that signature against the recorded
-// digest. A url on any other host still needs the installer in
+// manifest's signature. A release that ships on Windows alone records its
+// installer and no disk image. The tests verify that signature against the
+// recorded digest. A url on any other host still needs the installer in
 // public/downloads.
 import { closeSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
@@ -103,11 +104,24 @@ function checkOfferedInstaller(publicDir, frozen) {
   return name;
 }
 
-/** What makes `record` other than the whole record the publishing tool writes for this version, as text, or "". */
+/**
+ * What makes `record` other than the whole record the publishing tool writes
+ * for this version, as text, or "". The installer is always recorded, since
+ * the manifest offers it. A release that ships on Windows alone has no disk
+ * image, so its record leaves the dmg out; a dmg the record does state is held
+ * to the same url, size and digests as the installer. Any other artifact is
+ * refused, as the site tests refuse it, so a misspelled dmg never passes for
+ * a Windows only record.
+ */
 function incompleteRecord(record, version) {
   const problems = [];
+  const artifacts = record.artifacts && typeof record.artifacts === "object" ? record.artifacts : {};
+  for (const kind of Object.keys(artifacts)) {
+    if (kind !== "dmg" && kind !== "exe") problems.push(`${JSON.stringify(kind)}, which is neither a dmg nor an exe`);
+  }
   for (const [kind, name] of [["dmg", `Koegaki-${version}.dmg`], ["exe", `Koegaki-${version}-setup.exe`]]) {
-    const artifact = record.artifacts?.[kind];
+    if (kind === "dmg" && !Object.hasOwn(artifacts, kind)) continue;
+    const artifact = artifacts[kind];
     if (!artifact || typeof artifact !== "object") {
       problems.push(`no ${kind}`);
       continue;
