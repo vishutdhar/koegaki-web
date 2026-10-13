@@ -246,7 +246,11 @@ of rule 5 is replaced by the feed's own checks, in `tests/site.test.mjs`:
   platform, `linux-x86_64` (every x86_64 Linux build reads it after `linux-x86_64-deb`, which
   must not be there to shadow it); its `url` the record's deb url and its `signature` the
   record's deb signature, verifying over the record's BLAKE2b-512 with the Linux key and naming
-  `com.vishutdhar.Koegaki_<version>_amd64.deb`. The feed's version is the Linux link's.
+  `com.vishutdhar.Koegaki_<version>_amd64.deb`. The feed's version is the Linux link's. When the
+  Windows feed offers the same version, the two feeds' notes are the same text. The served feed is
+  always held to the real record in `releases/` and the real Linux key, in the fixture run too,
+  where the fixture's synthetic 1.14.0 record and key would otherwise shadow the real ones (review
+  on the pull request).
 - **The page's update sentence (`LINUX_UPDATES`) may not say Koegaki does not install updates
   itself while a Linux feed is served.**
 - The checks are tried against the fixture's signed 1.14.0 record and the self tests' Linux only

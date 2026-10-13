@@ -1773,8 +1773,9 @@ function windowsUpdateProblems(manifest, sources, pubkey) {
 /**
  * What the Linux updater would refuse in `feed`, or what publication asks
  * beyond it (Koegaki spec 2026-10-13-linux-updater, rules 1 and 11), given
- * `record`, the release record of the feed's version, and `pubkey`, the key the
- * Linux build checks a deb against (linuxKeyFor). The shape is the Windows
+ * `record`, the release record of the feed's version, `pubkey`, the key the
+ * Linux build checks a deb against, and `windowsFeed`, the Windows feed, whose
+ * notes the Linux feed's equal when both offer the same version. The shape is the Windows
  * feed's, which the updater deserializes whole before it picks its platform
  * (see windowsUpdateProblems): version a bare SemVer core, notes and pub_date
  * present, every platform an object with a parseable url and a string
@@ -1784,10 +1785,14 @@ function windowsUpdateProblems(manifest, sources, pubkey) {
  * and its signature is the record's deb signature, verifying over the record's
  * BLAKE2b-512 digest with `pubkey` and naming the file the bundler wrote.
  */
-function linuxUpdateProblems(feed, record, pubkey) {
+function linuxUpdateProblems(feed, record, pubkey, windowsFeed) {
   if (!isPlainObject(feed)) return ["the feed is not an object"];
   const problems = [];
   const { version, notes, pub_date: date, platforms } = feed;
+  // A release that ships on Windows and Linux tells both the same thing.
+  if (isPlainObject(windowsFeed) && windowsFeed.version === version && windowsFeed.notes !== notes) {
+    problems.push(`the notes are not the Windows feed's, which offers the same version ${version}`);
+  }
   const semverCore =
     typeof version === "string" &&
     /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(version) &&
@@ -3633,8 +3638,17 @@ test("the Linux update feed is public/linux-updates.json, served with the Linux 
   // next one; the fixture build has a release record and no feed.
   if (!fromFixture(LINUX_RELEASE.version)) assert.deepEqual(named, ["linux-updates.json"], "a Linux release is recorded, and public/ serves no linux-updates.json for it");
   if (named.length === 0) return;
+  // The served feed is the real release's, so it is held to the real record
+  // and the real Linux key in both runs: in the fixture run the fixture's
+  // synthetic 1.14.0 record and key shadow the real ones (review on the pull
+  // request).
   const feed = publicJson("linux-updates.json");
-  assert.deepEqual(linuxUpdateProblems(feed, releaseRecord(feed.version), linuxKeyFor(feed.version)), []);
+  const realRecord = (version) => {
+    if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
+    const file = new URL(`${version}.json`, RELEASES);
+    return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
+  };
+  assert.deepEqual(linuxUpdateProblems(feed, realRecord(feed.version), LINUX_UPDATER_PUBKEY, publicJson("windows-updates.json")), []);
   assert.equal(feed.version, LINUX_RELEASE.version, "the feed offers another version than the Linux download link");
 });
 
@@ -3690,6 +3704,14 @@ test("the Linux feed check refuses a damaged feed, record, signature or key", ()
     change(feed);
     assert.match(linuxUpdateProblems(feed, recorded, key).join("\n"), expected, name);
   }
+  // A release on both platforms: the notes are the Windows feed's.
+  const windowsOf = (version, notes) => ({ version, notes, pub_date: "2026-11-02T10:00:00Z", platforms: {} });
+  assert.match(
+    linuxUpdateProblems(feedFor(record), record, key, windowsOf("1.14.0", "Something else.")).join("\n"),
+    /the notes are not the Windows feed's/,
+  );
+  assert.deepEqual(linuxUpdateProblems(feedFor(record), record, key, windowsOf("1.14.0", "What changed.")), []);
+  assert.deepEqual(linuxUpdateProblems(feedFor(record), record, key, windowsOf("1.13.1", "Something else.")), [], "another version's notes are its own");
 });
 
 test(
