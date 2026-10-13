@@ -941,8 +941,83 @@ function modelIndexProblems(index) {
   return problems;
 }
 
+/**
+ * What JSON.parse forgives in the text of public/models.json that the app
+ * readers refuse, so the parsed check above cannot see it: a number written
+ * with a fraction or an exponent (1673007552.0 parses here as an integer, and
+ * the readers' integer fields take integer literals only) and a member named
+ * twice in one object (JSON.parse keeps the last, the Rust reader refuses a
+ * repeated field). Expects text JSON.parse accepts.
+ */
+function modelIndexTextProblems(text) {
+  const problems = [];
+  // The member names seen in each open object, innermost last (null for an array).
+  const open = [];
+  const colon = /\s*:/y;
+  const number = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+  for (let i = 0; i < text.length; ) {
+    const c = text[i];
+    if (c === "{" || c === "[") {
+      open.push(c === "{" ? new Set() : null);
+      i++;
+    } else if (c === "}" || c === "]") {
+      open.pop();
+      i++;
+    } else if (c === '"') {
+      let j = i + 1;
+      while (text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
+      const token = text.slice(i, j + 1);
+      i = j + 1;
+      // A string followed by a colon names a member of the innermost object.
+      colon.lastIndex = i;
+      if (colon.test(text)) {
+        const members = open.at(-1);
+        const name = JSON.parse(token);
+        if (members.has(name)) problems.push(`the member ${token} is named twice in one object`);
+        members.add(name);
+      }
+    } else if (c === "-" || (c >= "0" && c <= "9")) {
+      number.lastIndex = i;
+      const token = number.exec(text)[0];
+      if (!/^-?[0-9]+$/.test(token)) problems.push(`the number ${token} is not written as an integer`);
+      i += token.length;
+    } else {
+      i++;
+    }
+  }
+  return problems;
+}
+
 test("every model index entry passes the rules both app readers apply", () => {
   assert.deepEqual(modelIndexProblems(publicJson("models.json")), []);
+  assert.deepEqual(modelIndexTextProblems(readFileSync(new URL("../public/models.json", import.meta.url), "utf8")), []);
+});
+
+test("the model index text check refuses number forms and repeated members the readers refuse", () => {
+  const text = readFileSync(new URL("../public/models.json", import.meta.url), "utf8");
+  // The linux cleanup entry is the only one at 1.14.0 with these bytes.
+  const linuxCleanup = '"bytes": 1673007552,\n      "min_app": "1.14.0"';
+  const edit = (from, to) => {
+    assert.ok(text.includes(from), `the published index no longer holds ${from}`);
+    return text.replace(from, to);
+  };
+  const mutations = [
+    ["linux bytes with a fraction", edit(linuxCleanup, linuxCleanup.replace("1673007552", "1673007552.0"))],
+    ["linux bytes with an exponent", edit(linuxCleanup, linuxCleanup.replace("1673007552", "1.673007552e9"))],
+    ["a schema with a fraction", edit('"schema": 1,', '"schema": 1.0,')],
+    ["the linux block twice", edit('\n  "linux": {', '\n  "linux": {},\n  "linux": {')],
+    ["a linux entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "min_app": "1.14.0"`)],
+  ];
+  for (const [name, mutated] of mutations) JSON.parse(mutated);
+  const missed = mutations.filter(([, mutated]) => modelIndexTextProblems(mutated).length === 0);
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const accepted = [
+    ["the index as published", text],
+    ["a string holding a dot and digits", edit('"label": "Cleanup model"', '"label": "Cleanup model 1.5e3"')],
+    ["a string holding an escaped quote", edit('"notes": ""', '"notes": "a \\"1.0\\": x"')],
+  ];
+  const refused = accepted.map(([name, t]) => [name, modelIndexTextProblems(t)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(refused, [], "these were refused");
 });
 
 test("the model index check refuses what the app readers refuse", () => {
