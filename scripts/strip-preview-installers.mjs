@@ -24,8 +24,8 @@
 // which the publishing tool writes after uploading the release and
 // downloading it back, is a whole record of that release and carries the
 // manifest's signature. A release that ships on Windows alone records its
-// installer and no disk image. The tests verify that signature against the
-// recorded digest. A url on any other host still needs the installer in
+// installer and no disk image, and one that ships on Linux too records its deb
+// beside them. The tests verify that signature against the recorded digest. A url on any other host still needs the installer in
 // public/downloads.
 import { closeSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
@@ -109,18 +109,21 @@ function checkOfferedInstaller(publicDir, frozen) {
  * for this version, as text, or "". The installer is always recorded, since
  * the manifest offers it. A release that ships on Windows alone has no disk
  * image, so its record leaves the dmg out; a dmg the record does state is held
- * to the same url, size and digests as the installer. Any other artifact is
- * refused, as the site tests refuse it, so a misspelled dmg never passes for
- * a Windows only record.
+ * to the same url, size and digests as the installer. A release that ships on
+ * Linux too records its deb, held to the same and to a signature, which the
+ * publishing tool always writes for it (Koegaki spec
+ * 2026-10-13-publish-tool-linux-and-windows-only rule 6). Any other artifact
+ * is refused, as the site tests refuse it, so a misspelled dmg never passes
+ * for a Windows only record.
  */
 function incompleteRecord(record, version) {
   const problems = [];
   const artifacts = record.artifacts && typeof record.artifacts === "object" ? record.artifacts : {};
   for (const kind of Object.keys(artifacts)) {
-    if (kind !== "dmg" && kind !== "exe") problems.push(`${JSON.stringify(kind)}, which is neither a dmg nor an exe`);
+    if (kind !== "dmg" && kind !== "exe" && kind !== "deb") problems.push(`${JSON.stringify(kind)}, which is not a dmg, an exe or a deb`);
   }
-  for (const [kind, name] of [["dmg", `Koegaki-${version}.dmg`], ["exe", `Koegaki-${version}-setup.exe`]]) {
-    if (kind === "dmg" && !Object.hasOwn(artifacts, kind)) continue;
+  for (const [kind, name] of [["dmg", `Koegaki-${version}.dmg`], ["exe", `Koegaki-${version}-setup.exe`], ["deb", `Koegaki-${version}-amd64.deb`]]) {
+    if (kind !== "exe" && !Object.hasOwn(artifacts, kind)) continue;
     const artifact = artifacts[kind];
     if (!artifact || typeof artifact !== "object") {
       problems.push(`no ${kind}`);
@@ -131,6 +134,10 @@ function incompleteRecord(record, version) {
     if (typeof artifact.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(artifact.sha256)) problems.push(`${kind} sha256 ${JSON.stringify(artifact.sha256)}`);
     if (typeof artifact.blake2b512 !== "string" || !/^[0-9a-f]{128}$/.test(artifact.blake2b512)) {
       problems.push(`${kind} blake2b512 ${JSON.stringify(artifact.blake2b512)}`);
+    }
+    // The installer's signature is held to the manifest's below.
+    if (kind === "deb" && (typeof artifact.signature !== "string" || artifact.signature === "")) {
+      problems.push(`deb signature ${JSON.stringify(artifact.signature)}`);
     }
   }
   return problems.join(", ");

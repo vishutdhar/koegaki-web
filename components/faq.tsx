@@ -1,4 +1,4 @@
-import { SITE } from "@/lib/site";
+import { ifLinux, LINUX_RELEASE, SITE } from "@/lib/site";
 import { Section } from "./section";
 import { Reveal } from "./reveal";
 
@@ -9,11 +9,17 @@ export const FAQS = [
   },
   {
     q: "What do I need to run it?",
-    a: `Mac: ${SITE.requirements}, where the model uses the Neural Engine. Windows: ${SITE.windowsRequirements}. One license covers both.`,
+    a: ifLinux(
+      `Mac: ${SITE.requirements}, where the model uses the Neural Engine. Windows: ${SITE.windowsRequirements}. Linux: ${SITE.linuxRequirements}. One license covers all three.`,
+      `Mac: ${SITE.requirements}, where the model uses the Neural Engine. Windows: ${SITE.windowsRequirements}. One license covers both.`,
+    ),
   },
   {
     q: "Does it need the internet?",
-    a: "Barely. The speech model downloads once on first launch, and dictation then works fully offline. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows. Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.",
+    a: `Barely. The speech model downloads once on first launch, and dictation then works fully offline. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. ${ifLinux(
+      "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac, a network you have set as metered in Windows, or one NetworkManager treats as metered on Linux.",
+      "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.",
+    )} Activating a license and a quiet daily license check use the network, but being offline never locks you out, and no audio or text is ever involved.`,
   },
   {
     q: "Can I add my own words?",
@@ -27,10 +33,24 @@ export const FAQS = [
     q: "Do I get updates?",
     a: "Yes. Every update is included with your license, for life. Buy once and the app keeps getting better.",
   },
-  {
-    q: "Is there a Windows version?",
-    a: "Yes. Koegaki runs on Mac and Windows, and one license covers both. The Windows build does the same thing the same way: your voice is transcribed on your own machine and never sent anywhere.",
-  },
+  ...ifLinux(
+    [
+      {
+        q: "Is there a Windows or Linux version?",
+        a: "Yes. Koegaki runs on Mac, Windows and Linux, and one license covers all three. The Windows and Linux builds do the same thing the same way: your voice is transcribed on your own machine and never sent anywhere.",
+      },
+      {
+        q: "How do I install it on Linux?",
+        a: `Download the deb package, then run sudo apt install ./Koegaki-${LINUX_RELEASE?.version}-amd64.deb in the folder you saved it to. It needs Debian 12 or Ubuntu 22.04 or newer, on x86_64. The Koegaki for Linux page explains the two permissions it asks for, and how to remove it.`,
+      },
+    ],
+    [
+      {
+        q: "Is there a Windows version?",
+        a: "Yes. Koegaki runs on Mac and Windows, and one license covers both. The Windows build does the same thing the same way: your voice is transcribed on your own machine and never sent anywhere.",
+      },
+    ],
+  ),
   {
     q: "Windows says it protected my PC. Is that a problem?",
     a: "No, and you should expect it. The Windows installer is not yet signed with a certificate, so Windows warns the first time you run it. Usually you choose More info, then Run anyway. On a PC with Smart App Control switched on there is no Run anyway, and the installer is refused outright; that setting can only be turned off by resetting it in Windows Security, so if you would rather not, write to us and wait for the signed build. The warning is about the missing certificate, not about anything found in the app. Signing is on the list.",

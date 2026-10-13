@@ -1,3 +1,4 @@
+import { ifLinux } from "@/lib/site";
 import { Section } from "./section";
 import { Reveal } from "./reveal";
 import { KeyCap } from "./keycap";
@@ -38,8 +39,9 @@ export function HowItWorks() {
               <p className="mt-2.5 text-sm leading-relaxed text-muted">{body}</p>
               {/*
                 Each platform's real default: Globe or a modifier chord on Mac,
-                Ctrl+Alt+D on Windows. Showing Mac glyphs to a Windows visitor
-                would name keys their keyboard does not have.
+                Ctrl+Alt+D on Windows, and on Linux once it ships (the os-pc
+                variant shows on both). Showing Mac glyphs to a Windows or Linux
+                visitor would name keys their keyboard does not have.
               */}
               {i === 0 && (
                 <>
@@ -51,7 +53,7 @@ export function HowItWorks() {
                     <KeyCap>⌘</KeyCap>
                     <KeyCap>D</KeyCap>
                   </div>
-                  <div className="os-win mt-4 flex items-center gap-1.5">
+                  <div className={`${ifLinux("os-pc", "os-win")} mt-4 flex items-center gap-1.5`}>
                     <KeyCap>Ctrl</KeyCap>
                     <KeyCap>Alt</KeyCap>
                     <KeyCap>D</KeyCap>

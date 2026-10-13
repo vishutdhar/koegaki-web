@@ -1,6 +1,27 @@
 import type { NextConfig } from "next";
+import { LINUX_RELEASE_ENV, linuxRelease, linuxReleaseEnv, releasesDir } from "./scripts/linux-release.mjs";
+
+const linux = linuxRelease(releasesDir(process.env, import.meta.dirname));
 
 const nextConfig: NextConfig = {
+  /**
+   * The Linux release the site offers, read from the release records once,
+   * here, at build time: the newest record that holds a deb, or none
+   * (scripts/linux-release.mjs). Next writes the value into every bundle as a
+   * literal, so lib/site.ts knows it without reading a file when a page or the
+   * /buy route runs, and every Linux surface appears only once the record of a
+   * Linux release is committed (docs/specs/2026-10-13-linux-site.md rules 6 to
+   * 8). Without one the value is empty and the build is byte for byte the site
+   * before Linux.
+   */
+  env: { [LINUX_RELEASE_ENV]: linuxReleaseEnv(linux) },
+  /**
+   * The Linux page is app/linux/page.linux.tsx, a page only once this list
+   * holds "linux.tsx", which it does only with a Linux release (Next's dotted
+   * page extensions). Without one the default extensions stand and Next builds
+   * and routes nothing for /linux, so it stays the ordinary 404.
+   */
+  ...(linux ? { pageExtensions: ["tsx", "ts", "jsx", "js", "linux.tsx"] } : {}),
   // Pin the workspace root so a stray lockfile elsewhere can't make Next infer the wrong one.
   turbopack: { root: import.meta.dirname },
   /**

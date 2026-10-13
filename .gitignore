@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-linux-fixture/
 /out/
 
 # production

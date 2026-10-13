@@ -20,16 +20,39 @@
 //   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub" tests/site.test.mjs
 //
 // or with the whole suite as `RELEASE_FETCH=1 npm test`.
-import { test } from "node:test";
+//
+// `npm test` runs this file twice (docs/specs/2026-10-13-linux-site.md rule
+// 15): on the real build in .next, and, from tests/linux-fixture.test.mjs, on
+// the fixture build in .next-linux-fixture, which tests/build-linux-fixture.mjs
+// makes from a 1.14.0 release holding a deb (tests/fixtures/linux-release),
+// signed with a key made for the fixture. That run reads the fixture record
+// beside the real ones, imports the site as that build saw it, and names each
+// test "linux fixture: ...". Every page check runs on both builds, so the
+// Linux copy meets every rule today's copy meets, before a real Linux release
+// turns it on.
+import { test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { SaxesParser } from "saxes";
-import { SITE } from "../lib/site.ts";
-import { LANDING_PAGES } from "../lib/pages.ts";
+import { LINUX_COPY_DATE, LINUX_RELEASE, SITE } from "../lib/site.ts";
+import { LANDING_PAGES, LINUX_UPDATES } from "../lib/pages.ts";
 import { COMPARISONS } from "../lib/compare.ts";
+import { linuxRelease } from "../scripts/linux-release.mjs";
 
-const BUILT = new URL("../.next/server/app/", import.meta.url);
+/** True in the run on the fixture build (see the top of this file). */
+const LINUX_FIXTURE = process.env.KOEGAKI_SITE_BUILD === "linux-fixture";
+const test = LINUX_FIXTURE ? (name, ...rest) => nodeTest(`linux fixture: ${name}`, ...rest) : nodeTest;
+/** The release records the build read: releases/, or in the fixture run the fixture folder. */
+const BUILD_RELEASES = new URL(LINUX_FIXTURE ? "fixtures/linux-release/" : "../releases/", import.meta.url);
+/** Whether the build under test offers a Linux release, and so shows every Linux surface. */
+const LINUX_ON = SITE.linuxDownloadUrl !== null;
+
+const BUILD_ROOT = new URL(LINUX_FIXTURE ? "../.next-linux-fixture/" : "../.next/", import.meta.url);
+const BUILT = new URL("server/app/", BUILD_ROOT);
 
 function built(file) {
   const url = new URL(file, BUILT);
@@ -244,12 +267,16 @@ test("the home H1 does not run the platform words together in extracted text", (
 test("the H1 separator stays invisible: one platform word shows and its space collapses", () => {
   const doc = html("/");
   const h1 = doc.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1];
-  // The separator lives inside the Windows word, directly after the space
-  // before the Mac word, so whichever word is shown gets exactly one space.
-  assert.match(h1, /on your <span class="os-mac">Mac<\/span><span class="os-win"> PC<\/span>\./);
+  // The separator lives inside the PC word, directly after the space before
+  // the Mac word, so whichever word is shown gets exactly one space. With a
+  // Linux release the PC word shows on Windows and on Linux (os-pc), and the
+  // layout's inline style hides it on the Mac (the platform stamp test pins
+  // those rules); without one it is today's Windows word.
+  const pc = LINUX_ON ? "os-pc" : "os-win";
+  assert.match(h1, new RegExp(`on your <span class="os-mac">Mac</span><span class="${pc}"> PC</span>\\.`));
   // ...which only holds while the stylesheet removes the other word entirely.
   const css = [...doc.matchAll(/href="(\/_next\/static\/[^"]+\.css)"/g)]
-    .map((m) => readFileSync(new URL(`../.next${m[1].slice("/_next".length)}`, import.meta.url), "utf8"))
+    .map((m) => readFileSync(new URL(m[1].slice("/_next/".length), BUILD_ROOT), "utf8"))
     .join("");
   assert.match(css, /html:not\(\[data-os=win\]\) \.os-win[,{][^}]*display:none/);
   assert.match(css, /\[data-os=win\] \.os-mac[,{][^}]*display:none/);
@@ -695,7 +722,7 @@ test("each platform's engine copy names the English model the model index serves
     "sherpa-onnx-nemo-parakeet-ultra-int8": "Parakeet Ultra",
   };
   const index = JSON.parse(readFileSync(new URL("../public/models.json", import.meta.url), "utf8"));
-  const engines = { mac: SITE.engine, windows: SITE.windowsEngine };
+  const engines = { mac: SITE.engine, windows: SITE.windowsEngine, ...(LINUX_ON ? { linux: SITE.linuxEngine } : {}) };
   for (const [platform, engine] of Object.entries(engines)) {
     const identity = index[platform]["speech-english"].identity;
     const name = NAMES[identity];
@@ -735,14 +762,34 @@ const BOTH_WAIT =
   "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.";
 const PRIVACY_WAIT =
   "That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.";
+/**
+ * The same wait on Linux (Koegaki spec 2026-10-12-linux-platform-gaps rules 6
+ * and 7): NetworkManager's Metered property, yes or guess yes, is costly, and
+ * the automatic downloads wait behind the gate Windows uses; a user sets a
+ * connection as metered in NetworkManager. With no NetworkManager the download
+ * goes ahead, which "treats as metered" leaves true. Said only once a Linux
+ * release exists, as are the three platform forms below.
+ */
+const LINUX_WAIT =
+  "That background download waits while your computer is on a connection NetworkManager treats as metered, which you can set for a phone hotspot.";
+const THREE_WAIT =
+  "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac, a network you have set as metered in Windows, or one NetworkManager treats as metered on Linux.";
+/** Pages a sentence is said on in this build: `today` without a Linux release, `withLinux` with one. */
+const onPages = (today, withLinux) => (LINUX_ON ? withLinux : today);
 const REVIEWED_WAIT_SENTENCES = new Map([
   [MAC_WAIT, { where: ["/mac"], why: "the Mac waits on an expensive path (Personal Hotspot) or a constrained one (Low Data Mode)" }],
   [WINDOWS_WAIT, { where: ["/windows"], why: "Windows waits on the cost it reports; Wi-Fi counts only once marked metered" }],
-  [BOTH_WAIT, { where: ["/", "/offline-dictation"], why: "the same rule for both platforms, each example under its own OS" }],
+  [BOTH_WAIT, { where: onPages(["/", "/offline-dictation"], []), why: "the same rule for both platforms, each example under its own OS" }],
+  [THREE_WAIT, { where: onPages([], ["/", "/offline-dictation"]), why: "the same rule on all three platforms, each example under its own OS" }],
+  [LINUX_WAIT, { where: onPages([], ["/linux"]), why: "Linux waits on NetworkManager's metered verdict, which the user can set" }],
   [PRIVACY_WAIT, { where: ["/privacy"], why: "names the two downloads that wait, not every download the app starts" }],
   [
     "Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, and in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot.",
-    { where: ["/privacy"], why: "each OS's own signal" },
+    { where: onPages(["/privacy"], []), why: "each OS's own signal" },
+  ],
+  [
+    "Costly connections include an iPhone's Personal Hotspot and Low Data Mode on a Mac, in Windows a cellular link and any network you marked as metered, which you can do for a phone hotspot, and on Linux any connection NetworkManager treats as metered.",
+    { where: onPages([], ["/privacy"]), why: "each OS's own signal, Linux's being NetworkManager's metered verdict" },
   ],
   [
     "A download you start yourself, and the first download after you install, go ahead on any connection.",
@@ -750,7 +797,7 @@ const REVIEWED_WAIT_SENTENCES = new Map([
   ],
 ]);
 /** The sentences that state the wait itself. */
-const WAIT_CLAIMS = [MAC_WAIT, WINDOWS_WAIT, BOTH_WAIT, PRIVACY_WAIT];
+const WAIT_CLAIMS = [MAC_WAIT, WINDOWS_WAIT, BOTH_WAIT, THREE_WAIT, LINUX_WAIT, PRIVACY_WAIT];
 
 /**
  * A page's text in runs: paragraphs run on into one another until a heading or
@@ -793,6 +840,7 @@ test("every page that describes the background model download says when it waits
   assert.deepEqual([...described].sort(), [
     "/ body",
     "/ standalone",
+    ...(LINUX_ON ? ["/linux body", "/linux standalone"] : []),
     "/mac body",
     "/mac standalone",
     "/offline-dictation body",
@@ -830,8 +878,9 @@ test("no page promises a change for an app version the site already serves", () 
   const served = {
     mac: SITE.downloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)\.dmg$/)?.[1],
     windows: SITE.windowsDownloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)-setup\.exe$/)?.[1],
+    ...(LINUX_ON ? { linux: SITE.linuxDownloadUrl.match(/\/Koegaki-(\d+(?:\.\d+)*)-amd64\.deb$/)?.[1] } : {}),
   };
-  assert.ok(served.mac && served.windows, `no served version in the download links ${JSON.stringify(served)}`);
+  assert.ok(Object.values(served).every(Boolean), `no served version in the download links ${JSON.stringify(served)}`);
   const parts = (v) => v.split(".").map(Number);
   const atOrBelow = (v, ceiling) => {
     const [a, b] = [parts(v), parts(ceiling)];
@@ -847,10 +896,12 @@ test("no page promises a change for an app version the site already serves", () 
       .replace(/\s+/g, " ");
     for (const sentence of text.split(/(?<=[.!?])\s+/)) {
       if (!/\b(?:gains?|will|moves? to|coming|until)\b/i.test(sentence)) continue;
-      const names = { mac: /\bmac\b/i.test(sentence), windows: /\bwindows\b/i.test(sentence) };
-      // A sentence naming one platform answers to that platform's version; one
-      // naming both or neither is stale only once every platform serves it.
-      const platforms = names.mac !== names.windows ? [names.mac ? "mac" : "windows"] : ["mac", "windows"];
+      const names = { mac: /\bmac\b/i.test(sentence), windows: /\bwindows\b/i.test(sentence), linux: /\blinux\b/i.test(sentence) };
+      // A sentence naming one served platform answers to that platform's
+      // version; one naming several or none is stale only once every served
+      // platform serves it. Linux is served only once a Linux release exists.
+      const named = Object.keys(served).filter((platform) => names[platform]);
+      const platforms = named.length === 1 ? named : Object.keys(served);
       for (const [, version] of sentence.matchAll(/\bversion (\d+(?:\.\d+){1,2})\b/gi)) {
         const stale = platforms.every((p) => atOrBelow(version, served[p]));
         assert.ok(!stale, `${path} promises version ${version}, which the site already serves: "${sentence.trim()}"`);
@@ -1124,25 +1175,47 @@ test("the model index check refuses what the app readers refuse", () => {
  * (RELEASE_FETCH=1, see the top of this file).
  */
 const RELEASES = new URL("../releases/", import.meta.url);
+/** The fixture's records, read beside the real ones in the fixture run only. */
+const FIXTURE_RELEASES = new URL("fixtures/linux-release/", import.meta.url);
+/** Whether the record of `version` is the fixture's, in the fixture run. */
+const fromFixture = (version) => LINUX_FIXTURE && existsSync(new URL(`${version}.json`, FIXTURE_RELEASES));
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
 /** The namespace of Sparkle's appcast elements and attributes, whatever prefix a feed binds it to. */
 const SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle";
 /** The Vercel Blob host the disk images and the updater's installers through 1.9.0 were served from. */
 const BLOB_HOST = "npdal36mxz3kcwxv.public.blob.vercel-storage.com";
-const ASSET_NAME = { dmg: (version) => `Koegaki-${version}.dmg`, exe: (version) => `Koegaki-${version}-setup.exe` };
+const ASSET_NAME = {
+  dmg: (version) => `Koegaki-${version}.dmg`,
+  exe: (version) => `Koegaki-${version}-setup.exe`,
+  deb: (version) => `Koegaki-${version}-amd64.deb`,
+};
 /** What each kind of asset is called in a problem. */
-const ASSET_WORD = { dmg: "disk image", exe: "installer" };
-/** The one url a GitHub release asset of this version and kind ("dmg" or "exe") is served from. */
+const ASSET_WORD = { dmg: "disk image", exe: "installer", deb: "deb package" };
+/** The one url a GitHub release asset of this version and kind ("dmg", "exe" or "deb") is served from. */
 const githubAssetUrl = (version, kind) => `${GITHUB_DOWNLOAD}/v${version}/${ASSET_NAME[kind](version)}`;
-const RECORD_FIELDS = { dmg: ["url", "size", "sha256", "blake2b512"], exe: ["url", "size", "sha256", "blake2b512", "signature"] };
+/**
+ * The fields of each artifact, as the publishing tool writes them (Koegaki
+ * Tools/publish-release.sh, spec 2026-10-13-publish-tool-linux-and-windows-only
+ * rule 6): the installer and the deb carry the updater signature the app checks
+ * an update against, the disk image none (Sparkle's is in the appcast).
+ */
+const RECORD_FIELDS = {
+  dmg: ["url", "size", "sha256", "blake2b512"],
+  exe: ["url", "size", "sha256", "blake2b512", "signature"],
+  deb: ["url", "size", "sha256", "blake2b512", "signature"],
+};
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
-/** The kinds of artifact a well formed record states, "dmg", "exe" or both, in that order. */
+/** The kinds of artifact a well formed record states, any of "dmg", "exe" and "deb", in that order. */
 const recordedKinds = (record) => Object.keys(RECORD_FIELDS).filter((kind) => Object.hasOwn(record.artifacts, kind));
 
-/** The parsed releases/<version>.json, or undefined when there is none or the version could not name one. */
+/**
+ * The parsed releases/<version>.json, or undefined when there is none or the
+ * version could not name one. In the fixture run the fixture's record of a
+ * version stands in for any real one.
+ */
 function releaseRecord(version) {
   if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
-  const file = new URL(`${version}.json`, RELEASES);
+  const file = new URL(`${version}.json`, fromFixture(version) ? FIXTURE_RELEASES : RELEASES);
   return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
 }
 
@@ -1159,7 +1232,7 @@ function releaseRecordProblems(record, version) {
   if (!isPlainObject(record.artifacts)) return [...problems, "artifacts is not an object"];
   const kinds = Object.keys(record.artifacts);
   if (kinds.length === 0 || !kinds.every((kind) => Object.hasOwn(RECORD_FIELDS, kind))) {
-    return [...problems, `artifacts holds ${JSON.stringify(kinds)}, not a dmg, an exe or both`];
+    return [...problems, `artifacts holds ${JSON.stringify(kinds)}, not one or more of a dmg, an exe and a deb`];
   }
   for (const kind of kinds) {
     const fields = RECORD_FIELDS[kind];
@@ -1178,15 +1251,22 @@ function releaseRecordProblems(record, version) {
       }
     }
   }
-  if (isPlainObject(record.artifacts.exe) && (typeof record.artifacts.exe.signature !== "string" || record.artifacts.exe.signature === "")) {
-    problems.push("exe: signature is not a string");
+  for (const kind of ["exe", "deb"]) {
+    if (isPlainObject(record.artifacts[kind]) && (typeof record.artifacts[kind].signature !== "string" || record.artifacts[kind].signature === "")) {
+      problems.push(`${kind}: signature is not a string`);
+    }
   }
   return problems;
 }
 
-/** Every record in releases/, by version; a file named anything but <version>.json is reported under its name. */
+/**
+ * Every record in releases/, by version, and in the fixture run the fixture's
+ * too; a file named anything but <version>.json is reported under its name.
+ */
 function releaseRecords() {
-  return readdirSync(RELEASES).map((name) => {
+  const names = new Set(readdirSync(RELEASES));
+  if (LINUX_FIXTURE) for (const name of readdirSync(FIXTURE_RELEASES)) names.add(name);
+  return [...names].sort().map((name) => {
     const version = name.match(/^(\d+\.\d+\.\d+)\.json$/)?.[1];
     return { name, version, record: version && releaseRecord(version) };
   });
@@ -1211,6 +1291,64 @@ const MAC_ONLY_RECORD = Object.freeze({
       blake2b512: createHash("blake2b512").update(MAC_ONLY_DMG).digest("hex"),
     }),
   }),
+});
+
+/**
+ * A minisign key in Tauri's format, made for the self tests: `pubkey`, the
+ * base64 text a tauri.conf.json carries, and `sign(digest, file)`, the base64
+ * signature text `cargo tauri signer sign` writes for a file of that name
+ * whose BLAKE2b-512 digest is `digest` (prehashed Ed25519 over the digest, and
+ * a global signature over that signature and the trusted comment).
+ */
+function minisignKey() {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const raw = Buffer.from(publicKey.export({ format: "jwk" }).x, "base64url");
+  const keyId = createHash("sha256").update(raw).digest().subarray(0, 8);
+  const text = (lines) => Buffer.from(`${lines.join("\n")}\n`).toString("base64");
+  return {
+    pubkey: text(["untrusted comment: minisign public key", Buffer.concat([Buffer.from("Ed"), keyId, raw]).toString("base64")]),
+    sign(digest, file) {
+      const signature = sign(null, digest, privateKey);
+      const trusted = `timestamp:1792000000\tfile:${file}`;
+      const global = sign(null, Buffer.concat([signature, Buffer.from(trusted)]), privateKey);
+      return text([
+        "untrusted comment: signature from tauri secret key",
+        Buffer.concat([Buffer.from("ED"), keyId, signature]).toString("base64"),
+        `trusted comment: ${trusted}`,
+        global.toString("base64"),
+      ]);
+    },
+  };
+}
+
+/** The file name the bundler gives the deb of `version`, which its updater signature names. */
+const bundlerDebName = (version) => `com.vishutdhar.Koegaki_${version}_amd64.deb`;
+
+/**
+ * The record of a release that ships on Linux only, as 1.14.0 will: its deb
+ * and nothing else, signed with LINUX_ONLY_KEY, a key made for these self
+ * tests. Its digests are of LINUX_ONLY_DEB, bytes made for the tests; the
+ * real releases/1.14.0.json lands with the release.
+ */
+const LINUX_ONLY_DEB = createHash("sha512").update("the deb of a Linux only release, made for the self tests").digest();
+const LINUX_ONLY_KEY = minisignKey();
+const LINUX_ONLY_RECORD = Object.freeze({
+  version: "1.14.0",
+  artifacts: Object.freeze({
+    deb: Object.freeze({
+      url: githubAssetUrl("1.14.0", "deb"),
+      size: LINUX_ONLY_DEB.length,
+      sha256: createHash("sha256").update(LINUX_ONLY_DEB).digest("hex"),
+      blake2b512: createHash("blake2b512").update(LINUX_ONLY_DEB).digest("hex"),
+      signature: LINUX_ONLY_KEY.sign(createHash("blake2b512").update(LINUX_ONLY_DEB).digest(), bundlerDebName("1.14.0")),
+    }),
+  }),
+});
+
+/** `sources`, finding LINUX_ONLY_RECORD as the record of its release. */
+const withLinuxOnlyRelease = (sources) => ({
+  installer: sources.installer,
+  record: (version) => (version === LINUX_ONLY_RECORD.version ? LINUX_ONLY_RECORD : sources.record(version)),
 });
 
 /** `sources` (see windowsUpdateProblems), finding MAC_ONLY_RECORD as the record of its release. */
@@ -1251,17 +1389,18 @@ test("every release record has the published shape and describes the same bytes 
   }
 });
 
-test("the release record check refuses a record that is malformed or names another release, and passes a disk image, an installer or both", () => {
+test("the release record check refuses a record that is malformed or names another release, and passes any set of a disk image, an installer and a deb", () => {
   const record = releaseRecord("1.9.0");
   assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
   const refused = [
     ["another version", (r) => (r.version = "1.9.1"), /names version "1\.9\.1"/],
     ["an unknown top level key", (r) => (r.extra = 1), /the record holds/],
     ["a note that is not text", (r) => (r.note = 7), /note is not a string/],
-    ["no artifact at all", (r) => (r.artifacts = {}), /artifacts holds \[\], not a dmg, an exe or both/],
+    ["no artifact at all", (r) => (r.artifacts = {}), /artifacts holds \[\], not one or more of a dmg, an exe and a deb/],
     ["artifacts that are a list", (r) => (r.artifacts = [r.artifacts.dmg, r.artifacts.exe]), /artifacts is not an object/],
     ["no artifacts", (r) => delete r.artifacts, /artifacts is not an object/],
-    ["a third artifact", (r) => (r.artifacts.zip = {}), /artifacts holds .*"zip"/],
+    ["a fourth artifact", (r) => (r.artifacts.zip = {}), /artifacts holds .*"zip"/],
+    ["an rpm, which no release has", (r) => (r.artifacts.rpm = { ...r.artifacts.exe, url: r.artifacts.exe.url.replace(/[^/]+$/, "Koegaki-1.9.0.x86_64.rpm") }), /artifacts holds .*"rpm"/],
     ["an artifact named after an object property", (r) => (r.artifacts.toString = r.artifacts.dmg), /artifacts holds .*"toString"/],
     ["an exe with no signature", (r) => delete r.artifacts.exe.signature, /exe holds/],
     ["a dmg with a signature", (r) => (r.artifacts.dmg.signature = "x"), /dmg holds/],
@@ -1297,6 +1436,24 @@ test("the release record check refuses a record that is malformed or names anoth
     ["a disk image with no size", (r) => delete r.artifacts.dmg.size, /dmg: size undefined/],
     ["another version", (r) => (r.version = "1.11.1"), /names version "1\.11\.1"/],
   ];
+  // A release that ships on Linux only records its deb alone, with the
+  // updater signature the publishing tool writes for it, and a deb beside
+  // the other two is held to the same fields.
+  const linuxOnly = LINUX_ONLY_RECORD.version;
+  const linuxOnlyRefused = [
+    ["a deb with no signature", (r) => delete r.artifacts.deb.signature, /deb holds/],
+    ["a deb with an empty signature", (r) => (r.artifacts.deb.signature = ""), /deb: signature is not a string/],
+    ["a deb with a signature that is not text", (r) => (r.artifacts.deb.signature = 7), /deb: signature is not a string/],
+    ["a deb with another field", (r) => (r.artifacts.deb.notes = "x"), /deb holds/],
+    ["a deb named as an installer", (r) => (r.artifacts.deb.url = githubAssetUrl(linuxOnly, "exe")), /deb: url/],
+    ["a deb named as the bundler names it", (r) => (r.artifacts.deb.url = r.artifacts.deb.url.replace(/[^/]+$/, bundlerDebName(linuxOnly))), /deb: url/],
+    ["a deb on another tag", (r) => (r.artifacts.deb.url = r.artifacts.deb.url.replace(`/v${linuxOnly}/`, "/v1.13.1/")), /deb: url/],
+    ["a deb with no size", (r) => delete r.artifacts.deb.size, /deb: size undefined/],
+    ["a deb with an uppercase digest", (r) => (r.artifacts.deb.sha256 = r.artifacts.deb.sha256.toUpperCase()), /deb: sha256/],
+    ["a deb that is not an object", (r) => (r.artifacts.deb = null), /deb is not an object/],
+    ["a deb key misspelled", (r) => { r.artifacts.debs = r.artifacts.deb; delete r.artifacts.deb; }, /artifacts holds \["debs"\]/],
+    ["no deb either", (r) => delete r.artifacts.deb, /artifacts holds \[\]/],
+  ];
   const problemsAfter = (mutate, from = record, version = "1.9.0") => {
     const copy = structuredClone(from);
     mutate(copy);
@@ -1305,6 +1462,7 @@ test("the release record check refuses a record that is malformed or names anoth
   const missed = [
     ...refused.filter(([, mutate, expected]) => !problemsAfter(mutate).some((p) => expected.test(p))),
     ...macOnlyRefused.filter(([, mutate, expected]) => !problemsAfter(mutate, MAC_ONLY_RECORD, macOnly).some((p) => expected.test(p))),
+    ...linuxOnlyRefused.filter(([, mutate, expected]) => !problemsAfter(mutate, LINUX_ONLY_RECORD, linuxOnly).some((p) => expected.test(p))),
   ];
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const accepted = [
@@ -1312,6 +1470,26 @@ test("the release record check refuses a record that is malformed or names anoth
     ["a record with no note", [(r) => delete r.note]],
     ["a disk image alone, as a Mac only release records it", [() => {}, MAC_ONLY_RECORD, macOnly]],
     ["an installer alone, as a Windows only release would record it", [(r) => delete r.artifacts.dmg]],
+    ["a deb alone, as a Linux only release records it", [() => {}, LINUX_ONLY_RECORD, linuxOnly]],
+    ["all three, as a release for every platform records them", [(r) => (r.artifacts.deb = { ...structuredClone(LINUX_ONLY_RECORD.artifacts.deb), url: githubAssetUrl("1.9.0", "deb") })]],
+    [
+      "an installer and a deb",
+      [
+        (r) => {
+          delete r.artifacts.dmg;
+          r.artifacts.deb = { ...structuredClone(LINUX_ONLY_RECORD.artifacts.deb), url: githubAssetUrl("1.9.0", "deb") };
+        },
+      ],
+    ],
+    [
+      "a disk image and a deb",
+      [
+        (r) => {
+          delete r.artifacts.exe;
+          r.artifacts.deb = { ...structuredClone(LINUX_ONLY_RECORD.artifacts.deb), url: githubAssetUrl("1.9.0", "deb") };
+        },
+      ],
+    ],
   ];
   const wronglyRefused = accepted.map(([name, args]) => [name, problemsAfter(...args)]).filter(([, problems]) => problems.length);
   assert.deepEqual(wronglyRefused, [], "these were refused");
@@ -1325,6 +1503,28 @@ test("the release record check refuses a record that is malformed or names anoth
  */
 const WINDOWS_UPDATER_PUBKEY =
   "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFQjY3RUQzRENFNDQ1OUEKUldTYVJlVGMwMzYyN2gxZS9nL2VjMmkyQU9RclhvT2t4MWQxeDZKa0FkYysvMUtGVGVTZGxYZFEK";
+
+/**
+ * The key the Linux build checks an update against: plugins.updater.pubkey of
+ * the Koegaki repo's tauri.linux.conf.json when that overlay sets one, and of
+ * tauri.conf.json otherwise (Tauri merges the overlay over the base, and the
+ * publishing tool follows the same rule, spec
+ * 2026-10-13-publish-tool-linux-and-windows-only rule 5). At Koegaki 62246245
+ * the overlay sets none, so it is the Windows key. In the fixture run the
+ * fixture's records are signed with LINUX_FIXTURE_PUBKEY instead (linuxKeyFor).
+ */
+const LINUX_UPDATER_PUBKEY = WINDOWS_UPDATER_PUBKEY;
+
+/**
+ * The public key of the throwaway key the fixture's 1.14.0 deb
+ * (tests/fixtures/linux-release/1.14.0.json) was signed with. The private key
+ * was not kept: nothing but that one record was ever signed with it.
+ */
+const LINUX_FIXTURE_PUBKEY =
+  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxMzg3NEUzNUM2OTc4OTEKUldTUmVHbGM0M1E0OFp0bzNaNHFhN0Z3R0hKbjFnNDVEc0xISU1BMlR4T0NuRHNBYUlEdHo0MVIK";
+
+/** The key the deb of `version` is checked against: the fixture's for a fixture record, the Linux build's otherwise. */
+const linuxKeyFor = (version) => (fromFixture(version) ? LINUX_FIXTURE_PUBKEY : LINUX_UPDATER_PUBKEY);
 
 /** The DER prefix that turns a raw 32 byte Ed25519 key into an SPKI public key. */
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
@@ -1351,7 +1551,7 @@ function canonicalBase64(text) {
  * installer itself or as a release record states them. Returns what failed and
  * the trusted comment.
  */
-function updaterSignatureProblems(digest, signature, pubkey) {
+function updaterSignatureProblems(digest, signature, pubkey, what = "installer") {
   // The updater reads the decoded bytes as strict UTF-8 (str::from_utf8, which
   // keeps a byte order mark), then splits them with Rust's lines(), which ends a
   // line at "\n" and drops a "\r" before it, so a CRLF signature reads the same.
@@ -1385,7 +1585,7 @@ function updaterSignatureProblems(digest, signature, pubkey) {
   const problems = [];
   if (!key.subarray(2, 10).equals(sig.subarray(2, 10))) problems.push("the key ids differ");
   const publicKey = createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, key.subarray(10)]), format: "der", type: "spki" });
-  if (!verify(null, digest, publicKey, sig.subarray(10))) problems.push("the installer signature does not verify");
+  if (!verify(null, digest, publicKey, sig.subarray(10))) problems.push(`the ${what} signature does not verify`);
   const global = canonicalBase64(globalLine);
   if (!global) problems.push("the trusted comment signature line is not canonical base64");
   else if (trusted === undefined) problems.push("no trusted comment");
@@ -1762,11 +1962,27 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
  * another file than that version's installer. A record of a Mac only release
  * states no installer, and so no signature.
  */
-function recordSignatureProblems(record, version) {
-  if (!record.artifacts.exe) return [];
-  const { blake2b512, signature } = record.artifacts.exe;
-  const { problems, trusted } = updaterSignatureProblems(Buffer.from(blake2b512, "hex"), signature, WINDOWS_UPDATER_PUBKEY);
-  if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) return [...problems, `the trusted comment ${JSON.stringify(trusted)} names another file`];
+function recordSignatureProblems(record, version, linuxKey = linuxKeyFor(version)) {
+  const problems = [];
+  if (record.artifacts.exe) {
+    const { blake2b512, signature } = record.artifacts.exe;
+    const checked = updaterSignatureProblems(Buffer.from(blake2b512, "hex"), signature, WINDOWS_UPDATER_PUBKEY);
+    problems.push(...checked.problems);
+    if (!checked.trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
+      problems.push(`the trusted comment ${JSON.stringify(checked.trusted)} names another file`);
+    }
+  }
+  // The deb's signature is checked the same way, with the key the Linux build
+  // trusts, and names the file the bundler wrote (the publishing tool signs it
+  // under that name before renaming it).
+  if (record.artifacts.deb) {
+    const { blake2b512, signature } = record.artifacts.deb;
+    const checked = updaterSignatureProblems(Buffer.from(blake2b512, "hex"), signature, linuxKey, "deb");
+    problems.push(...checked.problems.map((problem) => `deb: ${problem}`));
+    if (!checked.trusted?.split("\t").includes(`file:${bundlerDebName(version)}`)) {
+      problems.push(`deb: the trusted comment ${JSON.stringify(checked.trusted)} names another file`);
+    }
+  }
   return problems;
 }
 
@@ -1783,15 +1999,49 @@ test("every release record states the installer digest its updater signature cov
 test("the record signature check refuses a digest or a version the signature does not cover, and passes a record with no installer", () => {
   const record = releaseRecord("1.9.0");
   assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
+  const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
   const flippedDigest = structuredClone(record);
-  flippedDigest.artifacts.exe.blake2b512 = `${record.artifacts.exe.blake2b512[0] === "0" ? "1" : "0"}${record.artifacts.exe.blake2b512.slice(1)}`;
+  flippedDigest.artifacts.exe.blake2b512 = flippedHex(record.artifacts.exe.blake2b512);
+  // A deb beside the 1.9.0 installer, signed for 1.9.0 with LINUX_ONLY_KEY.
+  const withDeb = (edit) => {
+    const copy = structuredClone(record);
+    copy.artifacts.deb = { ...structuredClone(LINUX_ONLY_RECORD.artifacts.deb), url: githubAssetUrl("1.9.0", "deb") };
+    copy.artifacts.deb.signature = LINUX_ONLY_KEY.sign(Buffer.from(copy.artifacts.deb.blake2b512, "hex"), bundlerDebName("1.9.0"));
+    edit?.(copy.artifacts.deb);
+    return copy;
+  };
+  const linuxOnly = LINUX_ONLY_RECORD.version;
+  const linuxOnlyWith = (edit) => {
+    const copy = structuredClone(LINUX_ONLY_RECORD);
+    edit(copy.artifacts.deb);
+    return copy;
+  };
+  const key = LINUX_ONLY_KEY.pubkey;
   const refused = [
-    ["an installer digest one bit off", [flippedDigest, "1.9.0"], /^the installer signature does not verify$/],
-    ["the record read as another version", [record, "1.9.1"], /^the trusted comment .* names another file$/],
+    ["an installer digest one bit off", [flippedDigest, "1.9.0", key], /^the installer signature does not verify$/],
+    ["the record read as another version", [record, "1.9.1", key], /^the trusted comment .* names another file$/],
+    ["a deb digest one bit off", [linuxOnlyWith((d) => (d.blake2b512 = flippedHex(d.blake2b512))), linuxOnly, key], /^deb: the deb signature does not verify$/],
+    ["a Linux only record read as another version", [LINUX_ONLY_RECORD, "1.14.1", key], /^deb: the trusted comment .* names another file$/],
+    ["a deb signed by a key the Linux build does not trust", [LINUX_ONLY_RECORD, linuxOnly, minisignKey().pubkey], /^deb: the key ids differ$/],
+    ["a deb signed by a key the Linux build does not trust, read as the Linux build reads it", [LINUX_ONLY_RECORD, linuxOnly, LINUX_UPDATER_PUBKEY], /^deb: /],
+    [
+      "a deb signed under the installer's name",
+      [linuxOnlyWith((d) => (d.signature = LINUX_ONLY_KEY.sign(Buffer.from(d.blake2b512, "hex"), `Koegaki_${linuxOnly}_x64-setup.exe`))), linuxOnly, key],
+      /^deb: the trusted comment .* names another file$/,
+    ],
+    [
+      "a deb signed under its published name, not the bundler's",
+      [linuxOnlyWith((d) => (d.signature = LINUX_ONLY_KEY.sign(Buffer.from(d.blake2b512, "hex"), ASSET_NAME.deb(linuxOnly)))), linuxOnly, key],
+      /^deb: the trusted comment .* names another file$/,
+    ],
+    ["a deb beside the installer with a digest one bit off", [withDeb((d) => (d.blake2b512 = flippedHex(d.blake2b512))), "1.9.0", key], /^deb: the deb signature does not verify$/],
+    ["an installer signature carried as the deb's", [withDeb((d) => (d.signature = record.artifacts.exe.signature)), "1.9.0", key], /^deb: /],
   ];
   const accepted = [
-    ["a record of a disk image and an installer", [record, "1.9.0"]],
-    ["a Mac only record, which states no installer and so no signature", [MAC_ONLY_RECORD, MAC_ONLY_RECORD.version]],
+    ["a record of a disk image and an installer", [record, "1.9.0", key]],
+    ["a Mac only record, which states no installer and so no signature", [MAC_ONLY_RECORD, MAC_ONLY_RECORD.version, key]],
+    ["a Linux only record, its deb signed for its version", [LINUX_ONLY_RECORD, linuxOnly, key]],
+    ["a record of all three", [withDeb(), "1.9.0", key]],
   ];
   const missed = refused.filter(([, args, expected]) => !recordSignatureProblems(...args).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -2430,8 +2680,9 @@ const servedFromPublic = (pathname) => existsSync(new URL(`../public${pathname}`
 function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
   const at = `the link ${link}`;
   const file = typeof link === "string" && URL.canParse(link) ? new URL(link).pathname.split("/").at(-1) : undefined;
-  const version = file?.match(kind === "dmg" ? /^Koegaki-(\d+\.\d+\.\d+)\.dmg$/ : /^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)?.[1];
-  if (!version) return [`${at} names no ${kind === "dmg" ? "disk image" : "installer"} of a release`];
+  const named = { dmg: /^Koegaki-(\d+\.\d+\.\d+)\.dmg$/, exe: /^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/, deb: /^Koegaki-(\d+\.\d+\.\d+)-amd64\.deb$/ };
+  const version = file?.match(named[kind])?.[1];
+  if (!version) return [`${at} names no ${ASSET_WORD[kind]} of a release`];
   const host = hostOf(link);
   const problems = [];
   if (host === "github.com") {
@@ -2444,6 +2695,8 @@ function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
     if (frozen) problems.push(`${at}: ${frozen}`);
     return problems;
   }
+  // Every deb was published as a GitHub release asset; no other host ever served one.
+  if (kind === "deb") return [`${at} is on ${host}, but a deb package is served from github.com only`];
   const legacyUrls = new Map([
     ["koegaki.com", `https://koegaki.com/downloads/${ASSET_NAME[kind](version)}`],
     [BLOB_HOST, `https://${BLOB_HOST}/${ASSET_NAME[kind](version)}`],
@@ -2525,9 +2778,10 @@ function liveAppcastProblems(xml, link, sources, builds = MAC_BUILDS) {
   return problems;
 }
 
-/** What is wrong with the site's two download links, given as { dmg, exe }. */
+/** What is wrong with the site's download links, given as { dmg, exe } and, once Linux ships, deb. */
 function liveLinkProblems(links, sources) {
-  return Object.entries(links).flatMap(([kind, link]) => downloadLinkProblems(kind, link, sources).map((problem) => `${kind === "dmg" ? "Mac" : "Windows"}: ${problem}`));
+  const platform = { dmg: "Mac", exe: "Windows", deb: "Linux" };
+  return Object.entries(links).flatMap(([kind, link]) => downloadLinkProblems(kind, link, sources).map((problem) => `${platform[kind]}: ${problem}`));
 }
 
 /** Every problem with the files and links the site serves for its releases, as the tests of each check them. */
@@ -2539,8 +2793,8 @@ function liveReleaseProblems(manifest, xml, links, sources, builds = MAC_BUILDS)
   ];
 }
 
-/** The site's download links, by kind. */
-const SITE_LINKS = { dmg: SITE.downloadUrl, exe: SITE.windowsDownloadUrl };
+/** The site's download links, by kind; the Linux one only once a Linux release exists. */
+const SITE_LINKS = { dmg: SITE.downloadUrl, exe: SITE.windowsDownloadUrl, ...(LINUX_ON ? { deb: SITE.linuxDownloadUrl } : {}) };
 
 test("the live release checks refuse an appcast with no release, a link the feeds do not offer, and a release MAC_BUILDS does not list", () => {
   const manifest = publicJson("windows-updates.json");
@@ -2639,6 +2893,7 @@ test("the download link check refuses a recorded release off GitHub, a link on a
   const unrecorded = FROZEN_DOWNLOADS.map((name) => name.match(/^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)[1]).filter((version) => !releaseRecord(version)).at(-1);
   assert.ok(github && seed && unrecorded, `the releases these cases need are missing: ${JSON.stringify({ github, seed, unrecorded })}`);
   const macOnly = MAC_ONLY_RECORD.version;
+  const linuxOnly = LINUX_ONLY_RECORD.version;
   const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const offGithub = (release) => new RegExp(`records ${escaped(release)} as a GitHub release`);
   const blob = (kind, release) => `https://${BLOB_HOST}/${ASSET_NAME[kind](release)}`;
@@ -2664,6 +2919,19 @@ test("the download link check refuses a recorded release off GitHub, a link on a
       new RegExp(`is on GitHub but releases/${escaped(github)}\\.json records no disk image of ${escaped(github)}`),
     ],
     ["a Windows link on koegaki.com to a Mac only release, though the file is served", ["exe", site(macOnly), () => true], offGithub(macOnly)],
+    // A deb was only ever a GitHub release asset, of a release whose record states one.
+    ["a Linux link on koegaki.com, though the file is served", ["deb", `https://koegaki.com/downloads/${ASSET_NAME.deb(linuxOnly)}`, () => true], /is on koegaki\.com, but a deb package is served from github\.com only/],
+    ["a Linux link on the Blob host", ["deb", `https://${BLOB_HOST}/${ASSET_NAME.deb(linuxOnly)}`], /is on npdal36mxz3kcwxv\.public\.blob\.vercel-storage\.com, but a deb package is served from github\.com only/],
+    ["a Linux link to a release recorded without a deb", ["deb", githubAssetUrl(github, "deb")], new RegExp(`is on GitHub but releases/${escaped(github)}\\.json records no deb package of ${escaped(github)}`)],
+    ["a Linux link to a release with no record", ["deb", githubAssetUrl("9.9.9", "deb")], /no releases\/9\.9\.9\.json records/],
+    ["a Linux link that names no release", ["deb", `${GITHUB_DOWNLOAD}/v${linuxOnly}/Koegaki.deb`], /names no deb package of a release/],
+    ["a Linux link to the bundler's file name", ["deb", `${GITHUB_DOWNLOAD}/v${linuxOnly}/${bundlerDebName(linuxOnly)}`], /names no deb package of a release/],
+    ["a Linux link to an installer", ["deb", githubAssetUrl(linuxOnly, "exe")], /names no deb package of a release/],
+    ["a Linux link with a query", ["deb", `${githubAssetUrl(linuxOnly, "deb")}?raw=1`], /is not https:\/\/github\.com\//],
+    ["a Linux link on another tag", ["deb", githubAssetUrl(linuxOnly, "deb").replace(`/v${linuxOnly}/`, "/v1.13.1/")], /is not https:\/\/github\.com\//],
+    ["a Linux link to a release public/downloads holds", ["deb", githubAssetUrl(seed, "deb")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in public/downloads`)],
+    ["a Mac link to a Linux only release", ["dmg", githubAssetUrl(linuxOnly, "dmg")], new RegExp(`records no disk image of ${escaped(linuxOnly)}`)],
+    ["a Windows link to a Linux only release", ["exe", githubAssetUrl(linuxOnly, "exe")], new RegExp(`records no installer of ${escaped(linuxOnly)}`)],
   ];
   const accepted = [
     ["the GitHub disk image of a release published on GitHub", ["dmg", githubAssetUrl(github, "dmg")]],
@@ -2673,8 +2941,9 @@ test("the download link check refuses a recorded release off GitHub, a link on a
     ["a Mac link on the Blob host for 1.9.0, recorded only for the self tests", ["dmg", blob("dmg", seed)]],
     ["a Windows link on koegaki.com for a release with no record", ["exe", site(unrecorded)]],
     ["a Mac link on the Blob host for a release with no record", ["dmg", blob("dmg", unrecorded)]],
+    ["the GitHub deb of a Linux only release", ["deb", githubAssetUrl(linuxOnly, "deb")]],
   ];
-  const check = ([kind, link, serves, sources = withMacOnlyRelease(RELEASE_SOURCES)]) => downloadLinkProblems(kind, link, sources, serves);
+  const check = ([kind, link, serves, sources = withLinuxOnlyRelease(withMacOnlyRelease(RELEASE_SOURCES))]) => downloadLinkProblems(kind, link, sources, serves);
   const missed = refused.filter(([, args, expected]) => !check(args).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const wronglyRefused = accepted.map(([name, args]) => [name, check(args)]).filter(([, problems]) => problems.length);
@@ -2700,9 +2969,11 @@ const MAC_SPARKLE_PUBKEY = "2SAX2B+giN1G9pZlqlTMOA/Es0PWh1wPj+M3Et6WZVw=";
  * installer, its updater signature, which the manifest must carry, must verify
  * over the downloaded installer and name its file; where it states a disk
  * image, every Sparkle signature in `signatures`, what the appcast gives for
- * it, must verify over the downloaded disk image. `keys` holds the updater's key
- * (`updater`, as WINDOWS_UPDATER_PUBKEY) and Sparkle's (`sparkle`, as
- * MAC_SPARKLE_PUBKEY).
+ * it, must verify over the downloaded disk image; where it states a deb, its
+ * updater signature must verify over the downloaded deb and name the file the
+ * bundler wrote. `keys` holds the Windows updater's key (`updater`, as
+ * WINDOWS_UPDATER_PUBKEY), Sparkle's (`sparkle`, as MAC_SPARKLE_PUBKEY) and
+ * the Linux updater's (`linux`, as LINUX_UPDATER_PUBKEY).
  */
 function downloadedReleaseProblems(record, assets, signatures, keys) {
   const problems = [];
@@ -2716,6 +2987,24 @@ function downloadedReleaseProblems(record, assets, signatures, keys) {
     problems.push(...installerSignatureProblems(assets.exe, record.artifacts.exe.signature, record.version, keys.updater).map((problem) => `exe: ${problem}`));
   }
   if (kinds.includes("dmg") && assets.dmg) problems.push(...sparkleSignatureProblems(assets.dmg, signatures, keys.sparkle).map((problem) => `dmg: ${problem}`));
+  if (kinds.includes("deb") && assets.deb) {
+    problems.push(...debSignatureProblems(assets.deb, record.artifacts.deb.signature, record.version, keys.linux).map((problem) => `deb: ${problem}`));
+  }
+  return problems;
+}
+
+/**
+ * What the Linux updater refuses in a downloaded deb of `version`:
+ * `signature` does not verify over its BLAKE2b-512 digest with `key` (as
+ * LINUX_UPDATER_PUBKEY), or its trusted comment names another file than the
+ * one the bundler wrote for that version.
+ */
+function debSignatureProblems(bytes, signature, version, key) {
+  const digest = createHash("blake2b512").update(bytes).digest();
+  const { problems, trusted } = updaterSignatureProblems(digest, signature, key, "deb");
+  if (!trusted?.split("\t").includes(`file:${bundlerDebName(version)}`)) {
+    return [...problems, `the trusted comment ${JSON.stringify(trusted)} does not name ${bundlerDebName(version)}`];
+  }
   return problems;
 }
 
@@ -2925,7 +3214,13 @@ test("the served installer check refuses bytes that are not the release's, on an
 
 test(
   "the release assets downloaded from GitHub match their records and signatures",
-  { skip: process.env.RELEASE_FETCH === "1" ? false : "needs the network: run with RELEASE_FETCH=1, as the top of this file says" },
+  {
+    skip: LINUX_FIXTURE
+      ? "the fixture build's release is not published, so only the real build's run downloads"
+      : process.env.RELEASE_FETCH === "1"
+        ? false
+        : "needs the network: run with RELEASE_FETCH=1, as the top of this file says",
+  },
   async (t) => {
     const manifest = publicJson("windows-updates.json");
     const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
@@ -2938,7 +3233,7 @@ test(
     assert.deepEqual(liveReleaseProblems(manifest, xml, SITE_LINKS, RELEASE_SOURCES), [], "the live release files and links");
     const target = manifest.platforms["windows-x86_64"];
     const enclosures = enclosuresOf(appcastItems(xml).items);
-    const served = [target.url, ...enclosures.map(({ url }) => url), SITE.downloadUrl, SITE.windowsDownloadUrl];
+    const served = [target.url, ...enclosures.map(({ url }) => url), ...Object.values(SITE_LINKS)];
     const versions = new Set(served.filter((url) => hostOf(url) === "github.com").map((url) => url.match(/\/releases\/download\/v(\d+\.\d+\.\d+)\//)?.[1]));
     const downloaded = new Map();
     const download = async (url) => {
@@ -2958,9 +3253,13 @@ test(
       const assets = {};
       for (const [kind, url] of Object.entries(urls)) assets[kind] = await download(url);
       if (record.artifacts.dmg && signatures.length === 0) t.diagnostic(`no appcast item offers ${record.artifacts.dmg.url}, so no Sparkle signature of it is checked`);
-      const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: MAC_SPARKLE_PUBKEY };
+      const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: MAC_SPARKLE_PUBKEY, linux: LINUX_UPDATER_PUBKEY };
       assert.deepEqual(downloadedReleaseProblems(checked, assets, signatures, keys), [], `${version} as GitHub serves it`);
-      const verified = [record.artifacts.exe && "the updater signature", record.artifacts.dmg && `${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"}`].filter(Boolean);
+      const verified = [
+        record.artifacts.exe && "the updater signature",
+        record.artifacts.dmg && `${signatures.length} Sparkle signature${signatures.length === 1 ? "" : "s"}`,
+        record.artifacts.deb && "the deb's updater signature",
+      ].filter(Boolean);
       t.diagnostic(
         `${version}: ${Object.keys(urls).map((kind) => `the ${ASSET_WORD[kind]}`).join(" and ")} match releases/${version}.json in size, SHA-256 and BLAKE2b-512; ${verified.join(" and ")} verify over the downloaded bytes`,
       );
@@ -3017,8 +3316,19 @@ test("the download check refuses bytes that differ from the record and signature
     edit?.(copy);
     return downloadedReleaseProblems(copy, assets, signatures, key);
   };
-  // A Mac only release states, and so downloads, its disk image alone.
+  // A Mac only release states, and so downloads, its disk image alone, and a
+  // Linux only release its deb alone, checked with the key it was signed with.
   const macOnly = { from: MAC_ONLY_RECORD, assets: { dmg: MAC_ONLY_DMG }, signatures: [sign(null, MAC_ONLY_DMG, sparkle.privateKey).toString("base64")] };
+  const linuxKeys = { ...keys, linux: LINUX_ONLY_KEY.pubkey };
+  const linuxOnly = { from: LINUX_ONLY_RECORD, assets: { deb: LINUX_ONLY_DEB }, signatures: [], key: linuxKeys };
+  // All three for 1.9.0: the record's disk image and installer, and the Linux
+  // only release's deb bytes, signed as 1.9.0's deb.
+  const debOf190 = {
+    ...structuredClone(LINUX_ONLY_RECORD.artifacts.deb),
+    url: githubAssetUrl("1.9.0", "deb"),
+    signature: LINUX_ONLY_KEY.sign(createHash("blake2b512").update(LINUX_ONLY_DEB).digest(), bundlerDebName("1.9.0")),
+  };
+  const allThree = { edit: (r) => (r.artifacts.deb = structuredClone(debOf190)), assets: { dmg, exe, deb: LINUX_ONLY_DEB }, key: linuxKeys };
   const refused = [
     ["an installer one byte off", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: sha256 .* is not/],
     ["an installer one byte off, by its BLAKE2b-512", { assets: { dmg, exe: flipped(exe, Math.floor(exe.length / 2)) } }, /exe: blake2b512 .* is not/],
@@ -3042,12 +3352,24 @@ test("the download check refuses bytes that differ from the record and signature
     ["a Mac only release whose Sparkle signature does not verify", { ...macOnly, signatures: [edSignature] }, /dmg: the Sparkle signature .* does not verify/],
     ["a Mac only release with nothing downloaded", { ...macOnly, assets: {} }, /dmg: nothing was downloaded/],
     ["a Windows only release whose installer is one byte off", { edit: (r) => delete r.artifacts.dmg, assets: { exe: flipped(exe, Math.floor(exe.length / 2)) }, signatures: [] }, /exe: the installer signature does not verify/],
+    ["a Linux only release whose deb is one byte off, by its SHA-256", { ...linuxOnly, assets: { deb: flipped(LINUX_ONLY_DEB, 0) } }, /deb: sha256 .* is not/],
+    ["a Linux only release whose deb is one byte off, by its BLAKE2b-512", { ...linuxOnly, assets: { deb: flipped(LINUX_ONLY_DEB, 0) } }, /deb: blake2b512 .* is not/],
+    ["a Linux only release whose deb is one byte off, by its updater signature", { ...linuxOnly, assets: { deb: flipped(LINUX_ONLY_DEB, 0) } }, /deb: the deb signature does not verify/],
+    ["a Linux only release whose deb is one byte short", { ...linuxOnly, assets: { deb: LINUX_ONLY_DEB.subarray(0, -1) } }, /deb: \d+ bytes, not the \d+ the record states/],
+    ["a Linux only release with nothing downloaded", { ...linuxOnly, assets: {} }, /deb: nothing was downloaded/],
+    ["a Linux only release checked with a key the Linux build does not trust", { ...linuxOnly, key: { ...keys, linux: minisignKey().pubkey } }, /deb: the deb signature does not verify/],
+    ["a Linux only release read as another version", { ...linuxOnly, edit: (r) => (r.version = "1.14.1") }, /deb: the trusted comment .* does not name com\.vishutdhar\.Koegaki_1\.14\.1_amd64\.deb/],
+    ["a record whose deb size is one byte off", { ...linuxOnly, edit: (r) => (r.artifacts.deb.size += 1) }, /deb: \d+ bytes, not the \d+ the record states/],
+    ["a release of all three with no deb downloaded", { ...allThree, assets: { dmg, exe } }, /deb: nothing was downloaded/],
+    ["a release of all three whose deb is one byte off", { ...allThree, assets: { dmg, exe, deb: flipped(LINUX_ONLY_DEB, 0) } }, /deb: the deb signature does not verify/],
   ];
   const accepted = [
     ["the release as recorded and signed", {}],
     ["a disk image no appcast item offers, so with no Sparkle signature to check", { signatures: [] }],
     ["a Mac only release, its disk image as recorded and signed", macOnly],
     ["a Windows only release, its installer as recorded and signed", { edit: (r) => delete r.artifacts.dmg, assets: { exe }, signatures: [] }],
+    ["a Linux only release, its deb as recorded and signed", linuxOnly],
+    ["a release of all three, each as recorded and signed", allThree],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -3060,6 +3382,8 @@ test("the release download fetches every asset its record states and no other, e
   assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
   const windowsOnly = structuredClone(record);
   delete windowsOnly.artifacts.dmg;
+  const allThree = structuredClone(record);
+  allThree.artifacts.deb = { ...structuredClone(LINUX_ONLY_RECORD.artifacts.deb), url: githubAssetUrl("1.9.0", "deb") };
   // The manifest offers the recorded installer, with a signature of its own so
   // the cases tell it from the record's; the appcast offers both disk images,
   // one more, and an enclosure with no url, which no record's disk image is.
@@ -3096,6 +3420,282 @@ test("the release download fetches every asset its record states and no other, e
       [windowsOnly, target],
       { urls: { exe: record.artifacts.exe.url }, signatures: [], checked: withManifestSignature(windowsOnly) },
     ],
+    // No Linux feed exists yet (spec 2026-10-13-linux-site rule 5), so the deb
+    // is checked with the signature its record states.
+    ["a Linux only release", [LINUX_ONLY_RECORD, target], { urls: { deb: LINUX_ONLY_RECORD.artifacts.deb.url }, signatures: [], checked: structuredClone(LINUX_ONLY_RECORD) }],
+    [
+      "a release of all three, its installer the manifest's",
+      [allThree, target],
+      {
+        urls: { dmg: allThree.artifacts.dmg.url, exe: allThree.artifacts.exe.url, deb: allThree.artifacts.deb.url },
+        signatures: ["the 1.9.0 disk image's"],
+        checked: withManifestSignature(allThree),
+      },
+    ],
   ];
   for (const [name, [from, offered], expected] of cases) assert.deepEqual(releaseDownloads(from, offered, enclosures), expected, name);
+});
+
+// ---- Linux (docs/specs/2026-10-13-linux-site.md) ----
+
+/** Every file under `dir`, as paths relative to it. */
+function filesUnder(dir) {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(fileURLToPath(dir), join(entry.parentPath, entry.name)));
+}
+
+test("the site these tests import offers exactly the Linux release the build found, and so does every page", () => {
+  const release = linuxRelease(fileURLToPath(BUILD_RELEASES));
+  assert.deepEqual(LINUX_RELEASE, release, "lib/site.ts and the build disagree about the Linux release");
+  assert.equal(SITE.linuxDownloadUrl, release?.url ?? null);
+  // Without one, the test below holds every page to saying nothing Linux.
+  if (release) for (const path of ROUTES) assert.ok(html(path).includes(release.url), `${path} does not offer the Linux download`);
+});
+
+test("no Linux update feed is served until unit 5 adds its checks", () => {
+  // Spec rule 5: the feed, its platform key and its signature are unit 5's
+  // call. Until that unit replaces this test with the feed's own checks, a
+  // Linux feed must not ship, with a Linux release or without one.
+  const named = readdirSync(new URL("../public/", import.meta.url)).filter((name) => /linux/i.test(name));
+  const debRecorded = releaseRecords().some(({ record }) => isPlainObject(record?.artifacts?.deb));
+  assert.deepEqual(
+    named,
+    [],
+    debRecorded
+      ? "public/ serves a Linux file, but the Linux feed has no checks yet: unit 5 adds them (spec 2026-10-13-linux-site rule 5) and replaces this test"
+      : "public/ serves a Linux file, but no release record holds a deb, so there is no Linux release for it to offer",
+  );
+});
+
+test(
+  "while no release record holds a deb, nothing Linux is built",
+  { skip: LINUX_ON ? "a release record holds a deb, so the site shows Linux; spec rule 8 holds only before that" : false },
+  () => {
+    assert.equal(LINUX_RELEASE, null);
+    assert.deepEqual([SITE.linuxDownloadUrl, SITE.linuxRequirements, SITE.linuxEngine], [null, null, null]);
+    assert.ok(!LANDING_PAGES.some(({ path }) => path === "/linux"), "LANDING_PAGES lists /linux");
+    // No prerendered file, no route output and no static asset says Linux, in
+    // any case: today's build never does (spec section 2).
+    for (const [root, files] of [[BUILT, filesUnder(BUILT)], [new URL("static/", BUILD_ROOT), filesUnder(new URL("static/", BUILD_ROOT))]]) {
+      assert.ok(files.length > 0, `no build output under ${fileURLToPath(root)}`);
+      for (const file of files) {
+        assert.doesNotMatch(file, /linux/i, `the build has an output named ${file}`);
+        const text = readFileSync(new URL(file, root)).toString("latin1");
+        const at = text.search(/linux/i);
+        assert.equal(at, -1, `${file} says Linux: ${JSON.stringify(text.slice(Math.max(0, at - 60), at + 60))}`);
+      }
+    }
+  },
+);
+
+/**
+ * Digests of every prerendered file of the build (html, rsc, segment rsc,
+ * body and meta), with the build id and the two download links read as
+ * placeholders, so a Mac or Windows release does not move them and a second
+ * build of the same code gives the same digests.
+ */
+function gateOffDigests() {
+  const buildId = readFileSync(new URL("BUILD_ID", BUILD_ROOT), "utf8").trim();
+  const digests = {};
+  for (const file of filesUnder(BUILT).filter((name) => /\.(?:html|rsc|body|meta)$/.test(name)).sort()) {
+    const text = readFileSync(new URL(file, BUILT))
+      .toString("latin1")
+      .replaceAll(buildId, "<build id>")
+      .replaceAll(SITE.downloadUrl, "<Mac download>")
+      .replaceAll(SITE.windowsDownloadUrl, "<Windows download>");
+    digests[file] = createHash("sha256").update(Buffer.from(text, "latin1")).digest("hex");
+  }
+  return digests;
+}
+
+const GATE_OFF_PIN = new URL("fixtures/gate-off-pin.json", import.meta.url);
+
+test(
+  "without a Linux release every page is today's, to the byte",
+  {
+    skip: LINUX_FIXTURE
+      ? "the fixture build has a Linux release"
+      : LINUX_ON
+        ? "a release record holds a deb, so the pin of the site before Linux no longer applies (spec rule 8)"
+        : false,
+  },
+  () => {
+    // The pin was taken from the build of main 09b3976, before any Linux code.
+    // A deliberate change to today's pages refreshes it with
+    // UPDATE_GATE_OFF_PIN=1 npm test, and its diff names every file it moves.
+    const digests = gateOffDigests();
+    if (process.env.UPDATE_GATE_OFF_PIN === "1") writeFileSync(GATE_OFF_PIN, `${JSON.stringify(digests, null, 2)}\n`);
+    assert.deepEqual(digests, JSON.parse(readFileSync(GATE_OFF_PIN, "utf8")), "a prerendered file differs from the pin of the site before Linux");
+  },
+);
+
+/** The pre-paint platform stamp script of a page. */
+function stampScript(doc) {
+  const head = doc.slice(0, doc.indexOf("</head>"));
+  const scripts = [...head.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).filter((s) => s.includes("data-os"));
+  assert.equal(scripts.length, 1, "expected one platform stamp script in the head");
+  return scripts[0];
+}
+
+test("the platform stamp marks Windows, and Linux only with a Linux release, never Android or ChromeOS", () => {
+  const script = stampScript(html("/"));
+  for (const path of ROUTES) assert.equal(stampScript(html(path)), script, `${path} stamps differently`);
+  const stamp = (navigator) => {
+    const attributes = {};
+    const documentElement = { setAttribute: (name, value) => (attributes[name] = value) };
+    runInNewContext(script, { navigator, document: { documentElement } });
+    return attributes["data-os"];
+  };
+  const linux = LINUX_ON ? "linux" : undefined;
+  const cases = [
+    ["Chrome on Windows", { userAgentData: { platform: "Windows" }, platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36" }, "win"],
+    ["Firefox on Windows", { platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0" }, "win"],
+    ["Safari on a Mac", { platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/26.0 Safari/605.1.15" }, undefined],
+    ["Chrome on a Mac", { userAgentData: { platform: "macOS" }, platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/140.0" }, undefined],
+    ["Chrome on Linux", { userAgentData: { platform: "Linux" }, platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36" }, linux],
+    ["Firefox on Linux", { platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; Linux x86_64; rv:143.0) Gecko/20100101 Firefox/143.0" }, linux],
+    ["Firefox on Linux under Wayland, with no platform", { platform: "", userAgent: "Mozilla/5.0 (X11; Linux x86_64; rv:143.0) Gecko/20100101 Firefox/143.0" }, linux],
+    ["Chrome on Android", { userAgentData: { platform: "Android" }, platform: "Linux armv81", userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36" }, undefined],
+    ["Firefox on Android", { platform: "Linux armv81", userAgent: "Mozilla/5.0 (Android 15; Mobile; rv:143.0) Gecko/143.0 Firefox/143.0" }, undefined],
+    ["Chrome on ChromeOS", { userAgentData: { platform: "Chrome OS" }, platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; CrOS x86_64 16328.0.0) AppleWebKit/537.36 Chrome/140.0 Safari/537.36" }, undefined],
+    ["a ChromeOS browser with no client hints", { platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; CrOS x86_64 16328.0.0) Gecko/20100101 Firefox/143.0" }, undefined],
+    ["a browser that says nothing", {}, undefined],
+  ];
+  const wrong = cases.map(([what, navigator, expected]) => [what, stamp(navigator), expected]).filter(([, got, expected]) => got !== expected);
+  assert.deepEqual(wrong, [], "stamped otherwise than expected: [visitor, stamped, expected]");
+});
+
+/**
+ * The style that makes the platform words work with a Linux release (spec
+ * rule 10), in every page's head: the Linux word hides off Linux, the Mac word
+ * on Linux, and the PC word, shown on Windows and Linux, on the Mac. Like the
+ * stylesheet's own two rules, each only ever adds display:none.
+ */
+const LINUX_STAMP_STYLE =
+  'html:not([data-os="linux"]) .os-linux{display:none}[data-os="linux"] .os-mac{display:none}html:not([data-os="win"]):not([data-os="linux"]) .os-pc{display:none}';
+
+const withLinux = { skip: LINUX_ON ? false : "no release record holds a deb, so no page shows Linux" };
+
+test("with a Linux release every page's head carries the Linux platform style, and only then", () => {
+  for (const path of ROUTES) {
+    const head = html(path).slice(0, html(path).indexOf("</head>"));
+    const styles = [...head.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]);
+    assert.deepEqual(styles, LINUX_ON ? [LINUX_STAMP_STYLE] : [], `the inline styles in the head of ${path}`);
+  }
+});
+
+/** Every anchor of a document with its href, class and text. */
+function anchorsWithClass(doc) {
+  return [...doc.matchAll(/<a\s([^>]*)>([\s\S]*?)<\/a>/g)].map((m) => ({
+    href: decodeEntities(attr(` ${m[1]}`, "href") ?? ""),
+    classes: (attr(` ${m[1]}`, "class") ?? "").split(/\s+/),
+    text: decodeEntities(m[2].replace(/<[^>]*>/g, "")).trim(),
+  }));
+}
+
+test("with a Linux release every download button offers the deb beside the Mac and Windows ones", withLinux, () => {
+  for (const path of ROUTES) {
+    const buttons = anchorsWithClass(html(path)).filter(({ classes }) => classes.includes("group"));
+    const of = (os) => buttons.filter(({ classes }) => classes.includes(`os-${os}`));
+    const [mac, win, linux] = [of("mac"), of("win"), of("linux")];
+    assert.ok(mac.length > 0, `${path} has no download button`);
+    assert.deepEqual([win.length, linux.length], [mac.length, mac.length], `${path}: Mac, Windows and Linux buttons differ in number`);
+    assert.deepEqual(new Set(mac.map(({ href }) => href)), new Set([SITE.downloadUrl]), path);
+    assert.deepEqual(new Set(win.map(({ href }) => href)), new Set([SITE.windowsDownloadUrl]), path);
+    assert.deepEqual(new Set(linux.map(({ href }) => href)), new Set([SITE.linuxDownloadUrl]), path);
+    // A button's words are the same on every platform.
+    for (let i = 0; i < mac.length; i++) assert.deepEqual([win[i].text, linux[i].text], [mac[i].text, mac[i].text], `${path} button ${i}`);
+  }
+});
+
+test("with a Linux release every platform note names its requirement and links the other two platforms", withLinux, () => {
+  let notes = 0;
+  for (const path of ROUTES) {
+    const spans = [...html(path).matchAll(/<span class="os-(mac|win|linux)">((?:(?!<\/span>)[\s\S])*)<\/span>/g)]
+      .filter((m) => m[2].includes("<a "))
+      .map((m) => ({ os: m[1], text: decodeEntities(m[2].replace(/<[^>]*>/g, "").replace(/<!-- -->/g, "")), links: anchorsWithClass(m[2]).map(({ href, text }) => [href, text]) }));
+    const of = (os) => spans.filter((span) => span.os === os);
+    assert.deepEqual([of("win").length, of("linux").length], [of("mac").length, of("mac").length], `${path}: the notes differ in number`);
+    for (const span of spans) {
+      notes++;
+      const expected = {
+        mac: [[SITE.windowsDownloadUrl, "Download for Windows"], [SITE.linuxDownloadUrl, "Download for Linux"]],
+        win: [[SITE.downloadUrl, "Download for Mac"], [SITE.linuxDownloadUrl, "Download for Linux"]],
+        linux: [["/linux", "Install steps"], [SITE.downloadUrl, "Download for Mac"], [SITE.windowsDownloadUrl, "Download for Windows"]],
+      }[span.os];
+      assert.deepEqual(span.links, expected, `${path}: the ${span.os} note's links`);
+    }
+    for (const span of of("linux")) assert.ok(span.text.startsWith(`${SITE.linuxRequirements} · `), `${path}: the Linux note says ${span.text}`);
+    for (const span of of("win")) assert.ok(span.text.startsWith(`${SITE.windowsRequirements} · `), `${path}: the Windows note says ${span.text}`);
+  }
+  assert.ok(notes > 0, "no page has a platform note");
+});
+
+test("with a Linux release the home page names it in the stamp label, the footer and the product data", withLinux, () => {
+  const doc = html("/");
+  assert.match(doc, /<span class="os-linux">Debian &amp; Ubuntu<\/span>/, "the hero's platform label");
+  for (const path of ROUTES) {
+    const links = anchors(footer(html(path))).map(({ href, text }) => [href, text]);
+    assert.ok(links.some(([href, text]) => href === SITE.linuxDownloadUrl && text === "Linux"), `${path}'s footer has no Linux download`);
+    assert.ok(links.some(([href]) => href === "/linux") || !footer(html(path)).includes("Platforms"), `${path}'s footer does not link the Linux page`);
+  }
+  const app = jsonLd(doc).find((n) => n["@type"] === "SoftwareApplication");
+  assert.equal(app.operatingSystem, "macOS 14.0 or later, Windows 10, Windows 11, Debian 12 or later, Ubuntu 22.04 or later");
+  const linuxApp = jsonLd(html("/linux")).find((n) => n["@type"] === "SoftwareApplication");
+  assert.equal(linuxApp.operatingSystem, "Debian 12 or later, Ubuntu 22.04 or later");
+});
+
+test("with a Linux release no page says Koegaki is for two platforms", withLinux, () => {
+  // A pair that closes a longer list ("Linux, Windows and Mac") names three.
+  const twoPlatforms = /(?<!, )\b(?:mac and windows|windows and mac|mac or pc|mac or windows)\b|\bboth platforms\b|\bcovers both\b|\bfor both\b|\bon mac and on windows\b/i;
+  for (const path of ROUTES) {
+    const doc = html(path);
+    const { body, standalone } = textBlocks(doc);
+    for (const text of [...body.map(({ text }) => text), ...standalone, doc.match(/<title>([^<]*)<\/title>/)[1]]) {
+      assert.doesNotMatch(text, twoPlatforms, `${path} names two platforms: "${text}"`);
+    }
+    // A comparison row label is a table header cell; check it too.
+    assert.doesNotMatch(doc, /<th scope="row"[^>]*>(?:Windows|Mac) version<\/th>/, `${path} has a one platform version row`);
+  }
+});
+
+test("with a Linux release every page's lastmod is at least the day the Linux copy went live", withLinux, () => {
+  const xml = built("sitemap.xml.body");
+  for (const [, lastmod] of xml.matchAll(/<lastmod>([^<]*)<\/lastmod>/g)) {
+    assert.ok(lastmod >= LINUX_COPY_DATE, `lastmod ${lastmod} predates the Linux copy (${LINUX_COPY_DATE})`);
+  }
+});
+
+test("the Linux page tells a visitor how to install, check, repair, update and remove Koegaki, with the record's digest", withLinux, () => {
+  const doc = html("/linux");
+  const deb = ASSET_NAME.deb(LINUX_RELEASE.version);
+  const record = releaseRecord(LINUX_RELEASE.version);
+  assert.equal(LINUX_RELEASE.sha256, record?.artifacts?.deb?.sha256, "the page's digest is not the record's");
+  const commands = [...doc.matchAll(/<code[^>]*>([\s\S]*?)<\/code>/g)].map((m) => decodeEntities(m[1].replace(/<!-- -->/g, "")));
+  assert.deepEqual(commands, [
+    `sudo apt install ./${deb}`,
+    `echo "${record.artifacts.deb.sha256}  ${deb}" | sha256sum --check`,
+    "sudo /usr/libexec/koegaki/koegaki-device-access repair",
+    "sudo apt remove com-vishutdhar-koegaki",
+  ]);
+  const text = decodeEntities(pageText(doc));
+  for (const said of [
+    LINUX_UPDATES,
+    "Debian 12 or Ubuntu 22.04 or newer",
+    "x86_64",
+    "~/.config/koegaki",
+    "~/.local/share/koegaki",
+    SITE.contactEmail,
+    "never read them",
+    "administrator",
+  ]) {
+    assert.ok(text.includes(said), `the Linux page does not say "${said}"`);
+  }
+  // Linux terminals paste with Ctrl+Shift+V; Koegaki presses Ctrl+V (spec rule
+  // 14). The page's own copy never names one (the footer's Freedom Terminal is
+  // the brand, not a place to dictate).
+  const page = LANDING_PAGES.find(({ path }) => path === "/linux");
+  const copy = JSON.stringify([page.lede, page.description, page.sections, page.faqs]).replaceAll(SITE.contactEmail, "");
+  assert.doesNotMatch(copy, /\bterminals?\b/i, "the Linux page promises dictation into a terminal");
 });

@@ -1,4 +1,4 @@
-import { SITE } from "@/lib/site";
+import { ifLinux, SITE } from "@/lib/site";
 import { Section } from "./section";
 import { Reveal } from "./reveal";
 import { CtaButton } from "./cta-button";
@@ -8,7 +8,7 @@ import { IconCheck } from "./icons";
 const INCLUDED = [
   "Every feature. No tiers, no add-ons",
   "Unlimited on-device dictation",
-  "Mac and Windows, one licence",
+  ifLinux("Mac, Windows and Linux, one licence", "Mac and Windows, one licence"),
   "Custom words, replacements & shortcuts",
   "Free updates for life",
   "Use on up to 10 of your own computers",
@@ -39,9 +39,15 @@ export function Pricing() {
             </span>
             <span className="text-muted">one-time</span>
           </div>
-          <p className="mt-1.5 font-mono text-xs text-faint">
-            {SITE.trialDays}-day free trial · Mac and Windows
-          </p>
+          {/* Chosen as a whole, so without a Linux release it is byte for byte today's. */}
+          {ifLinux(
+            <p className="mt-1.5 font-mono text-xs text-faint">
+              {SITE.trialDays}-day free trial · Mac, Windows and Linux
+            </p>,
+            <p className="mt-1.5 font-mono text-xs text-faint">
+              {SITE.trialDays}-day free trial · Mac and Windows
+            </p>,
+          )}
 
           <ul className="mt-7 space-y-3">
             {INCLUDED.map((item) => (
