@@ -33,9 +33,9 @@
 import { test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 import { SaxesParser } from "saxes";
@@ -3439,12 +3439,31 @@ test("the release download fetches every asset its record states and no other, e
 
 // ---- Linux (docs/specs/2026-10-13-linux-site.md) ----
 
-/** Every file under `dir`, as paths relative to it. */
+/**
+ * Every file under `dir` (a URL), as paths relative to it joined with "/",
+ * following symbolic links as Next does when it serves public/, each real
+ * folder visited once so a link back up cannot loop. Read one with
+ * readUnder: a name may hold "#" or "%", which a URL would read otherwise.
+ */
 function filesUnder(dir) {
-  return readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(fileURLToPath(dir), join(entry.parentPath, entry.name)));
+  const files = [];
+  const seen = new Set();
+  const walk = (folder, prefix) => {
+    const real = realpathSync(folder);
+    if (seen.has(real)) return;
+    seen.add(real);
+    for (const name of readdirSync(folder)) {
+      const stat = statSync(join(folder, name), { throwIfNoEntry: false });
+      if (stat?.isDirectory()) walk(join(folder, name), `${prefix}${name}/`);
+      else if (stat?.isFile()) files.push(`${prefix}${name}`);
+    }
+  };
+  walk(fileURLToPath(dir), "");
+  return files;
 }
+
+/** The bytes of `file`, a path filesUnder(dir) gave. */
+const readUnder = (dir, file) => readFileSync(join(fileURLToPath(dir), ...file.split("/")));
 
 test("the site these tests import offers exactly the Linux release the build found, and so does every page", () => {
   const release = linuxRelease(fileURLToPath(BUILD_RELEASES));
@@ -3455,23 +3474,24 @@ test("the site these tests import offers exactly the Linux release the build fou
 });
 
 /**
- * The Linux update feeds a public folder would serve: every JSON file, at any
- * depth, whose name says Linux, and every JSON file whose updater platforms
- * name a Linux target, so a feed shared with Windows is one too. models.json
- * is not a feed: its linux block is the Linux build's model list (Koegaki spec
- * 2026-10-13-model-index-linux), and it has no platforms.
+ * The Linux update feeds a public folder would serve. Next serves every file
+ * there under its own name, whatever its extension, so a feed is known by what
+ * it holds: any file that parses as JSON and either sits under a name that
+ * says Linux or lists a Linux target among its updater platforms (so a feed
+ * shared with Windows is one too). models.json is not a feed: its linux block
+ * is the Linux build's model list (Koegaki spec 2026-10-13-model-index-linux),
+ * and it lists no platforms. An image named for Linux does not parse.
  */
 function linuxFeedsIn(dir) {
   return filesUnder(dir)
-    .filter((file) => file.endsWith(".json"))
     .filter((file) => {
-      if (/linux/i.test(file)) return true;
       let parsed;
       try {
-        parsed = JSON.parse(readFileSync(new URL(file, dir), "utf8"));
+        parsed = JSON.parse(readUnder(dir, file).toString("utf8"));
       } catch {
         return false;
       }
+      if (/linux/i.test(file)) return true;
       return isPlainObject(parsed?.platforms) && Object.keys(parsed.platforms).some((key) => /linux/i.test(key));
     })
     .sort();
@@ -3496,7 +3516,32 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
   write("updates/Linux-Updates.json", {});
   write("shared-updates.json", { ...windows, platforms: { ...windows.platforms, "linux-x86_64-deb": { url: "u", signature: "s" } } });
   write("nested/deeper/feed.json", { platforms: { "linux-x86_64": {} } });
-  assert.deepEqual(linuxFeedsIn(root), ["linux-updates.json", "nested/deeper/feed.json", "shared-updates.json", "updates/Linux-Updates.json"]);
+  // Next serves any file in public/ under its own name, whatever its
+  // extension, characters or link, so a feed is found by what it holds.
+  write("updates.JSON", { platforms: { "linux-x86_64-deb": {} } });
+  write("feed", { platforms: { "linux-x86_64-deb": {} } });
+  write("nested/updates#stable.json", { platforms: { "linux-x86_64-deb": {} } });
+  write("nested/100%25.json", { platforms: { "linux-x86_64-deb": {} } });
+  const outside = mkdtempSync(join(tmpdir(), "koegaki-feeds-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  writeFileSync(join(outside, "feed.json"), JSON.stringify({ platforms: { "linux-x86_64": {} } }));
+  mkdirSync(join(outside, "more"));
+  writeFileSync(join(outside, "more", "another.json"), JSON.stringify({ platforms: { "linux-x86_64": {} } }));
+  symlinkSync(join(outside, "feed.json"), join(dir, "linked.json"));
+  symlinkSync(join(outside, "more"), join(dir, "linked-folder"));
+  symlinkSync(dir, join(dir, "nested", "loop"));
+  assert.deepEqual(linuxFeedsIn(root), [
+    "feed",
+    "linked-folder/another.json",
+    "linked.json",
+    "linux-updates.json",
+    "nested/100%25.json",
+    "nested/deeper/feed.json",
+    "nested/updates#stable.json",
+    "shared-updates.json",
+    "updates.JSON",
+    "updates/Linux-Updates.json",
+  ]);
 });
 
 test("no Linux update feed is served until unit 5 adds its checks", () => {
@@ -3528,7 +3573,7 @@ test(
       assert.ok(files.length > 0, `no build output under ${fileURLToPath(root)}`);
       for (const file of files) {
         assert.doesNotMatch(file, /linux/i, `the build has an output named ${file}`);
-        const text = readFileSync(new URL(file, root)).toString("latin1");
+        const text = readUnder(root, file).toString("latin1");
         const at = text.search(/linux/i);
         assert.equal(at, -1, `${file} says Linux: ${JSON.stringify(text.slice(Math.max(0, at - 60), at + 60))}`);
       }
@@ -3546,7 +3591,7 @@ function gateOffDigests() {
   const buildId = readFileSync(new URL("BUILD_ID", BUILD_ROOT), "utf8").trim();
   const digests = {};
   for (const file of filesUnder(BUILT).filter((name) => /\.(?:html|rsc|body|meta)$/.test(name)).sort()) {
-    const text = readFileSync(new URL(file, BUILT))
+    const text = readUnder(BUILT, file)
       .toString("latin1")
       .replaceAll(buildId, "<build id>")
       .replaceAll(SITE.downloadUrl, "<Mac download>")

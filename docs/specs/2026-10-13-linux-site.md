@@ -88,8 +88,9 @@ three platform site with no further site code, and nothing Linux may show before
 
 5. **No Linux feed in this unit.** `public/linux-updates.json` is unit 5's: its signature and its
    platform key are that unit's call. A test fails if a Linux feed appears anywhere in `public/`
-   (a JSON file at any depth whose name says Linux, or any JSON file whose updater platforms name
-   a Linux target, so a feed shared with Windows counts), with "no release record holds a deb"
+   (any file Next would serve, at any depth, under any name or link, that parses as JSON and either
+   has a name that says Linux or lists a Linux target among its updater platforms, so a feed shared
+   with Windows counts), with "no release record holds a deb"
    while none does, and with "the Linux feed has no checks yet" once one does, so the feed can
    never ship unchecked. What unit 5 needs from the site, so it can replace that test:
    - the feed in the Tauri static shape the Windows feed uses (`version`, `notes`, `pub_date`,
