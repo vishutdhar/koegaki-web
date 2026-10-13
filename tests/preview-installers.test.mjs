@@ -191,34 +191,41 @@ const GITHUB_RECORD = {
     exe: { url: GITHUB_URL, size: 4, sha256: "c".repeat(64), blake2b512: "d".repeat(128), signature: "signature" },
   },
 };
+/** The record of a release that ships on Windows alone, as the publishing tool writes it: the installer and no disk image. */
+const WINDOWS_ONLY_RECORD = { version: "1.2.0", artifacts: { exe: GITHUB_RECORD.artifacts.exe } };
 const GITHUB_CHECKED = "the GitHub release record releases/1.2.0.json checked";
 // The installers this fixture says were published before releases moved to
 // GitHub: the two directly in its downloads folder.
 const FIXTURE_FROZEN = ["Koegaki-1.0.0-setup.exe", "Koegaki-1.1.0-setup.exe"];
 
-/** A repository shaped copy whose manifest offers 1.2.0 from GitHub, with its record; returns its public folder. */
-function withGithubFixture(root) {
+/** A repository shaped copy whose manifest offers 1.2.0 from GitHub, with `record` as its record; returns its public folder. */
+function withGithubFixture(root, record = GITHUB_RECORD) {
   const publicDir = withFixture(join(root, "public"));
   writeFileSync(join(publicDir, "windows-updates.json"), JSON.stringify(GITHUB_MANIFEST));
   mkdirSync(join(root, "releases"));
-  writeFileSync(join(root, "releases", "1.2.0.json"), JSON.stringify(GITHUB_RECORD));
+  writeFileSync(join(root, "releases", "1.2.0.json"), JSON.stringify(record));
   return publicDir;
 }
 
 test("a manifest offering a GitHub release asset needs that release's record, not an installer in public/downloads", (t) => {
-  for (const [env, message] of [
-    [PRODUCTION, `VERCEL_ENV="production": installers kept, ${GITHUB_CHECKED}`],
-    [LOCAL_PREVIEW, `VERCEL_ENV="preview" but VERCEL_DEPLOYMENT_ID is not set, so this is not Vercel's build machine: installers kept, ${GITHUB_CHECKED}`],
-    [CLOUD_PREVIEW, STRIPPED_LINE],
-  ]) {
-    const root = tempDir(t);
-    const publicDir = withGithubFixture(root);
-    const before = listing(publicDir);
-    const result = stripPreviewInstallers(env, publicDir, FIXTURE_FROZEN);
-    assert.equal(result.message, message, JSON.stringify(env));
-    const removed = env === CLOUD_PREVIEW ? STRIPPED : [];
-    assert.deepEqual(listing(publicDir), before.filter((p) => !removed.includes(p)), JSON.stringify(env));
-    assert.deepEqual(readdirSync(join(root, "releases")), ["1.2.0.json"], "the record was touched");
+  // A release that ships on Windows alone has a record that states the
+  // installer and no disk image, and builds as one that shipped on both.
+  for (const [shipped, record] of [["both platforms", GITHUB_RECORD], ["Windows only", WINDOWS_ONLY_RECORD]]) {
+    for (const [env, message] of [
+      [PRODUCTION, `VERCEL_ENV="production": installers kept, ${GITHUB_CHECKED}`],
+      [LOCAL_PREVIEW, `VERCEL_ENV="preview" but VERCEL_DEPLOYMENT_ID is not set, so this is not Vercel's build machine: installers kept, ${GITHUB_CHECKED}`],
+      [CLOUD_PREVIEW, STRIPPED_LINE],
+    ]) {
+      const at = `${shipped}, ${JSON.stringify(env)}`;
+      const root = tempDir(t);
+      const publicDir = withGithubFixture(root, record);
+      const before = listing(publicDir);
+      const result = stripPreviewInstallers(env, publicDir, FIXTURE_FROZEN);
+      assert.equal(result.message, message, at);
+      const removed = env === CLOUD_PREVIEW ? STRIPPED : [];
+      assert.deepEqual(listing(publicDir), before.filter((p) => !removed.includes(p)), at);
+      assert.deepEqual(readdirSync(join(root, "releases")), ["1.2.0.json"], `${at}: the record was touched`);
+    }
   }
 });
 
@@ -298,7 +305,14 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     ["a record with no installer sha256", writeRecord((r) => delete r.artifacts.exe.sha256), incomplete],
     ["a record whose installer size is text", writeRecord((r) => (r.artifacts.exe.size = "4")), incomplete],
     ["a record whose installer digest is short", writeRecord((r) => (r.artifacts.exe.blake2b512 = "d".repeat(127))), incomplete],
-    ["a record with no disk image", writeRecord((r) => delete r.artifacts.dmg), incomplete],
+    // A record may leave out the disk image, as a Windows only release does,
+    // but the installer the manifest offers is always recorded, and a disk
+    // image it does state is held to the same shape as on a release that
+    // shipped on both platforms.
+    ["a record with no installer", writeRecord((r) => delete r.artifacts.exe), /records the installer at undefined, not https:\/\/github\.com\/\S+, the url public\/windows-updates\.json offers/],
+    ["a record whose disk image is null", writeRecord((r) => (r.artifacts.dmg = null)), incomplete],
+    ["a record whose disk image is text", writeRecord((r) => (r.artifacts.dmg = "Koegaki-1.2.0.dmg")), incomplete],
+    ["a record whose disk image has no size", writeRecord((r) => delete r.artifacts.dmg.size), incomplete],
     ["a record whose disk image is on another tag", writeRecord((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace("/v1.2.0/", "/v1.1.0/"))), incomplete],
     ["a record whose disk image digest is uppercase", writeRecord((r) => (r.artifacts.dmg.sha256 = "A".repeat(64))), incomplete],
     ["a record with no installer signature", writeRecord((r) => delete r.artifacts.exe.signature), /records another installer signature than public\/windows-updates\.json carries/],
