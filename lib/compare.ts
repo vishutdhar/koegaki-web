@@ -1,4 +1,4 @@
-import { SITE } from "./site";
+import { ifLinux, lastModified, SITE } from "./site";
 import type { CompareRow } from "@/components/subpage/compare-table";
 import type { ProseSection } from "@/components/subpage/prose";
 import type { FaqItem } from "@/components/faq";
@@ -32,7 +32,10 @@ const koegakiCommon = {
   where: "On your own computer. The speech model runs locally; audio and text never leave it.",
   account: "None. No sign-up, no login.",
   price: `${price}, ${trial}. Every feature included, free updates for life.`,
-  platforms: "macOS 14+ and Windows 10 & 11, one licence for both.",
+  platforms: ifLinux(
+    "macOS 14+, Windows 10 & 11, and Debian 12 or Ubuntu 22.04 or newer, one licence for all three.",
+    "macOS 14+ and Windows 10 & 11, one licence for both.",
+  ),
   trigger: "Hold a shortcut you choose (push-to-talk), or toggle with one press.",
   vocab: "Custom words in Latin, Greek or Cyrillic letters, spelled your way when Koegaki hears them split, hyphenated or with a different apostrophe, though a lone lowercase letter, as in “x code”, usually stays a word of its own. With the English speech model, the default, custom words also help Koegaki hear your names and terms, not just spell them: words on your list are recognised more often, and they still never leave your computer. Replacements turn a phrase you say into the text you choose.",
   offline: "Yes. Once the speech model has downloaded, dictation needs no network.",
@@ -58,7 +61,7 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Both apps can transcribe on your own machine. The differences are what you pay, what is behind the paywall, and how much app you get.",
     asOf: "September 2026",
-    lastModified: "2026-10-03",
+    lastModified: lastModified("2026-10-03"),
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On your device with local models, or in the cloud with the cloud models it also offers." },
       { label: "On-device models", koegaki: "Included. An English model (Parakeet) and a multilingual model (Whisper), both local, at no extra cost.", other: "Some local models are free; the Parakeet models need the paid Pro tier." },
@@ -72,7 +75,10 @@ export const COMPARISONS: Comparison[] = [
       {
         heading: "What Koegaki does differently",
         paragraphs: [
-          "Koegaki has one job: turn what you say into text, on your machine, where you were typing. Every model it runs is local. There is one price and it covers everything, on Mac and on Windows. That makes it a smaller app than Superwhisper, and that is the point.",
+          ifLinux(
+            "Koegaki has one job: turn what you say into text, on your machine, where you were typing. Every model it runs is local. There is one price and it covers everything, on Mac, on Windows and on Linux. That makes it a smaller app than Superwhisper, and that is the point.",
+            "Koegaki has one job: turn what you say into text, on your machine, where you were typing. Every model it runs is local. There is one price and it covers everything, on Mac and on Windows. That makes it a smaller app than Superwhisper, and that is the point.",
+          ),
           "If you want a dozen modes for different apps, Superwhisper offers that. Koegaki types what you said by default; an optional cleanup pass exists, it is off until you switch it on, and it runs on your machine. The words you say appear where your cursor was, with nothing between your microphone and your document.",
         ],
       },
@@ -93,13 +99,15 @@ export const COMPARISONS: Comparison[] = [
     slug: "wispr-flow",
     other: "Wispr Flow",
     title: "Koegaki vs Wispr Flow: on-device dictation instead of the cloud",
-    description:
+    description: ifLinux(
+      "Wispr Flow recognises your speech on its servers. Koegaki does it on your own computer, never uploads your voice, works offline, and costs $30 once.",
       "Wispr Flow recognises your speech on its servers. Koegaki does it on your Mac or PC, never uploads your voice, works offline, and costs $30 once.",
+    ),
     h1: "Koegaki vs Wispr Flow",
     lede:
       "Wispr Flow is cloud dictation with AI editing. Koegaki is local dictation with nothing in between. That one difference decides most of the others.",
     asOf: "September 2026",
-    lastModified: "2026-10-08",
+    lastModified: lastModified("2026-10-08"),
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Wispr's servers. Audio is uploaded for recognition." },
       { label: "Offline mode", koegaki: koegakiCommon.offline, other: "No offline transcription at any tier. On desktop, a recording that failed to send can be retried from History after you reconnect." },
@@ -141,13 +149,13 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Your Mac can already take dictation. Here is what changes when you use Koegaki instead, and when the built-in one is enough.",
     asOf: "September 2026",
-    lastModified: "2026-10-08",
+    lastModified: lastModified("2026-10-08"),
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On-device for general text in supported languages once the language is downloaded, as shown in Keyboard settings; dictation into search boxes and other languages go to Apple's servers." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "A key press toggles dictation on; it stays on until you stop it, or stops after 30 seconds of silence." },
       { label: "Custom vocabulary", koegaki: koegakiCommon.vocab, other: "None documented by Apple for dictation." },
       { label: "Price", koegaki: koegakiCommon.price, other: "Included with macOS." },
-      { label: "Windows version", koegaki: "Yes, same licence.", other: "No." },
+      { label: ifLinux("Windows and Linux versions", "Windows version"), koegaki: "Yes, same licence.", other: "No." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "No." },
     ],
     sections: [
@@ -182,14 +190,14 @@ export const COMPARISONS: Comparison[] = [
     lede:
       "Press Win+H and Windows will take dictation, as long as you are online. Koegaki does the same job on your own PC, with the network unplugged.",
     asOf: "September 2026",
-    lastModified: "2026-10-08",
+    lastModified: lastModified("2026-10-08"),
     rows: [
       { label: "Where your voice is processed", koegaki: koegakiCommon.where, other: "On Microsoft's online speech service. An internet connection is required." },
       { label: "Works offline", koegaki: koegakiCommon.offline, other: "No." },
       { label: "How you trigger it", koegaki: koegakiCommon.trigger, other: "Win+H toggles a voice typing bar on; it stays on until you stop it." },
       { label: "Custom vocabulary", koegaki: windowsVocab, other: "None documented by Microsoft." },
       { label: "Price", koegaki: koegakiCommon.price, other: "Included with Windows." },
-      { label: "Mac version", koegaki: "Yes, same licence.", other: "No." },
+      { label: ifLinux("Mac and Linux versions", "Mac version"), koegaki: "Yes, same licence.", other: "No." },
       { label: "Account required", koegaki: koegakiCommon.account, other: "No." },
     ],
     sections: [

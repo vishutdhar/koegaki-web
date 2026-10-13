@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { SITE } from "@/lib/site";
+import { ifLinux, SITE } from "@/lib/site";
 import { pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = pageMetadata({
@@ -41,30 +41,66 @@ export default function PrivacyPage() {
               <h2 className="font-display text-lg font-medium tracking-tight">
                 When it uses the network
               </h2>
+              {/*
+                Written out twice, with Linux and without: one sentence spliced in
+                as an expression would add React's text separators, and the page
+                without a Linux release must stay byte for byte the page before
+                Linux (docs/specs/2026-10-13-linux-site.md rule 8).
+              */}
               <p className="mt-2.5 text-sm leading-relaxed text-muted">
-                On first launch, {SITE.name} downloads its speech model so dictation can then
-                run offline. Dictation itself needs no internet connection at all. Beyond that,
-                the app talks to the network to verify your license key (at activation, then a
-                quiet daily check while licensed), to check koegaki.com for new versions, and,
-                when an update installs, to download the new app package from our hosting
-                storage. The app also asks koegaki.com once a day whether a newer speech or cleanup
-                model exists, a request that carries nothing but the request itself. A newer cleanup
-                model is offered on the Home screen, and nothing downloads until you choose to update
-                it. A new speech model arrives only with an app update. When an update brings a new
-                version of the speech model you use, the updated app downloads it automatically in
-                the background from our model mirror, a download of several hundred megabytes, and
-                you keep dictating on your current model until the new one is ready. That download
-                is a plain request for the model files, carries nothing about you or your
-                dictations, and uses only the internet connection you already have. That
-                download, and the download of a cleanup model you turned on when the app has to
-                fetch it at launch, waits while your computer is on a connection it treats as
-                costly, and starts by itself once you are back on an ordinary connection. Costly
-                connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
-                and in Windows a cellular link and any network you marked as metered, which you can
-                do for a phone hotspot. A download you start yourself, and the first download after
-                you install, go ahead on any connection. The license and update checks carry only
-                license and version metadata; the update download is the app itself. None of this
-                ever includes audio or transcripts.
+                {ifLinux(
+                  <>
+                    On first launch, {SITE.name} downloads its speech model so dictation can then
+                    run offline. Dictation itself needs no internet connection at all. Beyond that,
+                    the app talks to the network to verify your license key (at activation, then a
+                    quiet daily check while licensed), to check koegaki.com for new versions, and,
+                    when an update installs, to download the new app package from our hosting
+                    storage. The app also asks koegaki.com once a day whether a newer speech or cleanup
+                    model exists, a request that carries nothing but the request itself. A newer cleanup
+                    model is offered on the Home screen, and nothing downloads until you choose to update
+                    it. A new speech model arrives only with an app update. When an update brings a new
+                    version of the speech model you use, the updated app downloads it automatically in
+                    the background from our model mirror, a download of several hundred megabytes, and
+                    you keep dictating on your current model until the new one is ready. That download
+                    is a plain request for the model files, carries nothing about you or your
+                    dictations, and uses only the internet connection you already have. That
+                    download, and the download of a cleanup model you turned on when the app has to
+                    fetch it at launch, waits while your computer is on a connection it treats as
+                    costly, and starts by itself once you are back on an ordinary connection. Costly
+                    connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
+                    in Windows a cellular link and any network you marked as metered, which you can
+                    do for a phone hotspot, and on Linux any connection NetworkManager treats as metered.
+                    A download you start yourself, and the first download after
+                    you install, go ahead on any connection. The license and update checks carry only
+                    license and version metadata; the update download is the app itself. None of this
+                    ever includes audio or transcripts.
+                  </>,
+                  <>
+                    On first launch, {SITE.name} downloads its speech model so dictation can then
+                    run offline. Dictation itself needs no internet connection at all. Beyond that,
+                    the app talks to the network to verify your license key (at activation, then a
+                    quiet daily check while licensed), to check koegaki.com for new versions, and,
+                    when an update installs, to download the new app package from our hosting
+                    storage. The app also asks koegaki.com once a day whether a newer speech or cleanup
+                    model exists, a request that carries nothing but the request itself. A newer cleanup
+                    model is offered on the Home screen, and nothing downloads until you choose to update
+                    it. A new speech model arrives only with an app update. When an update brings a new
+                    version of the speech model you use, the updated app downloads it automatically in
+                    the background from our model mirror, a download of several hundred megabytes, and
+                    you keep dictating on your current model until the new one is ready. That download
+                    is a plain request for the model files, carries nothing about you or your
+                    dictations, and uses only the internet connection you already have. That
+                    download, and the download of a cleanup model you turned on when the app has to
+                    fetch it at launch, waits while your computer is on a connection it treats as
+                    costly, and starts by itself once you are back on an ordinary connection. Costly
+                    connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
+                    and in Windows a cellular link and any network you marked as metered, which you can
+                    do for a phone hotspot. A download you start yourself, and the first download after
+                    you install, go ahead on any connection. The license and update checks carry only
+                    license and version metadata; the update download is the app itself. None of this
+                    ever includes audio or transcripts.
+                  </>,
+                )}
               </p>
             </section>
 

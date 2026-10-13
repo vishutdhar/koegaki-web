@@ -193,6 +193,11 @@ const GITHUB_RECORD = {
 };
 /** The record of a release that ships on Windows alone, as the publishing tool writes it: the installer and no disk image. */
 const WINDOWS_ONLY_RECORD = { version: "1.2.0", artifacts: { exe: GITHUB_RECORD.artifacts.exe } };
+/** The deb the publishing tool records for a release that ships on Linux too, with made up size, digests and signature. */
+const GITHUB_DEB = { url: GITHUB_URL.replace(/[^/]+$/, "Koegaki-1.2.0-amd64.deb"), size: 5, sha256: "e".repeat(64), blake2b512: "f".repeat(128), signature: "deb signature" };
+/** A release for all three platforms, and one for Windows and Linux, as the publishing tool records them. */
+const ALL_THREE_RECORD = { version: "1.2.0", artifacts: { ...GITHUB_RECORD.artifacts, deb: GITHUB_DEB } };
+const WINDOWS_AND_LINUX_RECORD = { version: "1.2.0", artifacts: { exe: GITHUB_RECORD.artifacts.exe, deb: GITHUB_DEB } };
 const GITHUB_CHECKED = "the GitHub release record releases/1.2.0.json checked";
 // The installers this fixture says were published before releases moved to
 // GitHub: the two directly in its downloads folder.
@@ -209,8 +214,15 @@ function withGithubFixture(root, record = GITHUB_RECORD) {
 
 test("a manifest offering a GitHub release asset needs that release's record, not an installer in public/downloads", (t) => {
   // A release that ships on Windows alone has a record that states the
-  // installer and no disk image, and builds as one that shipped on both.
-  for (const [shipped, record] of [["both platforms", GITHUB_RECORD], ["Windows only", WINDOWS_ONLY_RECORD]]) {
+  // installer and no disk image, and builds as one that shipped on both; so
+  // does one that ships a Linux deb beside the installer (spec
+  // 2026-10-13-linux-site rule 1).
+  for (const [shipped, record] of [
+    ["both platforms", GITHUB_RECORD],
+    ["Windows only", WINDOWS_ONLY_RECORD],
+    ["all three platforms", ALL_THREE_RECORD],
+    ["Windows and Linux", WINDOWS_AND_LINUX_RECORD],
+  ]) {
     for (const [env, message] of [
       [PRODUCTION, `VERCEL_ENV="production": installers kept, ${GITHUB_CHECKED}`],
       [LOCAL_PREVIEW, `VERCEL_ENV="preview" but VERCEL_DEPLOYMENT_ID is not set, so this is not Vercel's build machine: installers kept, ${GITHUB_CHECKED}`],
@@ -313,8 +325,9 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
     ["a record whose disk image is null", writeRecord((r) => (r.artifacts.dmg = null)), incomplete],
     ["a record whose disk image is text", writeRecord((r) => (r.artifacts.dmg = "Koegaki-1.2.0.dmg")), incomplete],
     ["a record whose disk image has no size", writeRecord((r) => delete r.artifacts.dmg.size), incomplete],
-    // The site tests accept a record that states a dmg, an exe or both, and
-    // nothing else, so a build refuses any other artifact as they do.
+    // The site tests accept a record that states any of a dmg, an exe and a
+    // deb, and nothing else, so a build refuses any other artifact as they do,
+    // and holds a deb it does state to the shape the publishing tool writes.
     [
       "a record whose disk image key is misspelled",
       writeRecord((r) => {
@@ -323,7 +336,23 @@ test("a build fails, removing nothing, when the GitHub release the manifest offe
       }),
       incomplete,
     ],
-    ["a record with an artifact the site does not serve", writeRecord((r) => (r.artifacts.deb = { ...r.artifacts.dmg, url: r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki-1.2.0-amd64.deb") })), incomplete],
+    ["a record with an artifact the site does not serve", writeRecord((r) => (r.artifacts.rpm = { ...GITHUB_DEB, url: GITHUB_DEB.url.replace(/[^/]+$/, "Koegaki-1.2.0.x86_64.rpm") })), incomplete],
+    [
+      "a record whose deb key is misspelled",
+      writeRecord((r) => (r.artifacts.debs = structuredClone(GITHUB_DEB))),
+      incomplete,
+    ],
+    ["a record whose deb is null", writeRecord((r) => (r.artifacts.deb = null)), incomplete],
+    ["a record whose deb has no signature", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, signature: undefined })), incomplete],
+    ["a record whose deb signature is empty", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, signature: "" })), incomplete],
+    ["a record whose deb is named as an installer", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, url: GITHUB_URL })), incomplete],
+    ["a record whose deb is on another tag", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, url: GITHUB_DEB.url.replace("/v1.2.0/", "/v1.1.0/") })), incomplete],
+    ["a record whose deb size is text", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, size: "5" })), incomplete],
+    ["a record whose deb digest is short", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, sha256: "e".repeat(63) })), incomplete],
+    // Each artifact holds exactly the fields the publishing tool writes for its kind.
+    ["a record whose deb holds another field", writeRecord((r) => (r.artifacts.deb = { ...GITHUB_DEB, notes: "x" })), incomplete],
+    ["a record whose installer holds another field", writeRecord((r) => (r.artifacts.exe.notes = "x")), incomplete],
+    ["a record whose disk image holds a signature", writeRecord((r) => (r.artifacts.dmg.signature = "x")), incomplete],
     ["a record whose disk image is on another tag", writeRecord((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace("/v1.2.0/", "/v1.1.0/"))), incomplete],
     ["a record whose disk image digest is uppercase", writeRecord((r) => (r.artifacts.dmg.sha256 = "A".repeat(64))), incomplete],
     ["a record with no installer signature", writeRecord((r) => delete r.artifacts.exe.signature), /records another installer signature than public\/windows-updates\.json carries/],

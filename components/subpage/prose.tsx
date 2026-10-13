@@ -2,8 +2,12 @@ import { type ReactNode } from "react";
 
 export type ProseSection = {
   heading: string;
-  /** One paragraph per entry. Plain strings only; the copy is data, not markup. */
-  paragraphs: string[];
+  /**
+   * One paragraph per entry. Plain strings only; the copy is data, not markup.
+   * An entry that is a command a visitor types (the Linux page's install line)
+   * is `{ command }`, shown as a command rather than as prose.
+   */
+  paragraphs: (string | { command: string })[];
 };
 
 /**
@@ -21,11 +25,20 @@ export function Prose({ sections, children }: { sections: ProseSection[]; childr
               {heading}
             </h2>
             <div className="mt-4 space-y-4">
-              {paragraphs.map((p) => (
-                <p key={p} className="leading-relaxed text-muted">
-                  {p}
-                </p>
-              ))}
+              {paragraphs.map((p) =>
+                typeof p === "string" ? (
+                  <p key={p} className="leading-relaxed text-muted">
+                    {p}
+                  </p>
+                ) : (
+                  <pre
+                    key={p.command}
+                    className="overflow-x-auto rounded-lg border border-hairline bg-surface/40 px-5 py-3 font-mono text-xs leading-relaxed text-ink"
+                  >
+                    <code>{p.command}</code>
+                  </pre>
+                ),
+              )}
             </div>
           </div>
         ))}

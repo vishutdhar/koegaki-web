@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The fixture build the Linux tests read (tests/build-linux-fixture.mjs).
+    ".next-linux-fixture/**",
   ]),
 ]);
 

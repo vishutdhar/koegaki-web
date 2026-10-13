@@ -1,4 +1,4 @@
-import { SITE } from "@/lib/site";
+import { ifLinux, SITE } from "@/lib/site";
 import { FAQS } from "./faq";
 
 // JSON-LD for rich results. Two graphs: the product (SoftwareApplication with its one-time
@@ -41,7 +41,10 @@ function softwareApplicationGraph({
 const softwareApplication = softwareApplicationGraph({
   description: SITE.description,
   url: SITE.url,
-  operatingSystem: "macOS 14.0 or later, Windows 10, Windows 11",
+  operatingSystem: ifLinux(
+    "macOS 14.0 or later, Windows 10, Windows 11, Debian 12 or later, Ubuntu 22.04 or later",
+    "macOS 14.0 or later, Windows 10, Windows 11",
+  ),
 });
 
 const faqPage = {

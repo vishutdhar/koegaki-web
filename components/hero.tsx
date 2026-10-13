@@ -1,29 +1,47 @@
-import { SITE } from "@/lib/site";
+import { ifLinux, SITE } from "@/lib/site";
 import { CtaButton } from "./cta-button";
 import { DownloadCta, PlatformNote } from "./download-cta";
 import { DemoVideo } from "./demo-video";
 
 export function Hero() {
+  const label =
+    "animate-rise mb-6 inline-flex items-center gap-2 rounded-full border border-hairline bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted backdrop-blur-sm";
+  const dot = <span className="h-1.5 w-1.5 rounded-full bg-ember shadow-[0_0_8px_rgba(232,100,60,0.9)]" />;
   return (
     <section id="top" className="relative mx-auto w-full max-w-5xl px-6 pb-16 pt-20 sm:pt-28">
       <div className="mx-auto max-w-3xl text-center">
-        <p className="animate-rise mb-6 inline-flex items-center gap-2 rounded-full border border-hairline bg-surface/60 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted backdrop-blur-sm">
-          <span className="h-1.5 w-1.5 rounded-full bg-ember shadow-[0_0_8px_rgba(232,100,60,0.9)]" />
-          On-device <span className="text-faint">·</span>{" "}
-          <span className="os-mac">Apple Silicon</span>
-          <span className="os-win">Windows 10 &amp; 11</span>
-        </p>
+        {/*
+          The label is chosen as a whole, never given a conditional child, so
+          without a Linux release it is byte for byte today's, payload included.
+        */}
+        {SITE.linuxDownloadUrl ? (
+          <p className={label}>
+            {dot}
+            On-device <span className="text-faint">·</span>{" "}
+            <span className="os-mac">Apple Silicon</span>
+            <span className="os-win">Windows 10 &amp; 11</span>
+            <span className="os-linux">Debian &amp; Ubuntu</span>
+          </p>
+        ) : (
+          <p className={label}>
+            {dot}
+            On-device <span className="text-faint">·</span>{" "}
+            <span className="os-mac">Apple Silicon</span>
+            <span className="os-win">Windows 10 &amp; 11</span>
+          </p>
+        )}
         <h1
           className="animate-rise font-display text-5xl font-semibold leading-[0.98] tracking-[-0.03em] sm:text-[5.25rem] sm:tracking-[-0.045em]"
           style={{ animationDelay: "80ms" }}
         >
           {/*
-            The space inside the Windows word keeps text extraction from reading
+            The space inside the PC word keeps text extraction from reading
             "MacPC". Only one of the two words is ever displayed, and a leading
             space after the space before it collapses, so nothing moves on screen.
+            With a Linux release the PC word shows on Windows and on Linux.
           */}
           Dictate anywhere on your <span className="os-mac">Mac</span>
-          <span className="os-win"> PC</span>.
+          <span className={ifLinux("os-pc", "os-win")}> PC</span>.
           <br className="hidden sm:block" />{" "}
           <span className="inline-block bg-gradient-to-br from-ember to-[#ff8a63] bg-clip-text pb-[0.08em] text-transparent">
             Instantly. Privately.

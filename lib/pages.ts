@@ -1,10 +1,11 @@
-import { SITE } from "./site";
+import { ifLinux, lastModified, LINUX_COPY_DATE, LINUX_RELEASE, SITE, type LinuxRelease } from "./site";
 import type { ProseSection } from "@/components/subpage/prose";
 import type { FaqItem } from "@/components/faq";
 
 /**
  * The secondary landing pages: one per way a visitor might describe what they
- * are looking for (a Mac app, a Windows app, dictation that works offline).
+ * are looking for (a Mac app, a Windows app, dictation that works offline, and
+ * a Linux app once a Linux release exists).
  * Everything on these pages is a claim about what Koegaki does today, so each
  * string is checked against the shipping app, and nothing here describes a
  * feature the app does not have.
@@ -31,12 +32,154 @@ export type LandingPage = {
 
 const price = `$${SITE.priceUSD}`;
 
+/**
+ * How Koegaki for Linux updates, said once, on the Linux page. Its update check
+ * and install are stubs that never reach the network (Koegaki Linux release plan
+ * finding 2), so the visitor installs each new version by hand. The release that
+ * first ships the Linux updater (unit 5 of the plan) changes this one sentence,
+ * and only that release: until then nothing on the site promises an update that
+ * arrives by itself.
+ */
+export const LINUX_UPDATES =
+  "Koegaki for Linux does not install updates itself. To update, download the newest package from this page and install it the same way; apt replaces the old version, and your settings, history and downloaded models stay as they are.";
+
+/**
+ * When the Linux background download waits (Koegaki spec
+ * 2026-10-12-linux-platform-gaps rules 6 and 7): NetworkManager's metered
+ * verdict, which a user can set for a connection.
+ */
+const LINUX_WAIT =
+  "That background download waits while your computer is on a connection NetworkManager treats as metered, which you can set for a phone hotspot.";
+
+/** The examples of a costly connection, one for each platform the site offers. */
+const costlyExamples = ifLinux(
+  "such as an iPhone's Personal Hotspot on a Mac, a network you have set as metered in Windows, or one NetworkManager treats as metered on Linux",
+  "such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows",
+);
+
+/**
+ * The Linux page (docs/specs/2026-10-13-linux-site.md rule 11), made from the
+ * Linux release so its commands name that release's file and its digest. Each
+ * claim is the Linux build's at Koegaki 62246245: insertion presses Ctrl+V
+ * through a uinput keyboard and otherwise leaves the text on the clipboard and
+ * says so (spec 2026-10-12-linux-insertion rules 2 and 10); paste access is a
+ * uaccess rule at install, writing only, with no log out, taken back on remove
+ * (rules 13 and 14); keyboard reading is asked for at setup through pkexec,
+ * with the desktop's shortcut dialog as the alternative (rule 15 and
+ * docs/linux/evdev-privacy-disclosure.md); the repair command is rule 16's;
+ * settings live in ~/.config/koegaki and history, licence and models in
+ * ~/.local/share/koegaki (paths.rs); NetworkManager's metered verdict gates the
+ * automatic downloads (spec 2026-10-12-linux-platform-gaps rules 6 and 7). It
+ * never mentions a terminal: terminals paste with Ctrl+Shift+V.
+ */
+function linuxPage(release: LinuxRelease): LandingPage {
+  const deb = `Koegaki-${release.version}-amd64.deb`;
+  return {
+    path: "/linux",
+    linkLabel: "Dictation for Linux",
+    operatingSystem: "Debian 12 or later, Ubuntu 22.04 or later",
+    lastModified: LINUX_COPY_DATE,
+    name: "Koegaki for Linux",
+    title: "Dictation app for Linux that runs on your own machine",
+    description: `Private dictation for Debian and Ubuntu. Hold a key, speak, and the text lands in the app you were using. Recognition runs on your computer. ${price} one-time.`,
+    kicker: "Koegaki for Linux",
+    h1: "A dictation app for Linux that keeps your voice on your machine.",
+    lede: "Hold your shortcut, talk, release. Koegaki pastes what you said where you were typing, and every word is transcribed on your own computer. No account, no cloud, no subscription.",
+    sections: [
+      {
+        heading: "Dictate into the app you are using",
+        paragraphs: [
+          "Koegaki waits in the background, in the system tray on desktops that show one. Wherever the cursor is, in a browser, a mail client, a document or a chat, hold your shortcut and speak. When you release it, Koegaki pastes the text where you were typing. If it cannot press the paste keys, it leaves the text on the clipboard for you to paste with Ctrl+V and tells you so.",
+          "The default shortcut is Ctrl+Alt+D and you can change it. Hold it to talk, or use toggle mode and press once to start and once to stop.",
+        ],
+      },
+      {
+        heading: "What you need",
+        paragraphs: [
+          "Debian 12 or Ubuntu 22.04 or newer, on a 64-bit Intel or AMD processor (x86_64). Koegaki for Linux is a deb package, so there is no build for distributions that do not install deb packages, or for Arm processors. The model runs on the CPU, so no particular graphics card is needed.",
+        ],
+      },
+      {
+        heading: "Install it",
+        paragraphs: [
+          "Download the package, then install it with apt from the folder you saved it in. apt installs anything else Koegaki needs alongside it.",
+          { command: `sudo apt install ./${deb}` },
+          "To check the download before you install it, run this in the same folder. It prints the file name and OK when the file is the published package.",
+          { command: `echo "${release.sha256}  ${deb}" | sha256sum --check` },
+        ],
+      },
+      {
+        heading: "Two permissions, each asked for plainly",
+        paragraphs: [
+          "Paste access is set up when you install. Koegaki pastes by pressing Ctrl+V for you through a virtual keyboard, so the package lets the person signed in at the computer send key presses that way. It can send key presses, never read them. Pasting works straight after installing, with no need to log out, and removing the package takes the access back.",
+          "Keyboard access is your choice. Koegaki has two ways to notice your shortcut. Where your desktop has a shortcut dialog for apps, as KDE Plasma does, Koegaki can ask it to watch for the shortcut and never sees your keyboard at all. Otherwise you can let Koegaki read your keyboard. It asks when you set up the shortcut, never at install, and your system asks for an administrator's password at that moment. Koegaki compares each key with your shortcut in memory and forgets it; nothing it sees is saved or sent anywhere. You can turn keyboard access off in Settings at any time.",
+        ],
+      },
+      {
+        heading: "If pasting does not work",
+        paragraphs: [
+          "Settings shows whether paste access and keyboard access are ready, and names the command that fixes either one when it is not. If paste access is missing, for example because the package's setup step could not finish, this sets it up again:",
+          { command: "sudo /usr/libexec/koegaki/koegaki-device-access repair" },
+        ],
+      },
+      {
+        heading: "Updates",
+        paragraphs: [LINUX_UPDATES],
+      },
+      {
+        heading: "Remove it",
+        paragraphs: [
+          { command: "sudo apt remove com-vishutdhar-koegaki" },
+          "Removing the package takes back paste access and any keyboard access you gave Koegaki. Your settings stay in ~/.config/koegaki, and your history, licence and downloaded models in ~/.local/share/koegaki, so a reinstall picks up where you left off. Delete those two folders to remove them too.",
+        ],
+      },
+      {
+        heading: "Transcription happens on your computer",
+        paragraphs: [
+          `Koegaki transcribes with ${SITE.linuxEngine}. The model downloads once on first launch, and from then on dictation works with no internet connection at all. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. ${LINUX_WAIT} Your audio and your text stay on your machine. Nothing is uploaded and there is no server on our side to upload to.`,
+          "A multilingual speech model and an optional cleanup model are separate downloads, and they run on your computer too.",
+        ],
+      },
+      {
+        heading: "One purchase, every platform",
+        paragraphs: [
+          `Koegaki costs ${price} once. Every feature is included, updates are free for life, and one licence covers the Linux, Windows and Mac versions on up to 10 of your own computers. Try everything free for ${SITE.trialDays} days first.`,
+        ],
+      },
+      {
+        heading: "Questions",
+        paragraphs: [
+          `Write to ${SITE.contactEmail}. Say which distribution and desktop you use, and what Settings shows for paste access and keyboard access.`,
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Which Linux distributions does it run on?",
+        a: "Debian 12 or Ubuntu 22.04 or newer, on x86_64. Koegaki for Linux is a deb package, so there is no build for distributions that do not install deb packages, or for Arm processors.",
+      },
+      {
+        q: "Why does it ask for my password?",
+        a: "Only for keyboard access, and only if you choose it. Reading the keyboard needs an administrator's permission, so your system asks for the password when you allow it. If your desktop has a shortcut dialog for apps, you can use that instead, and Koegaki never reads your keyboard.",
+      },
+      {
+        q: "Does it need an internet connection?",
+        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for newer models, the download of a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.`,
+      },
+      {
+        q: "Is there a subscription?",
+        a: `No. Koegaki is ${price} one-time, with a ${SITE.trialDays}-day free trial and free updates for life.`,
+      },
+    ],
+  };
+}
+
 export const LANDING_PAGES: LandingPage[] = [
   {
     path: "/mac",
     linkLabel: "Dictation for Mac",
     operatingSystem: "macOS 14.0 or later",
-    lastModified: "2026-10-08",
+    lastModified: lastModified("2026-10-08"),
     name: "Koegaki for Mac",
     title: "Dictation app for Mac that runs on-device",
     description: `Private dictation for macOS. Hold a key, speak, and the text lands in almost any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
@@ -73,9 +216,9 @@ export const LANDING_PAGES: LandingPage[] = [
         ],
       },
       {
-        heading: "One purchase, both platforms",
+        heading: ifLinux("One purchase, every platform", "One purchase, both platforms"),
         paragraphs: [
-          `Koegaki costs ${price} once. There are no tiers and no add-ons: every feature is included, updates are free for life, and one licence covers the Mac and Windows versions on up to 10 of your own computers. Try everything free for ${SITE.trialDays} days first.`,
+          `Koegaki costs ${price} once. There are no tiers and no add-ons: every feature is included, updates are free for life, and one licence covers the ${ifLinux("Mac, Windows and Linux", "Mac and Windows")} versions on up to 10 of your own computers. Try everything free for ${SITE.trialDays} days first.`,
         ],
       },
     ],
@@ -106,7 +249,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     linkLabel: "Dictation for Windows",
     operatingSystem: "Windows 10, Windows 11",
-    lastModified: "2026-10-08",
+    lastModified: lastModified("2026-10-08"),
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
     description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in almost any program. Recognition runs on your PC, not the cloud. ${price} one-time.`,
@@ -144,9 +287,9 @@ export const LANDING_PAGES: LandingPage[] = [
         ],
       },
       {
-        heading: "One purchase, both platforms",
+        heading: ifLinux("One purchase, every platform", "One purchase, both platforms"),
         paragraphs: [
-          `Koegaki costs ${price} once. Every feature is included, updates are free for life, and one licence covers the Windows and Mac versions on up to 10 of your own computers. Try everything free for ${SITE.trialDays} days first.`,
+          `Koegaki costs ${price} once. Every feature is included, updates are free for life, and one licence covers the ${ifLinux("Windows, Mac and Linux", "Windows and Mac")} versions on up to 10 of your own computers. Try everything free for ${SITE.trialDays} days first.`,
         ],
       },
     ],
@@ -173,14 +316,19 @@ export const LANDING_PAGES: LandingPage[] = [
       },
     ],
   },
+  // The Linux page exists only once a Linux release does (spec rule 11).
+  ...(LINUX_RELEASE ? [linuxPage(LINUX_RELEASE)] : []),
   {
     path: "/offline-dictation",
     linkLabel: "Offline dictation",
-    operatingSystem: "macOS 14.0 or later, Windows 10, Windows 11",
-    lastModified: "2026-10-05",
+    operatingSystem: ifLinux(
+      "macOS 14.0 or later, Windows 10, Windows 11, Debian 12 or later, Ubuntu 22.04 or later",
+      "macOS 14.0 or later, Windows 10, Windows 11",
+    ),
+    lastModified: lastModified("2026-10-05"),
     name: "Offline dictation",
-    title: "Offline dictation software for Mac and Windows",
-    description: `Dictation that works with no internet connection. The speech model runs on your Mac or PC, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
+    title: ifLinux("Offline dictation software for Mac, Windows and Linux", "Offline dictation software for Mac and Windows"),
+    description: `Dictation that works with no internet connection. The speech model runs on your ${ifLinux("own computer", "Mac or PC")}, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
     kicker: "Offline dictation",
     h1: "Dictation that works with the internet switched off.",
     lede: "Koegaki runs the whole speech model on your computer. Once it is installed, dictation works on a plane, on a train, behind a firewall, and on a document that must not leave the building.",
@@ -189,7 +337,7 @@ export const LANDING_PAGES: LandingPage[] = [
         heading: "Why most dictation stops working offline",
         paragraphs: [
           "Most dictation tools are a microphone connected to a server. They record you, upload the audio, and wait for a transcript to come back. Lose the connection and they stop. Keep the connection and every word you say passes through someone else's computer.",
-          "Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing. That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.",
+          `Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}.`,
         ],
       },
       {
@@ -202,13 +350,16 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          "A few things, none of them involving audio or text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows. Each model downloads once, and a cleanup model downloads only when you choose it. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.",
+          `A few things, none of them involving audio or text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check with koegaki.com for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. Each model downloads once, and a cleanup model downloads only when you choose it. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
         ],
       },
       {
-        heading: "Mac and Windows, one licence",
+        heading: ifLinux("Mac, Windows and Linux, one licence", "Mac and Windows, one licence"),
         paragraphs: [
-          `Koegaki runs on Apple Silicon Macs with macOS 14 or later, and on ${SITE.windowsRequirements.toLowerCase()}. It costs ${price} once, covers both platforms, and includes every future update. Try it free for ${SITE.trialDays} days.`,
+          ifLinux(
+            `Koegaki runs on Apple Silicon Macs with macOS 14 or later, on ${SITE.windowsRequirements.toLowerCase()}, and on Debian 12 or Ubuntu 22.04 or newer (x86_64). It costs ${price} once, covers all three platforms, and includes every future update. Try it free for ${SITE.trialDays} days.`,
+            `Koegaki runs on Apple Silicon Macs with macOS 14 or later, and on ${SITE.windowsRequirements.toLowerCase()}. It costs ${price} once, covers both platforms, and includes every future update. Try it free for ${SITE.trialDays} days.`,
+          ),
         ],
       },
     ],
@@ -219,11 +370,14 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "How accurate is offline recognition?",
-        a: `Koegaki uses the Parakeet Ultra model, the same model on Mac and Windows since version 1.7.0. On Mac it runs on the Apple Neural Engine; on Windows on the CPU. It handles natural speech at a normal pace; pauses are fine.`,
+        a: ifLinux(
+          "Koegaki uses the Parakeet Ultra model on every platform: on the Mac and on Windows since version 1.7.0, and on Linux from its first release. On Mac it runs on the Apple Neural Engine; on Windows and Linux on the CPU. It handles natural speech at a normal pace; pauses are fine.",
+          `Koegaki uses the Parakeet Ultra model, the same model on Mac and Windows since version 1.7.0. On Mac it runs on the Apple Neural Engine; on Windows on the CPU. It handles natural speech at a normal pace; pauses are fine.`,
+        ),
       },
       {
         q: "Can I use it in a corporate environment that blocks unknown services?",
-        a: "Yes, once it is set up. Dictation itself makes no network requests. First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com. On Mac every model file comes from our model mirror at koegaki-models.vishutdhar.workers.dev and nowhere else. On Windows the English speech, voice-detection and cleanup models come from the same mirror, and the multilingual speech model comes from GitHub releases. None of these carry audio or text.",
+        a: `Yes, once it is set up. Dictation itself makes no network requests. First launch needs to download a speech model and activation needs to reach our licensing provider, so those hosts must be allowed once. The app connects out only for licence activation and a daily licence check with Lemon Squeezy (our licensing provider), version and model checks with koegaki.com, and downloads of updates from our hosting storage, and model downloads: the list of available models comes from koegaki.com. On Mac every model file comes from our model mirror at koegaki-models.vishutdhar.workers.dev and nowhere else. On ${ifLinux("Windows and Linux", "Windows")} the English speech, voice-detection and cleanup models come from the same mirror, and the multilingual speech model comes from GitHub releases. None of these carry audio or text.`,
       },
       {
         q: "Is there a word limit?",

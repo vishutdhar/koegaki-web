@@ -1,4 +1,4 @@
-import { SITE } from "@/lib/site";
+import { ifLinux, SITE } from "@/lib/site";
 import { Section } from "./section";
 import { Reveal } from "./reveal";
 import { IconChip, IconApps, IconKey, IconBook, IconMenuBar } from "./icons";
@@ -22,7 +22,11 @@ const SMALL = [
   {
     icon: IconMenuBar,
     title: "Out of your way",
-    body: "Waits in the menu bar on Mac and the tray on Windows. Always a keystroke away.",
+    // Most Linux desktops show a tray; GNOME without an extension shows none.
+    body: ifLinux(
+      "Waits in the menu bar on Mac and the tray on Windows and most Linux desktops. Always a keystroke away.",
+      "Waits in the menu bar on Mac and the tray on Windows. Always a keystroke away.",
+    ),
   },
 ];
 
@@ -47,15 +51,36 @@ export function Features() {
             <h3 className="mt-5 max-w-md font-display text-2xl font-medium tracking-tight">
               The whole model runs on your own machine.
             </h3>
-            <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
-              Koegaki transcribes with <span className="os-mac">{SITE.engine}</span>
-              <span className="os-win">{SITE.windowsEngine}</span>. There is no server to send your
-              voice to, because there is no server. Your words are yours.
-            </p>
-            <p className="mt-5 font-mono text-xs text-faint">
-              <span className="os-mac">{SITE.engine}</span>
-              <span className="os-win">{SITE.windowsEngine}</span>
-            </p>
+            {/*
+              Each paragraph is chosen as a whole, never given a conditional
+              child, so without a Linux release it is byte for byte today's.
+            */}
+            {SITE.linuxEngine ? (
+              <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
+                Koegaki transcribes with <span className="os-mac">{SITE.engine}</span>
+                <span className="os-win">{SITE.windowsEngine}</span>
+                <span className="os-linux">{SITE.linuxEngine}</span>. There is no server to send your
+                voice to, because there is no server. Your words are yours.
+              </p>
+            ) : (
+              <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
+                Koegaki transcribes with <span className="os-mac">{SITE.engine}</span>
+                <span className="os-win">{SITE.windowsEngine}</span>. There is no server to send your
+                voice to, because there is no server. Your words are yours.
+              </p>
+            )}
+            {SITE.linuxEngine ? (
+              <p className="mt-5 font-mono text-xs text-faint">
+                <span className="os-mac">{SITE.engine}</span>
+                <span className="os-win">{SITE.windowsEngine}</span>
+                <span className="os-linux">{SITE.linuxEngine}</span>
+              </p>
+            ) : (
+              <p className="mt-5 font-mono text-xs text-faint">
+                <span className="os-mac">{SITE.engine}</span>
+                <span className="os-win">{SITE.windowsEngine}</span>
+              </p>
+            )}
           </div>
         </Reveal>
 
