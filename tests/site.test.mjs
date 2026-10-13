@@ -951,9 +951,12 @@ function modelIndexProblems(index) {
  * last value, where serde refuses a repeated field (and decodes every value of
  * a repeated set id) and the Mac decoder keeps the first; a lone surrogate
  * escape parses to a string serde refuses. None of them survives the round
- * trip or the well formed test, so the parsed check sees what every reader
- * sees. The rule is stricter than the readers on purpose; for a file a tool
- * writes, one form costs nothing.
+ * trip or the well formed test. Member names are ASCII besides: the Mac
+ * decoder keys a dictionary by Swift string equality, under which "\u00e9"
+ * and "e\u0301" are one name, where JSON.parse keeps both; ASCII names are
+ * equal under every reader only when they are the same. So the parsed check
+ * sees what every reader sees. The rule is stricter than the readers on
+ * purpose; for a file a tool writes, one form costs nothing.
  */
 function modelIndexTextProblems(text) {
   const index = JSON.parse(text);
@@ -967,10 +970,14 @@ function modelIndexTextProblems(text) {
       `line ${line + 1} reads ${JSON.stringify(given[line] ?? "")} where JSON.stringify(index, null, 2) writes ${JSON.stringify(written[line] ?? "")}`,
     );
   }
+  const names = (v) => (v && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...names(x)]) : []);
   const strings = (v) =>
     typeof v === "string" ? [v] : v && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...strings(x)]) : [];
   for (const s of strings(index)) {
     if (!s.isWellFormed()) problems.push(`the string ${JSON.stringify(s)} is not well formed`);
+  }
+  for (const name of names(index)) {
+    if (!/^[\x00-\x7f]*$/.test(name)) problems.push(`the member name ${JSON.stringify(name)} is not ASCII`);
   }
   return problems;
 }
@@ -1011,14 +1018,24 @@ test("the model index text check refuses every form but the canonical one", () =
   ];
   for (const [, mutated] of mutations) assert.notEqual(mutated, text);
   for (const [, mutated] of mutations) JSON.parse(mutated);
-  const missed = mutations.filter(([, mutated]) => modelIndexTextProblems(mutated).length === 0);
-  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   // Written the canonical way, whatever they hold.
   const canonical = (mutate) => {
     const index = JSON.parse(text);
     mutate(index);
     return `${JSON.stringify(index, null, 2)}\n`;
   };
+  // Canonical, yet the Mac decoder keys its dictionary by Swift string
+  // equality, under which these two names are one: it keeps one entry where
+  // JSON.parse keeps two.
+  mutations.push([
+    "two set ids one Unicode normalization apart",
+    canonical((i) => {
+      i.mac["\u00e9"] = i.mac.cleanup;
+      i.mac["e\u0301"] = i.mac.cleanup;
+    }),
+  ]);
+  const missed = mutations.filter(([, mutated]) => modelIndexTextProblems(mutated).length === 0);
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
   const accepted = [
     ["the index as published", text],
     ["a string holding a dot and digits", canonical((i) => (i.linux.cleanup.label = "Cleanup model 1.5e3"))],
