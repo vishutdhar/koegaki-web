@@ -49,7 +49,7 @@ export const SITE = {
 
   windowsDownloadUrl:
     process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ??
-    "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.0/Koegaki-1.13.0-setup.exe",
+    "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.1/Koegaki-1.13.1-setup.exe",
 
   windowsRequirements: "Windows 10 & 11 · 64-bit",
 
