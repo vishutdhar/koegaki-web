@@ -869,9 +869,12 @@ const publicJson = (name) => JSON.parse(readFileSync(new URL(`../public/${name}`
  * apps/KoegakiWindows/crates/koegaki-win/src/model_updates.rs (ModelIndex::decode,
  * is_safe_manifest_name, AppVersion::parse) and
  * apps/KoegakiWindows/crates/koegaki-core/src/pathname.rs (is_plain_component).
- * The Mac decodes both platform blocks, so a mistyped Windows entry breaks it
+ * The Mac decodes both of those blocks, so a mistyped Windows entry breaks it
  * too, and every entry here is held to the stricter Windows component rule for
- * its identity and manifest, which every current entry already meets.
+ * its identity and manifest, which every current entry already meets. The
+ * linux block is read by the same Rust reader in a Linux build and by nothing
+ * else (Koegaki spec 2026-10-13-model-index-linux), and no Linux build before
+ * 1.14.0 exists, so a linux min_app is never below it.
  */
 function modelIndexProblems(index) {
   const RESERVED = new Set(["CON", "PRN", "AUX", "NUL"]);
@@ -887,16 +890,27 @@ function modelIndexProblems(index) {
     !RESERVED.has(c.split(".")[0].toUpperCase());
   const optionalString = (v) => v === undefined || v === null || typeof v === "string";
   // Each min_app part must also fit the integer its reader parses into: a Mac
-  // Int for the mac block, a Windows u64 for the windows block.
-  const LARGEST_PART = { mac: 2n ** 63n - 1n, windows: 2n ** 64n - 1n };
+  // Int for the mac block, a Rust u64 for the windows and linux blocks.
+  const LARGEST_PART = { mac: 2n ** 63n - 1n, windows: 2n ** 64n - 1n, linux: 2n ** 64n - 1n };
   const appVersion = (v, platform) =>
     typeof v === "string" &&
     /^[0-9]+(?:\.[0-9]+){0,2}$/.test(v) &&
     v.split(".").every((part) => BigInt(part) <= LARGEST_PART[platform]);
+  // The lowest min_app a block may state, compared as the readers compare
+  // versions: part by part, a missing part read as zero.
+  const FIRST_VERSION = { linux: "1.14.0" };
+  const atLeast = (v, floor) => {
+    const [a, b] = [v, floor].map((x) => x.split(".").map(BigInt));
+    for (let k = 0; k < Math.max(a.length, b.length); k++) {
+      const [x, y] = [a[k] ?? 0n, b[k] ?? 0n];
+      if (x !== y) return x > y;
+    }
+    return true;
+  };
   const problems = [];
   if (!index || typeof index !== "object") return ["the index is not an object"];
   if (index.schema !== 1) problems.push(`schema ${JSON.stringify(index.schema)} is not 1`);
-  for (const platform of ["mac", "windows"]) {
+  for (const platform of ["mac", "windows", "linux"]) {
     const block = index[platform];
     if (!block || typeof block !== "object" || Array.isArray(block)) {
       problems.push(`no ${platform} block`);
@@ -917,6 +931,8 @@ function modelIndexProblems(index) {
       if (!Number.isSafeInteger(e.bytes) || e.bytes <= 0) problems.push(`${at}: bytes ${JSON.stringify(e.bytes)} is not a positive integer`);
       if (!appVersion(e.min_app, platform)) {
         problems.push(`${at}: min_app ${JSON.stringify(e.min_app)} is not one to three numeric parts its reader can hold`);
+      } else if (FIRST_VERSION[platform] && !atLeast(e.min_app, FIRST_VERSION[platform])) {
+        problems.push(`${at}: min_app ${e.min_app} is below ${FIRST_VERSION[platform]}, the first version on that platform`);
       }
       if (!optionalString(e.vad)) problems.push(`${at}: vad is not a string`);
       if (!optionalString(e.notes)) problems.push(`${at}: notes is not a string`);
@@ -925,8 +941,111 @@ function modelIndexProblems(index) {
   return problems;
 }
 
+/**
+ * public/models.json is written in one canonical form: the text
+ * JSON.stringify(index, null, 2) writes, plus a newline, as every version of
+ * it has been, with every string well formed. JSON.parse forgives forms the
+ * readers refuse or read otherwise, so the parsed check above could pass an
+ * index a reader throws away or sees differently: 1673007552.0 parses here as
+ * an integer and serde refuses it for u64; a member named twice parses as its
+ * last value, where serde refuses a repeated field (and decodes every value of
+ * a repeated set id) and the Mac decoder keeps the first; a lone surrogate
+ * escape parses to a string serde refuses. None of them survives the round
+ * trip or the well formed test. Member names are ASCII besides: the Mac
+ * decoder keys a dictionary by Swift string equality, under which "\u00e9"
+ * and "e\u0301" are one name, where JSON.parse keeps both; ASCII names are
+ * equal under every reader only when they are the same. So the parsed check
+ * sees what every reader sees. The rule is stricter than the readers on
+ * purpose; for a file a tool writes, one form costs nothing.
+ */
+function modelIndexTextProblems(text) {
+  const index = JSON.parse(text);
+  const problems = [];
+  const canonical = `${JSON.stringify(index, null, 2)}\n`;
+  if (text !== canonical) {
+    const [given, written] = [text.split("\n"), canonical.split("\n")];
+    let line = 0;
+    while (given[line] === written[line]) line++;
+    problems.push(
+      `line ${line + 1} reads ${JSON.stringify(given[line] ?? "")} where JSON.stringify(index, null, 2) writes ${JSON.stringify(written[line] ?? "")}`,
+    );
+  }
+  const names = (v) => (v && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...names(x)]) : []);
+  const strings = (v) =>
+    typeof v === "string" ? [v] : v && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...strings(x)]) : [];
+  for (const s of strings(index)) {
+    if (!s.isWellFormed()) problems.push(`the string ${JSON.stringify(s)} is not well formed`);
+  }
+  for (const name of names(index)) {
+    if (!/^[\x00-\x7f]*$/.test(name)) problems.push(`the member name ${JSON.stringify(name)} is not ASCII`);
+  }
+  return problems;
+}
+
 test("every model index entry passes the rules both app readers apply", () => {
   assert.deepEqual(modelIndexProblems(publicJson("models.json")), []);
+  assert.deepEqual(modelIndexTextProblems(readFileSync(new URL("../public/models.json", import.meta.url), "utf8")), []);
+});
+
+test("the model index text check refuses every form but the canonical one", () => {
+  const text = readFileSync(new URL("../public/models.json", import.meta.url), "utf8");
+  // The linux cleanup entry is the only one at 1.14.0 with these bytes.
+  const linuxCleanup = '"bytes": 1673007552,\n      "min_app": "1.14.0"';
+  const edit = (from, to) => {
+    assert.ok(text.includes(from), `the published index no longer holds ${from}`);
+    return text.replace(from, to);
+  };
+  const mutations = [
+    // Each of these parses here and a reader refuses it or reads it otherwise.
+    ["linux bytes with a fraction", edit(linuxCleanup, linuxCleanup.replace("1673007552", "1673007552.0"))],
+    ["linux bytes with an exponent", edit(linuxCleanup, linuxCleanup.replace("1673007552", "1.673007552e9"))],
+    ["windows bytes with a fraction", edit('"bytes": 488914608,\n      "min_app": "1.7.0"', '"bytes": 488914608.0,\n      "min_app": "1.7.0"')],
+    ["a schema with a fraction", edit('"schema": 1,', '"schema": 1.0,')],
+    ["the schema twice", edit('"schema": 1,', '"schema": 1,\n  "schema": 1,')],
+    ["the linux block twice", edit('\n  "linux": {', '\n  "linux": {},\n  "linux": {')],
+    ["the windows block twice", edit('\n  "windows": {', '\n  "windows": {},\n  "windows": {')],
+    ["the mac block twice", edit('\n  "mac": {', '\n  "mac": {},\n  "mac": {')],
+    ["a malformed linux set id before the real one", edit('\n  "linux": {', '\n  "linux": {\n    "cleanup": {},')],
+    ["a mac set id twice", edit('\n  "mac": {', '\n  "mac": {\n    "cleanup": {},')],
+    ["a windows set id twice", edit('\n  "windows": {', '\n  "windows": {\n    "cleanup": {},')],
+    ["a linux entry field twice", edit(linuxCleanup, `${linuxCleanup},\n      "min_app": "1.14.0"`)],
+    ["a member name spelled with an escape", edit(linuxCleanup, linuxCleanup.replace('"bytes"', '"by\\u0074es"'))],
+    ["a lone surrogate in a label", edit('"label": "Cleanup model"', '"label": "\\ud800"')],
+    // Stricter than the readers on purpose: one canonical form.
+    ["a mac entry field repeated with the same value", edit('"min_app": "1.3.1",', '"min_app": "1.3.1",\n      "min_app": "1.3.1",')],
+    ["mac bytes with a zero fraction", edit('"bytes": 1673007552,\n      "min_app": "1.3.1"', '"bytes": 1673007552.0,\n      "min_app": "1.3.1"')],
+    ["four space indentation", text.replace(/\n( +)/g, (m, sp) => `\n${sp}${sp}`)],
+  ];
+  for (const [, mutated] of mutations) assert.notEqual(mutated, text);
+  for (const [, mutated] of mutations) JSON.parse(mutated);
+  // Written the canonical way, whatever they hold.
+  const canonical = (mutate) => {
+    const index = JSON.parse(text);
+    mutate(index);
+    return `${JSON.stringify(index, null, 2)}\n`;
+  };
+  // Canonical, yet the Mac decoder keys its dictionary by Swift string
+  // equality, under which these two names are one: it keeps one entry where
+  // JSON.parse keeps two.
+  mutations.push([
+    "two set ids one Unicode normalization apart",
+    canonical((i) => {
+      i.mac["\u00e9"] = i.mac.cleanup;
+      i.mac["e\u0301"] = i.mac.cleanup;
+    }),
+  ]);
+  const missed = mutations.filter(([, mutated]) => modelIndexTextProblems(mutated).length === 0);
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const accepted = [
+    ["the index as published", text],
+    ["a string holding a dot and digits", canonical((i) => (i.linux.cleanup.label = "Cleanup model 1.5e3"))],
+    ["a string holding an escaped quote", canonical((i) => (i.mac.cleanup.notes = 'a "1.0": x'))],
+    ["a string beyond ASCII, a surrogate pair included", canonical((i) => (i.windows.cleanup.notes = "caf\u00e9 \u{1D11E}"))],
+    ["a fraction inside an unknown entry field", canonical((i) => (i.linux.cleanup.metadata = [1.5]))],
+    ["an unknown top level member with a fraction", canonical((i) => (i.generated = 1.5))],
+  ];
+  const refused = accepted.map(([name, t]) => [name, modelIndexTextProblems(t)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(refused, [], "these were refused");
 });
 
 test("the model index check refuses what the app readers refuse", () => {
@@ -949,11 +1068,22 @@ test("the model index check refuses what the app readers refuse", () => {
     ["no windows block", (i) => delete i.windows, /windows block/],
     ["a Windows min_app part above u64", (i) => (i.windows["speech-english"].min_app = "18446744073709551616"), /windows\.speech-english: min_app/],
     ["a Mac min_app part above Int", (i) => (i.mac.cleanup.min_app = "9223372036854775808"), /mac\.cleanup: min_app/],
+    ["no linux block", (i) => delete i.linux, /linux block/],
+    ["a linux identity with a slash", (i) => (i.linux.cleanup.identity = "cleanup/qwen3"), /linux\.cleanup: identity/],
+    ["a linux manifest outside the mirror root", (i) => (i.linux["speech-english"].manifest = "../bad.json"), /linux\.speech-english: manifest/],
+    ["linux bytes as a string", (i) => (i.linux["speech-multilingual"].bytes = "563790207"), /linux\.speech-multilingual: bytes/],
+    ["a linux vad that is not a string", (i) => (i.linux["speech-english"].vad = 6), /linux\.speech-english: vad/],
+    ["a linux min_app part above u64", (i) => (i.linux.cleanup.min_app = "18446744073709551616"), /linux\.cleanup: min_app/],
+    ["a linux min_app below the first Linux version", (i) => (i.linux.cleanup.min_app = "1.13.1"), /linux\.cleanup: min_app/],
+    ["a linux min_app of one part below it", (i) => (i.linux["speech-english"].min_app = "1"), /linux\.speech-english: min_app/],
   ];
   const accepted = [
     ["the index as published", () => {}],
     ["a Windows min_app part at the u64 limit", (i) => (i.windows["speech-english"].min_app = "18446744073709551615")],
     ["a Mac min_app part at the Int limit", (i) => (i.mac.cleanup.min_app = "9223372036854775807")],
+    ["a linux min_app part at the u64 limit", (i) => (i.linux.cleanup.min_app = "18446744073709551615")],
+    ["a linux min_app above the first Linux version", (i) => (i.linux.cleanup.min_app = "1.14.1")],
+    ["a linux min_app of two parts at the first Linux version", (i) => (i.linux.cleanup.min_app = "1.14")],
   ];
   const problemsAfter = (mutate) => {
     const copy = structuredClone(index);
