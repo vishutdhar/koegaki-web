@@ -1346,6 +1346,14 @@ const LINUX_ONLY_RECORD = Object.freeze({
   }),
 });
 
+/** MAC_ONLY_RECORD restated as the record of `version`: a release with no deb. */
+const MAC_ONLY_RECORD_AS = (version) => {
+  const copy = structuredClone(MAC_ONLY_RECORD);
+  copy.version = version;
+  copy.artifacts.dmg.url = githubAssetUrl(version, "dmg");
+  return copy;
+};
+
 /** `sources`, finding LINUX_ONLY_RECORD as the record of its release. */
 const withLinuxOnlyRelease = (sources) => ({
   installer: sources.installer,
@@ -1758,6 +1766,64 @@ function windowsUpdateProblems(manifest, sources, pubkey) {
   problems.push(...signatureProblems);
   if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
     problems.push(`the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${version}_x64-setup.exe`);
+  }
+  return problems;
+}
+
+/**
+ * What the Linux updater would refuse in `feed`, or what publication asks
+ * beyond it (Koegaki spec 2026-10-13-linux-updater, rules 1 and 11), given
+ * `record`, the release record of the feed's version, and `pubkey`, the key the
+ * Linux build checks a deb against (linuxKeyFor). The shape is the Windows
+ * feed's, which the updater deserializes whole before it picks its platform
+ * (see windowsUpdateProblems): version a bare SemVer core, notes and pub_date
+ * present, every platform an object with a parseable url and a string
+ * signature. Its one platform is linux-x86_64, the key every x86_64 Linux build
+ * reads (after linux-x86_64-deb, which would shadow it for a deb install, so it
+ * must not be there). Its url is the record's deb url, a GitHub release asset,
+ * and its signature is the record's deb signature, verifying over the record's
+ * BLAKE2b-512 digest with `pubkey` and naming the file the bundler wrote.
+ */
+function linuxUpdateProblems(feed, record, pubkey) {
+  if (!isPlainObject(feed)) return ["the feed is not an object"];
+  const problems = [];
+  const { version, notes, pub_date: date, platforms } = feed;
+  const semverCore =
+    typeof version === "string" &&
+    /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(version) &&
+    version.split(".").every((part) => BigInt(part) <= 2n ** 64n - 1n);
+  if (!semverCore) problems.push(`version ${JSON.stringify(version)} is not a SemVer core`);
+  if (typeof notes !== "string") problems.push(`notes ${JSON.stringify(notes)} is not a string`);
+  const dateProblem = rfc3339Problem(date);
+  if (dateProblem) problems.push(dateProblem);
+  if (!isPlainObject(platforms)) return [...problems, "platforms is not an object"];
+  for (const [name, entry] of Object.entries(platforms)) {
+    if (!isPlainObject(entry)) {
+      problems.push(`platform ${name} is not an object`);
+      continue;
+    }
+    if (typeof entry.url !== "string" || !URL.canParse(entry.url)) problems.push(`platform ${name}: url ${JSON.stringify(entry.url)} does not parse`);
+    if (typeof entry.signature !== "string") problems.push(`platform ${name}: signature is not a string`);
+  }
+  const names = Object.keys(platforms);
+  if (names.length !== 1 || names[0] !== "linux-x86_64") problems.push(`the platforms are ${JSON.stringify(names)}, not linux-x86_64 alone`);
+  const target = platforms["linux-x86_64"];
+  if (!isPlainObject(target)) return [...problems, "no linux-x86_64 platform"];
+  if (!semverCore) return problems;
+  const at = `releases/${version}.json`;
+  if (!record) return [...problems, `no ${at} records the release the feed offers`];
+  problems.push(...releaseRecordProblems(record, version).map((problem) => `${at}: ${problem}`));
+  const deb = record.artifacts?.deb;
+  if (!isPlainObject(deb)) return [...problems, `${at} records no deb`];
+  if (target.url !== deb.url) problems.push(`the url ${JSON.stringify(target.url)} is not the deb url ${at} records`);
+  if (target.signature !== deb.signature) problems.push(`the feed carries another signature than ${at} records`);
+  if (typeof deb.blake2b512 !== "string" || !/^[0-9a-f]{128}$/.test(deb.blake2b512)) {
+    return [...problems, `${at} states no BLAKE2b-512 digest to check the signature against`];
+  }
+  const { problems: signatureProblems, trusted } = updaterSignatureProblems(Buffer.from(deb.blake2b512, "hex"), target.signature, pubkey, "deb");
+  problems.push(...signatureProblems);
+  if (!trusted?.split("\t").includes(`file:${bundlerDebName(version)}`)) {
+    problems.push(`the trusted comment ${JSON.stringify(trusted)} does not name ${bundlerDebName(version)}`);
   }
   return problems;
 }
@@ -3549,20 +3615,81 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
   ]);
 });
 
-test("no Linux update feed is served until unit 5 adds its checks", () => {
-  // Spec rule 5: the feed, its platform key and its signature are unit 5's
-  // call. Until that unit replaces this test with the feed's own checks, a
-  // Linux feed must not ship, with a Linux release or without one, at any
-  // path in public/ and not as a Linux entry in another feed.
+test("the Linux update feed is public/linux-updates.json, served with the Linux release and naming the deb its signature covers", () => {
+  // Koegaki spec 2026-10-13-linux-updater rule 11, replacing the guard of this
+  // repo's spec 2026-10-13-linux-site rule 5 with the feed's own checks.
   const named = linuxFeedsIn(new URL("../public/", import.meta.url));
   const debRecorded = releaseRecords().some(({ record }) => isPlainObject(record?.artifacts?.deb));
-  assert.deepEqual(
-    named,
-    [],
-    debRecorded
-      ? "public/ serves a Linux file, but the Linux feed has no checks yet: unit 5 adds them (spec 2026-10-13-linux-site rule 5) and replaces this test"
-      : "public/ serves a Linux file, but no release record holds a deb, so there is no Linux release for it to offer",
+  if (!debRecorded) {
+    assert.deepEqual(named, [], "public/ serves a Linux file, but no release record holds a deb, so there is no Linux release for it to offer");
+    return;
+  }
+  // One feed, under its one name: never a Linux entry inside another feed.
+  assert.ok(
+    named.every((file) => file === "linux-updates.json"),
+    `public/ serves a Linux feed other than linux-updates.json: ${JSON.stringify(named)}`,
   );
+  // A real Linux release ships with its feed, so installed copies hear of the
+  // next one; the fixture build has a release record and no feed.
+  if (!fromFixture(LINUX_RELEASE.version)) assert.deepEqual(named, ["linux-updates.json"], "a Linux release is recorded, and public/ serves no linux-updates.json for it");
+  if (named.length === 0) return;
+  const feed = publicJson("linux-updates.json");
+  assert.deepEqual(linuxUpdateProblems(feed, releaseRecord(feed.version), linuxKeyFor(feed.version)), []);
+  assert.equal(feed.version, LINUX_RELEASE.version, "the feed offers another version than the Linux download link");
+});
+
+test("the Linux page does not say Koegaki cannot update itself while a Linux feed is served", () => {
+  // Koegaki spec 2026-10-13-linux-updater rule 11: with a feed, the app
+  // installs updates itself, so the page's update sentence (LINUX_UPDATES,
+  // which unit 10 changes) must not deny it.
+  const served = linuxFeedsIn(new URL("../public/", import.meta.url)).length > 0;
+  if (served) assert.ok(!/does not install updates itself/.test(LINUX_UPDATES), LINUX_UPDATES);
+});
+
+test("the Linux feed check refuses a damaged feed, record, signature or key", () => {
+  const fixtureRecord = JSON.parse(readFileSync(new URL("1.14.0.json", FIXTURE_RELEASES), "utf8"));
+  const feedFor = (record) => ({
+    version: record.version,
+    notes: "What changed.",
+    pub_date: "2026-11-02T10:00:00Z",
+    platforms: { "linux-x86_64": { url: record.artifacts.deb.url, signature: record.artifacts.deb.signature } },
+  });
+  // The fixture's signed record and the self tests' record both pass, each
+  // with the key it was signed with, and with no other.
+  assert.deepEqual(linuxUpdateProblems(feedFor(fixtureRecord), fixtureRecord, LINUX_FIXTURE_PUBKEY), []);
+  assert.deepEqual(linuxUpdateProblems(feedFor(LINUX_ONLY_RECORD), LINUX_ONLY_RECORD, LINUX_ONLY_KEY.pubkey), []);
+  assert.match(linuxUpdateProblems(feedFor(fixtureRecord), fixtureRecord, LINUX_UPDATER_PUBKEY).join("\n"), /the key ids differ|does not verify/);
+
+  const record = LINUX_ONLY_RECORD;
+  const key = LINUX_ONLY_KEY.pubkey;
+  const digest = Buffer.from(record.artifacts.deb.blake2b512, "hex");
+  const otherDigest = createHash("blake2b512").update("other bytes").digest();
+  const withDeb = (change) => {
+    const copy = structuredClone(record);
+    change(copy.artifacts.deb);
+    return copy;
+  };
+  const otherFile = withDeb((deb) => (deb.signature = LINUX_ONLY_KEY.sign(digest, bundlerDebName("1.13.9"))));
+  const cases = [
+    ["a deb only key", (feed) => (feed.platforms = { "linux-x86_64-deb": feed.platforms["linux-x86_64"] }), record, /not linux-x86_64 alone/],
+    ["a second Linux key beside it", (feed) => (feed.platforms["linux-x86_64-deb"] = feed.platforms["linux-x86_64"]), record, /not linux-x86_64 alone/],
+    ["a Windows platform beside it", (feed) => (feed.platforms["windows-x86_64"] = { url: "https://koegaki.com/x.exe", signature: "s" }), record, /not linux-x86_64 alone/],
+    ["another url", (feed) => (feed.platforms["linux-x86_64"].url = githubAssetUrl("1.13.9", "deb")), record, /is not the deb url/],
+    ["another signature", (feed) => (feed.platforms["linux-x86_64"].signature = LINUX_ONLY_KEY.sign(otherDigest, bundlerDebName("1.14.0"))), record, /another signature|does not verify/],
+    ["a prerelease version", (feed) => (feed.version = "1.14.0-beta"), record, /not a SemVer core/],
+    ["no notes", (feed) => delete feed.notes, record, /notes undefined is not a string/],
+    ["a date that is not RFC 3339", (feed) => (feed.pub_date = "2 November 2026"), record, /RFC 3339/],
+    ["a platform that is not an object", (feed) => (feed.platforms["linux-x86_64"] = "u"), record, /not an object/],
+    ["no record of the version", () => {}, undefined, /no releases\/1\.14\.0\.json records/],
+    ["a record without a deb", () => {}, MAC_ONLY_RECORD_AS("1.14.0"), /records no deb/],
+    ["a record whose deb digest is not the signed one", () => {}, withDeb((deb) => (deb.blake2b512 = otherDigest.toString("hex"))), /does not verify/],
+    ["a signature naming another file, in feed and record alike", (feed) => (feed.platforms["linux-x86_64"].signature = otherFile.artifacts.deb.signature), otherFile, /does not name com\.vishutdhar\.Koegaki_1\.14\.0_amd64\.deb/],
+  ];
+  for (const [name, change, recorded, expected] of cases) {
+    const feed = feedFor(record);
+    change(feed);
+    assert.match(linuxUpdateProblems(feed, recorded, key).join("\n"), expected, name);
+  }
 });
 
 test(

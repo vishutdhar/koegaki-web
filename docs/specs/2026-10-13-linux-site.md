@@ -231,3 +231,44 @@ Adds `releases/1.14.0.json` as the publish tool writes it, which turns every Lin
 unit 5 shipped; removes the gate-off pin (it retires itself, so this is tidying); and keeps the
 publish tool's GLIBC ceiling at or below the claimed floor (residual: the tool allows 2.39, the
 claim needs 2.35).
+
+## 6. Amendment 2026-10-13: the Linux feed's own checks (Koegaki unit 5)
+
+Koegaki spec `2026-10-13-linux-updater` (rules 1 and 11) settles what rule 5 left to it. The guard
+of rule 5 is replaced by the feed's own checks, in `tests/site.test.mjs`:
+
+- **While no release record holds a deb, no Linux feed is served**, as before.
+- **Once a real one does, `public/linux-updates.json` is served, and it is the only Linux feed.**
+  No other file in `public/` may be a Linux feed, and no other feed may list a Linux platform. The
+  fixture build has a deb record and no feed, so there the feed is allowed, not required.
+- **`linuxUpdateProblems`, the twin of `windowsUpdateProblems`:** the Tauri static shape
+  (`version` a bare SemVer core, `notes` and `pub_date` present and well formed); exactly one
+  platform, `linux-x86_64` (every x86_64 Linux build reads it after `linux-x86_64-deb`, which
+  must not be there to shadow it); its `url` the record's deb url and its `signature` the
+  record's deb signature, verifying over the record's BLAKE2b-512 with the Linux key and naming
+  `com.vishutdhar.Koegaki_<version>_amd64.deb`. The feed's version is the Linux link's.
+- **The page's update sentence (`LINUX_UPDATES`) may not say Koegaki does not install updates
+  itself while a Linux feed is served.**
+- The checks are tried against the fixture's signed 1.14.0 record and the self tests' Linux only
+  record, and each damaged case is refused.
+
+What unit 10 writes, from the release record the publish tool wrote, in the same push as
+`releases/<version>.json`:
+
+```json
+{
+  "version": "<version>",
+  "notes": "<the release notes, the same text as the Windows feed's when both ship>",
+  "pub_date": "<RFC 3339 time of publication>",
+  "platforms": {
+    "linux-x86_64": {
+      "url": "<artifacts.deb.url>",
+      "signature": "<artifacts.deb.signature>"
+    }
+  }
+}
+```
+
+and it changes `LINUX_UPDATES` to describe the in app update (Install and restart asks for the
+password, installs and opens the new version; when it cannot, it shows the download and the one
+command to install it by hand).
