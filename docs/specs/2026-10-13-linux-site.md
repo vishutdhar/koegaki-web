@@ -239,10 +239,13 @@ of rule 5 is replaced by the feed's own checks, in `tests/site.test.mjs`:
 
 - **While no release record holds a deb, no Linux feed is served**, as before.
 - **Once a real one does, `public/linux-updates.json` is served, and it is the only Linux feed.**
-  No other file in `public/` may be a Linux feed, and no other feed may list a Linux platform. The
-  fixture build has a deb record and no feed, so there the feed is allowed, not required.
-- **`linuxUpdateProblems`, the twin of `windowsUpdateProblems`:** the Tauri static shape
-  (`version` a bare SemVer core, `notes` and `pub_date` present and well formed); exactly one
+  No other file in `public/` may be a Linux feed, and no other feed may list a Linux platform.
+  "Real" is the Linux release `releases/` offers (`linuxRelease`), judged the same way in the
+  fixture run, whose synthetic release is never what `public/` serves.
+- **`linuxUpdateProblems`, the twin of `windowsUpdateProblems`:** the Tauri static shape, holding
+  exactly `version` (a bare SemVer core), `notes`, `pub_date` and `platforms` (the updater also
+  reads top level `url`, `signature` and `name` and refuses a feed whose values it cannot read);
+  exactly one
   platform, `linux-x86_64` (every x86_64 Linux build reads it after `linux-x86_64-deb`, which
   must not be there to shadow it); its `url` the record's deb url and its `signature` the
   record's deb signature, verifying over the record's BLAKE2b-512 with the Linux key and naming
@@ -251,8 +254,11 @@ of rule 5 is replaced by the feed's own checks, in `tests/site.test.mjs`:
   always held to the real record in `releases/` and the real Linux key, in the fixture run too,
   where the fixture's synthetic 1.14.0 record and key would otherwise shadow the real ones (review
   on the pull request).
-- **The page's update sentence (`LINUX_UPDATES`) may not say Koegaki does not install updates
-  itself while a Linux feed is served.**
+- **While a Linux feed is served, the page's update sentence (`LINUX_UPDATES`) is exactly the
+  approved one** (`LINUX_UPDATES_IN_APP` in the tests): "Koegaki for Linux checks for a new
+  version when you open its window. Install and restart asks for your password, installs the new
+  version and opens it. If it cannot, it shows the download and the one command to install it
+  yourself. Your settings, history and downloaded models stay as they are."
 - The checks are tried against the fixture's signed 1.14.0 record and the self tests' Linux only
   record, and each damaged case is refused.
 
@@ -273,6 +279,4 @@ What unit 10 writes, from the release record the publish tool wrote, in the same
 }
 ```
 
-and it changes `LINUX_UPDATES` to describe the in app update (Install and restart asks for the
-password, installs and opens the new version; when it cannot, it shows the download and the one
-command to install it by hand).
+and it sets `LINUX_UPDATES` to the approved sentence above.

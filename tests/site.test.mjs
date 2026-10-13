@@ -1788,6 +1788,14 @@ function windowsUpdateProblems(manifest, sources, pubkey) {
 function linuxUpdateProblems(feed, record, pubkey, windowsFeed) {
   if (!isPlainObject(feed)) return ["the feed is not an object"];
   const problems = [];
+  // The updater reads url, signature and name (an alias of version) at the
+  // top level too, and refuses a feed whose values it cannot read, so the
+  // static feed holds its four fields and nothing else (review on the pull
+  // request).
+  const fields = Object.keys(feed).sort();
+  if (fields.join() !== "notes,platforms,pub_date,version") {
+    problems.push(`the feed holds ${JSON.stringify(fields)}, not version, notes, pub_date and platforms alone`);
+  }
   const { version, notes, pub_date: date, platforms } = feed;
   // A release that ships on Windows and Linux tells both the same thing.
   if (isPlainObject(windowsFeed) && windowsFeed.version === version && windowsFeed.notes !== notes) {
@@ -3620,44 +3628,87 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
   ]);
 });
 
+/**
+ * The update sentence of the Linux page once Koegaki for Linux updates itself
+ * (Koegaki spec 2026-10-13-linux-updater rule 11): unit 10 sets
+ * LINUX_UPDATES (lib/pages.ts) to exactly this when it adds the Linux feed.
+ */
+const LINUX_UPDATES_IN_APP =
+  "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+
+/**
+ * What is wrong with the Linux feeds public/ serves: `named`, every Linux feed
+ * there (linuxFeedsIn); `feed`, the parsed linux-updates.json when one is
+ * served; `real`, the real Linux release (linuxRelease over releases/, the
+ * same in both test runs, since the fixture build's synthetic release is never
+ * what public/ offers), or null; and `sources`: the real record of a version,
+ * the real Linux key, and the Windows feed. With no Linux release no feed may
+ * be served; with one, linux-updates.json is served, alone, for that release.
+ */
+function servedLinuxFeedProblems(named, feed, real, sources) {
+  if (!real) {
+    return named.length === 0 ? [] : [`public/ serves ${JSON.stringify(named)}, but no release record holds a deb, so there is no Linux release for it to offer`];
+  }
+  if (named.length !== 1 || named[0] !== "linux-updates.json") {
+    return [`a Linux release is recorded, and public/ serves ${JSON.stringify(named)}, not linux-updates.json alone`];
+  }
+  const problems = linuxUpdateProblems(feed, sources.record(feed?.version), sources.key, sources.windowsFeed);
+  if (feed?.version !== real.version) problems.push(`the feed offers ${JSON.stringify(feed?.version)}, not the Linux release ${real.version}`);
+  return problems;
+}
+
+/** What is wrong with the page's update sentence: while a Linux feed is served, it is LINUX_UPDATES_IN_APP. */
+function linuxUpdatesSentenceProblems(served, sentence) {
+  return served && sentence !== LINUX_UPDATES_IN_APP ? ["a Linux feed is served, and LINUX_UPDATES is not the sentence for the in app update"] : [];
+}
+
+/** The real record of `version` in releases/, never the fixture's. */
+function realReleaseRecord(version) {
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
+  const file = new URL(`${version}.json`, RELEASES);
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
+}
+
 test("the Linux update feed is public/linux-updates.json, served with the Linux release and naming the deb its signature covers", () => {
   // Koegaki spec 2026-10-13-linux-updater rule 11, replacing the guard of this
   // repo's spec 2026-10-13-linux-site rule 5 with the feed's own checks.
   const named = linuxFeedsIn(new URL("../public/", import.meta.url));
-  const debRecorded = releaseRecords().some(({ record }) => isPlainObject(record?.artifacts?.deb));
-  if (!debRecorded) {
-    assert.deepEqual(named, [], "public/ serves a Linux file, but no release record holds a deb, so there is no Linux release for it to offer");
-    return;
-  }
-  // One feed, under its one name: never a Linux entry inside another feed.
-  assert.ok(
-    named.every((file) => file === "linux-updates.json"),
-    `public/ serves a Linux feed other than linux-updates.json: ${JSON.stringify(named)}`,
-  );
-  // A real Linux release ships with its feed, so installed copies hear of the
-  // next one; the fixture build has a release record and no feed.
-  if (!fromFixture(LINUX_RELEASE.version)) assert.deepEqual(named, ["linux-updates.json"], "a Linux release is recorded, and public/ serves no linux-updates.json for it");
-  if (named.length === 0) return;
-  // The served feed is the real release's, so it is held to the real record
-  // and the real Linux key in both runs: in the fixture run the fixture's
-  // synthetic 1.14.0 record and key shadow the real ones (review on the pull
-  // request).
-  const feed = publicJson("linux-updates.json");
-  const realRecord = (version) => {
-    if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
-    const file = new URL(`${version}.json`, RELEASES);
-    return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
-  };
-  assert.deepEqual(linuxUpdateProblems(feed, realRecord(feed.version), LINUX_UPDATER_PUBKEY, publicJson("windows-updates.json")), []);
-  assert.equal(feed.version, LINUX_RELEASE.version, "the feed offers another version than the Linux download link");
+  const feed = named.includes("linux-updates.json") ? publicJson("linux-updates.json") : undefined;
+  const real = linuxRelease(fileURLToPath(RELEASES));
+  const sources = { record: realReleaseRecord, key: LINUX_UPDATER_PUBKEY, windowsFeed: publicJson("windows-updates.json") };
+  assert.deepEqual(servedLinuxFeedProblems(named, feed, real, sources), []);
 });
 
 test("the Linux page does not say Koegaki cannot update itself while a Linux feed is served", () => {
   // Koegaki spec 2026-10-13-linux-updater rule 11: with a feed, the app
-  // installs updates itself, so the page's update sentence (LINUX_UPDATES,
-  // which unit 10 changes) must not deny it.
+  // installs updates itself, and the page says so in the one approved sentence.
   const served = linuxFeedsIn(new URL("../public/", import.meta.url)).length > 0;
-  if (served) assert.ok(!/does not install updates itself/.test(LINUX_UPDATES), LINUX_UPDATES);
+  assert.deepEqual(linuxUpdatesSentenceProblems(served, LINUX_UPDATES), []);
+});
+
+test("the served feed check holds the feed to the real Linux release, and the page to the approved sentence", () => {
+  const record = LINUX_ONLY_RECORD;
+  const feedOf = (version) => ({
+    version,
+    notes: "What changed.",
+    pub_date: "2026-11-02T10:00:00Z",
+    platforms: { "linux-x86_64": { url: record.artifacts.deb.url, signature: record.artifacts.deb.signature } },
+  });
+  const sources = { record: (version) => (version === record.version ? record : undefined), key: LINUX_ONLY_KEY.pubkey, windowsFeed: undefined };
+  const real = { version: "1.14.0", url: record.artifacts.deb.url };
+  assert.deepEqual(servedLinuxFeedProblems([], undefined, null, sources), [], "no release, no feed");
+  assert.match(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), null, sources).join("\n"), /no release record holds a deb/);
+  assert.match(servedLinuxFeedProblems([], undefined, real, sources).join("\n"), /not linux-updates\.json alone/, "a release without its feed");
+  assert.match(servedLinuxFeedProblems(["linux-updates.json", "x.json"], feedOf("1.14.0"), real, sources).join("\n"), /not linux-updates\.json alone/);
+  assert.deepEqual(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), real, sources), []);
+  // A later Linux release: the feed must offer it, in either run.
+  const later = { version: "1.14.1", url: githubAssetUrl("1.14.1", "deb") };
+  assert.match(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), later, sources).join("\n"), /not the Linux release 1\.14\.1/);
+  assert.deepEqual(linuxUpdatesSentenceProblems(false, LINUX_UPDATES), []);
+  assert.deepEqual(linuxUpdatesSentenceProblems(true, LINUX_UPDATES_IN_APP), []);
+  for (const denial of [LINUX_UPDATES, "Koegaki for Linux cannot update itself. Download and install updates manually."]) {
+    assert.equal(linuxUpdatesSentenceProblems(true, denial).length, 1, denial);
+  }
 });
 
 test("the Linux feed check refuses a damaged feed, record, signature or key", () => {
@@ -3694,6 +3745,9 @@ test("the Linux feed check refuses a damaged feed, record, signature or key", ()
     ["no notes", (feed) => delete feed.notes, record, /notes undefined is not a string/],
     ["a date that is not RFC 3339", (feed) => (feed.pub_date = "2 November 2026"), record, /RFC 3339/],
     ["a platform that is not an object", (feed) => (feed.platforms["linux-x86_64"] = "u"), record, /not an object/],
+    ["a top level url the updater cannot read", (feed) => (feed.url = 42), record, /not version, notes, pub_date and platforms alone/],
+    ["a top level signature", (feed) => (feed.signature = "s"), record, /not version, notes, pub_date and platforms alone/],
+    ["a name beside the version", (feed) => (feed.name = "1.14.0"), record, /not version, notes, pub_date and platforms alone/],
     ["no record of the version", () => {}, undefined, /no releases\/1\.14\.0\.json records/],
     ["a record without a deb", () => {}, MAC_ONLY_RECORD_AS("1.14.0"), /records no deb/],
     ["a record whose deb digest is not the signed one", () => {}, withDeb((deb) => (deb.blake2b512 = otherDigest.toString("hex"))), /does not verify/],
