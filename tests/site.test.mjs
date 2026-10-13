@@ -1346,6 +1346,14 @@ const LINUX_ONLY_RECORD = Object.freeze({
   }),
 });
 
+/** MAC_ONLY_RECORD restated as the record of `version`: a release with no deb. */
+const MAC_ONLY_RECORD_AS = (version) => {
+  const copy = structuredClone(MAC_ONLY_RECORD);
+  copy.version = version;
+  copy.artifacts.dmg.url = githubAssetUrl(version, "dmg");
+  return copy;
+};
+
 /** `sources`, finding LINUX_ONLY_RECORD as the record of its release. */
 const withLinuxOnlyRelease = (sources) => ({
   installer: sources.installer,
@@ -1758,6 +1766,77 @@ function windowsUpdateProblems(manifest, sources, pubkey) {
   problems.push(...signatureProblems);
   if (!trusted?.split("\t").includes(`file:Koegaki_${version}_x64-setup.exe`)) {
     problems.push(`the trusted comment ${JSON.stringify(trusted)} does not name Koegaki_${version}_x64-setup.exe`);
+  }
+  return problems;
+}
+
+/**
+ * What the Linux updater would refuse in `feed`, or what publication asks
+ * beyond it (Koegaki spec 2026-10-13-linux-updater, rules 1 and 11), given
+ * `record`, the release record of the feed's version, `pubkey`, the key the
+ * Linux build checks a deb against, and `windowsFeed`, the Windows feed, whose
+ * notes the Linux feed's equal when both offer the same version. The shape is the Windows
+ * feed's, which the updater deserializes whole before it picks its platform
+ * (see windowsUpdateProblems): version a bare SemVer core, notes and pub_date
+ * present, every platform an object with a parseable url and a string
+ * signature. Its one platform is linux-x86_64, the key every x86_64 Linux build
+ * reads (after linux-x86_64-deb, which would shadow it for a deb install, so it
+ * must not be there). Its url is the record's deb url, a GitHub release asset,
+ * and its signature is the record's deb signature, verifying over the record's
+ * BLAKE2b-512 digest with `pubkey` and naming the file the bundler wrote.
+ */
+function linuxUpdateProblems(feed, record, pubkey, windowsFeed) {
+  if (!isPlainObject(feed)) return ["the feed is not an object"];
+  const problems = [];
+  // The updater reads url, signature and name (an alias of version) at the
+  // top level too, and refuses a feed whose values it cannot read, so the
+  // static feed holds its four fields and nothing else (review on the pull
+  // request).
+  const fields = Object.keys(feed).sort();
+  if (fields.join() !== "notes,platforms,pub_date,version") {
+    problems.push(`the feed holds ${JSON.stringify(fields)}, not version, notes, pub_date and platforms alone`);
+  }
+  const { version, notes, pub_date: date, platforms } = feed;
+  // A release that ships on Windows and Linux tells both the same thing.
+  if (isPlainObject(windowsFeed) && windowsFeed.version === version && windowsFeed.notes !== notes) {
+    problems.push(`the notes are not the Windows feed's, which offers the same version ${version}`);
+  }
+  const semverCore =
+    typeof version === "string" &&
+    /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(version) &&
+    version.split(".").every((part) => BigInt(part) <= 2n ** 64n - 1n);
+  if (!semverCore) problems.push(`version ${JSON.stringify(version)} is not a SemVer core`);
+  if (typeof notes !== "string") problems.push(`notes ${JSON.stringify(notes)} is not a string`);
+  const dateProblem = rfc3339Problem(date);
+  if (dateProblem) problems.push(dateProblem);
+  if (!isPlainObject(platforms)) return [...problems, "platforms is not an object"];
+  for (const [name, entry] of Object.entries(platforms)) {
+    if (!isPlainObject(entry)) {
+      problems.push(`platform ${name} is not an object`);
+      continue;
+    }
+    if (typeof entry.url !== "string" || !URL.canParse(entry.url)) problems.push(`platform ${name}: url ${JSON.stringify(entry.url)} does not parse`);
+    if (typeof entry.signature !== "string") problems.push(`platform ${name}: signature is not a string`);
+  }
+  const names = Object.keys(platforms);
+  if (names.length !== 1 || names[0] !== "linux-x86_64") problems.push(`the platforms are ${JSON.stringify(names)}, not linux-x86_64 alone`);
+  const target = platforms["linux-x86_64"];
+  if (!isPlainObject(target)) return [...problems, "no linux-x86_64 platform"];
+  if (!semverCore) return problems;
+  const at = `releases/${version}.json`;
+  if (!record) return [...problems, `no ${at} records the release the feed offers`];
+  problems.push(...releaseRecordProblems(record, version).map((problem) => `${at}: ${problem}`));
+  const deb = record.artifacts?.deb;
+  if (!isPlainObject(deb)) return [...problems, `${at} records no deb`];
+  if (target.url !== deb.url) problems.push(`the url ${JSON.stringify(target.url)} is not the deb url ${at} records`);
+  if (target.signature !== deb.signature) problems.push(`the feed carries another signature than ${at} records`);
+  if (typeof deb.blake2b512 !== "string" || !/^[0-9a-f]{128}$/.test(deb.blake2b512)) {
+    return [...problems, `${at} states no BLAKE2b-512 digest to check the signature against`];
+  }
+  const { problems: signatureProblems, trusted } = updaterSignatureProblems(Buffer.from(deb.blake2b512, "hex"), target.signature, pubkey, "deb");
+  problems.push(...signatureProblems);
+  if (!trusted?.split("\t").includes(`file:${bundlerDebName(version)}`)) {
+    problems.push(`the trusted comment ${JSON.stringify(trusted)} does not name ${bundlerDebName(version)}`);
   }
   return problems;
 }
@@ -3549,20 +3628,147 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
   ]);
 });
 
-test("no Linux update feed is served until unit 5 adds its checks", () => {
-  // Spec rule 5: the feed, its platform key and its signature are unit 5's
-  // call. Until that unit replaces this test with the feed's own checks, a
-  // Linux feed must not ship, with a Linux release or without one, at any
-  // path in public/ and not as a Linux entry in another feed.
+/**
+ * The update sentence of the Linux page once Koegaki for Linux updates itself
+ * (Koegaki spec 2026-10-13-linux-updater rule 11): unit 10 sets
+ * LINUX_UPDATES (lib/pages.ts) to exactly this when it adds the Linux feed.
+ */
+const LINUX_UPDATES_IN_APP =
+  "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+
+/**
+ * What is wrong with the Linux feeds public/ serves: `named`, every Linux feed
+ * there (linuxFeedsIn); `feed`, the parsed linux-updates.json when one is
+ * served; `real`, the real Linux release (linuxRelease over releases/, the
+ * same in both test runs, since the fixture build's synthetic release is never
+ * what public/ offers), or null; and `sources`: the real record of a version,
+ * the real Linux key, and the Windows feed. With no Linux release no feed may
+ * be served; with one, linux-updates.json is served, alone, for that release.
+ */
+function servedLinuxFeedProblems(named, feed, real, sources) {
+  if (!real) {
+    return named.length === 0 ? [] : [`public/ serves ${JSON.stringify(named)}, but no release record holds a deb, so there is no Linux release for it to offer`];
+  }
+  if (named.length !== 1 || named[0] !== "linux-updates.json") {
+    return [`a Linux release is recorded, and public/ serves ${JSON.stringify(named)}, not linux-updates.json alone`];
+  }
+  const problems = linuxUpdateProblems(feed, sources.record(feed?.version), sources.key, sources.windowsFeed);
+  if (feed?.version !== real.version) problems.push(`the feed offers ${JSON.stringify(feed?.version)}, not the Linux release ${real.version}`);
+  return problems;
+}
+
+/** What is wrong with the page's update sentence: while a Linux feed is served, it is LINUX_UPDATES_IN_APP. */
+function linuxUpdatesSentenceProblems(served, sentence) {
+  return served && sentence !== LINUX_UPDATES_IN_APP ? ["a Linux feed is served, and LINUX_UPDATES is not the sentence for the in app update"] : [];
+}
+
+/** The real record of `version` in releases/, never the fixture's. */
+function realReleaseRecord(version) {
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
+  const file = new URL(`${version}.json`, RELEASES);
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
+}
+
+test("the Linux update feed is public/linux-updates.json, served with the Linux release and naming the deb its signature covers", () => {
+  // Koegaki spec 2026-10-13-linux-updater rule 11, replacing the guard of this
+  // repo's spec 2026-10-13-linux-site rule 5 with the feed's own checks.
   const named = linuxFeedsIn(new URL("../public/", import.meta.url));
-  const debRecorded = releaseRecords().some(({ record }) => isPlainObject(record?.artifacts?.deb));
-  assert.deepEqual(
-    named,
-    [],
-    debRecorded
-      ? "public/ serves a Linux file, but the Linux feed has no checks yet: unit 5 adds them (spec 2026-10-13-linux-site rule 5) and replaces this test"
-      : "public/ serves a Linux file, but no release record holds a deb, so there is no Linux release for it to offer",
+  const feed = named.includes("linux-updates.json") ? publicJson("linux-updates.json") : undefined;
+  const real = linuxRelease(fileURLToPath(RELEASES));
+  const sources = { record: realReleaseRecord, key: LINUX_UPDATER_PUBKEY, windowsFeed: publicJson("windows-updates.json") };
+  assert.deepEqual(servedLinuxFeedProblems(named, feed, real, sources), []);
+});
+
+test("the Linux page does not say Koegaki cannot update itself while a Linux feed is served", () => {
+  // Koegaki spec 2026-10-13-linux-updater rule 11: with a feed, the app
+  // installs updates itself, and the page says so in the one approved sentence.
+  const served = linuxFeedsIn(new URL("../public/", import.meta.url)).length > 0;
+  assert.deepEqual(linuxUpdatesSentenceProblems(served, LINUX_UPDATES), []);
+});
+
+test("the served feed check holds the feed to the real Linux release, and the page to the approved sentence", () => {
+  const record = LINUX_ONLY_RECORD;
+  const feedOf = (version) => ({
+    version,
+    notes: "What changed.",
+    pub_date: "2026-11-02T10:00:00Z",
+    platforms: { "linux-x86_64": { url: record.artifacts.deb.url, signature: record.artifacts.deb.signature } },
+  });
+  const sources = { record: (version) => (version === record.version ? record : undefined), key: LINUX_ONLY_KEY.pubkey, windowsFeed: undefined };
+  const real = { version: "1.14.0", url: record.artifacts.deb.url };
+  assert.deepEqual(servedLinuxFeedProblems([], undefined, null, sources), [], "no release, no feed");
+  assert.match(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), null, sources).join("\n"), /no release record holds a deb/);
+  assert.match(servedLinuxFeedProblems([], undefined, real, sources).join("\n"), /not linux-updates\.json alone/, "a release without its feed");
+  assert.match(servedLinuxFeedProblems(["linux-updates.json", "x.json"], feedOf("1.14.0"), real, sources).join("\n"), /not linux-updates\.json alone/);
+  assert.deepEqual(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), real, sources), []);
+  // A later Linux release: the feed must offer it, in either run.
+  const later = { version: "1.14.1", url: githubAssetUrl("1.14.1", "deb") };
+  assert.match(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), later, sources).join("\n"), /not the Linux release 1\.14\.1/);
+  assert.deepEqual(linuxUpdatesSentenceProblems(false, LINUX_UPDATES), []);
+  assert.deepEqual(linuxUpdatesSentenceProblems(true, LINUX_UPDATES_IN_APP), []);
+  // Denials as fixed text: LINUX_UPDATES itself becomes the approved sentence in unit 10.
+  const todaysDenial =
+    "Koegaki for Linux does not install updates itself. To update, download the newest package from this page and install it the same way; apt replaces the old version, and your settings, history and downloaded models stay as they are.";
+  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually."]) {
+    assert.equal(linuxUpdatesSentenceProblems(true, denial).length, 1, denial);
+  }
+});
+
+test("the Linux feed check refuses a damaged feed, record, signature or key", () => {
+  const fixtureRecord = JSON.parse(readFileSync(new URL("1.14.0.json", FIXTURE_RELEASES), "utf8"));
+  const feedFor = (record) => ({
+    version: record.version,
+    notes: "What changed.",
+    pub_date: "2026-11-02T10:00:00Z",
+    platforms: { "linux-x86_64": { url: record.artifacts.deb.url, signature: record.artifacts.deb.signature } },
+  });
+  // The fixture's signed record and the self tests' record both pass, each
+  // with the key it was signed with, and with no other.
+  assert.deepEqual(linuxUpdateProblems(feedFor(fixtureRecord), fixtureRecord, LINUX_FIXTURE_PUBKEY), []);
+  assert.deepEqual(linuxUpdateProblems(feedFor(LINUX_ONLY_RECORD), LINUX_ONLY_RECORD, LINUX_ONLY_KEY.pubkey), []);
+  assert.match(linuxUpdateProblems(feedFor(fixtureRecord), fixtureRecord, LINUX_UPDATER_PUBKEY).join("\n"), /the key ids differ|does not verify/);
+
+  const record = LINUX_ONLY_RECORD;
+  const key = LINUX_ONLY_KEY.pubkey;
+  const digest = Buffer.from(record.artifacts.deb.blake2b512, "hex");
+  const otherDigest = createHash("blake2b512").update("other bytes").digest();
+  const withDeb = (change) => {
+    const copy = structuredClone(record);
+    change(copy.artifacts.deb);
+    return copy;
+  };
+  const otherFile = withDeb((deb) => (deb.signature = LINUX_ONLY_KEY.sign(digest, bundlerDebName("1.13.9"))));
+  const cases = [
+    ["a deb only key", (feed) => (feed.platforms = { "linux-x86_64-deb": feed.platforms["linux-x86_64"] }), record, /not linux-x86_64 alone/],
+    ["a second Linux key beside it", (feed) => (feed.platforms["linux-x86_64-deb"] = feed.platforms["linux-x86_64"]), record, /not linux-x86_64 alone/],
+    ["a Windows platform beside it", (feed) => (feed.platforms["windows-x86_64"] = { url: "https://koegaki.com/x.exe", signature: "s" }), record, /not linux-x86_64 alone/],
+    ["another url", (feed) => (feed.platforms["linux-x86_64"].url = githubAssetUrl("1.13.9", "deb")), record, /is not the deb url/],
+    ["another signature", (feed) => (feed.platforms["linux-x86_64"].signature = LINUX_ONLY_KEY.sign(otherDigest, bundlerDebName("1.14.0"))), record, /another signature|does not verify/],
+    ["a prerelease version", (feed) => (feed.version = "1.14.0-beta"), record, /not a SemVer core/],
+    ["no notes", (feed) => delete feed.notes, record, /notes undefined is not a string/],
+    ["a date that is not RFC 3339", (feed) => (feed.pub_date = "2 November 2026"), record, /RFC 3339/],
+    ["a platform that is not an object", (feed) => (feed.platforms["linux-x86_64"] = "u"), record, /not an object/],
+    ["a top level url the updater cannot read", (feed) => (feed.url = 42), record, /not version, notes, pub_date and platforms alone/],
+    ["a top level signature", (feed) => (feed.signature = "s"), record, /not version, notes, pub_date and platforms alone/],
+    ["a name beside the version", (feed) => (feed.name = "1.14.0"), record, /not version, notes, pub_date and platforms alone/],
+    ["no record of the version", () => {}, undefined, /no releases\/1\.14\.0\.json records/],
+    ["a record without a deb", () => {}, MAC_ONLY_RECORD_AS("1.14.0"), /records no deb/],
+    ["a record whose deb digest is not the signed one", () => {}, withDeb((deb) => (deb.blake2b512 = otherDigest.toString("hex"))), /does not verify/],
+    ["a signature naming another file, in feed and record alike", (feed) => (feed.platforms["linux-x86_64"].signature = otherFile.artifacts.deb.signature), otherFile, /does not name com\.vishutdhar\.Koegaki_1\.14\.0_amd64\.deb/],
+  ];
+  for (const [name, change, recorded, expected] of cases) {
+    const feed = feedFor(record);
+    change(feed);
+    assert.match(linuxUpdateProblems(feed, recorded, key).join("\n"), expected, name);
+  }
+  // A release on both platforms: the notes are the Windows feed's.
+  const windowsOf = (version, notes) => ({ version, notes, pub_date: "2026-11-02T10:00:00Z", platforms: {} });
+  assert.match(
+    linuxUpdateProblems(feedFor(record), record, key, windowsOf("1.14.0", "Something else.")).join("\n"),
+    /the notes are not the Windows feed's/,
   );
+  assert.deepEqual(linuxUpdateProblems(feedFor(record), record, key, windowsOf("1.14.0", "What changed.")), []);
+  assert.deepEqual(linuxUpdateProblems(feedFor(record), record, key, windowsOf("1.13.1", "Something else.")), [], "another version's notes are its own");
 });
 
 test(
