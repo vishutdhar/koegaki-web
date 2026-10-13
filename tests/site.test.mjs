@@ -3706,7 +3706,10 @@ test("the served feed check holds the feed to the real Linux release, and the pa
   assert.match(servedLinuxFeedProblems(["linux-updates.json"], feedOf("1.14.0"), later, sources).join("\n"), /not the Linux release 1\.14\.1/);
   assert.deepEqual(linuxUpdatesSentenceProblems(false, LINUX_UPDATES), []);
   assert.deepEqual(linuxUpdatesSentenceProblems(true, LINUX_UPDATES_IN_APP), []);
-  for (const denial of [LINUX_UPDATES, "Koegaki for Linux cannot update itself. Download and install updates manually."]) {
+  // Denials as fixed text: LINUX_UPDATES itself becomes the approved sentence in unit 10.
+  const todaysDenial =
+    "Koegaki for Linux does not install updates itself. To update, download the newest package from this page and install it the same way; apt replaces the old version, and your settings, history and downloaded models stay as they are.";
+  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually."]) {
     assert.equal(linuxUpdatesSentenceProblems(true, denial).length, 1, denial);
   }
 });
