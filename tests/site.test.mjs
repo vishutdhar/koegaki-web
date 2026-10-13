@@ -869,9 +869,12 @@ const publicJson = (name) => JSON.parse(readFileSync(new URL(`../public/${name}`
  * apps/KoegakiWindows/crates/koegaki-win/src/model_updates.rs (ModelIndex::decode,
  * is_safe_manifest_name, AppVersion::parse) and
  * apps/KoegakiWindows/crates/koegaki-core/src/pathname.rs (is_plain_component).
- * The Mac decodes both platform blocks, so a mistyped Windows entry breaks it
+ * The Mac decodes both of those blocks, so a mistyped Windows entry breaks it
  * too, and every entry here is held to the stricter Windows component rule for
- * its identity and manifest, which every current entry already meets.
+ * its identity and manifest, which every current entry already meets. The
+ * linux block is read by the same Rust reader in a Linux build and by nothing
+ * else (Koegaki spec 2026-10-13-model-index-linux), and no Linux build before
+ * 1.14.0 exists, so a linux min_app is never below it.
  */
 function modelIndexProblems(index) {
   const RESERVED = new Set(["CON", "PRN", "AUX", "NUL"]);
@@ -887,16 +890,27 @@ function modelIndexProblems(index) {
     !RESERVED.has(c.split(".")[0].toUpperCase());
   const optionalString = (v) => v === undefined || v === null || typeof v === "string";
   // Each min_app part must also fit the integer its reader parses into: a Mac
-  // Int for the mac block, a Windows u64 for the windows block.
-  const LARGEST_PART = { mac: 2n ** 63n - 1n, windows: 2n ** 64n - 1n };
+  // Int for the mac block, a Rust u64 for the windows and linux blocks.
+  const LARGEST_PART = { mac: 2n ** 63n - 1n, windows: 2n ** 64n - 1n, linux: 2n ** 64n - 1n };
   const appVersion = (v, platform) =>
     typeof v === "string" &&
     /^[0-9]+(?:\.[0-9]+){0,2}$/.test(v) &&
     v.split(".").every((part) => BigInt(part) <= LARGEST_PART[platform]);
+  // The lowest min_app a block may state, compared as the readers compare
+  // versions: part by part, a missing part read as zero.
+  const FIRST_VERSION = { linux: "1.14.0" };
+  const atLeast = (v, floor) => {
+    const [a, b] = [v, floor].map((x) => x.split(".").map(BigInt));
+    for (let k = 0; k < Math.max(a.length, b.length); k++) {
+      const [x, y] = [a[k] ?? 0n, b[k] ?? 0n];
+      if (x !== y) return x > y;
+    }
+    return true;
+  };
   const problems = [];
   if (!index || typeof index !== "object") return ["the index is not an object"];
   if (index.schema !== 1) problems.push(`schema ${JSON.stringify(index.schema)} is not 1`);
-  for (const platform of ["mac", "windows"]) {
+  for (const platform of ["mac", "windows", "linux"]) {
     const block = index[platform];
     if (!block || typeof block !== "object" || Array.isArray(block)) {
       problems.push(`no ${platform} block`);
@@ -917,6 +931,8 @@ function modelIndexProblems(index) {
       if (!Number.isSafeInteger(e.bytes) || e.bytes <= 0) problems.push(`${at}: bytes ${JSON.stringify(e.bytes)} is not a positive integer`);
       if (!appVersion(e.min_app, platform)) {
         problems.push(`${at}: min_app ${JSON.stringify(e.min_app)} is not one to three numeric parts its reader can hold`);
+      } else if (FIRST_VERSION[platform] && !atLeast(e.min_app, FIRST_VERSION[platform])) {
+        problems.push(`${at}: min_app ${e.min_app} is below ${FIRST_VERSION[platform]}, the first version on that platform`);
       }
       if (!optionalString(e.vad)) problems.push(`${at}: vad is not a string`);
       if (!optionalString(e.notes)) problems.push(`${at}: notes is not a string`);
@@ -949,11 +965,22 @@ test("the model index check refuses what the app readers refuse", () => {
     ["no windows block", (i) => delete i.windows, /windows block/],
     ["a Windows min_app part above u64", (i) => (i.windows["speech-english"].min_app = "18446744073709551616"), /windows\.speech-english: min_app/],
     ["a Mac min_app part above Int", (i) => (i.mac.cleanup.min_app = "9223372036854775808"), /mac\.cleanup: min_app/],
+    ["no linux block", (i) => delete i.linux, /linux block/],
+    ["a linux identity with a slash", (i) => (i.linux.cleanup.identity = "cleanup/qwen3"), /linux\.cleanup: identity/],
+    ["a linux manifest outside the mirror root", (i) => (i.linux["speech-english"].manifest = "../bad.json"), /linux\.speech-english: manifest/],
+    ["linux bytes as a string", (i) => (i.linux["speech-multilingual"].bytes = "563790207"), /linux\.speech-multilingual: bytes/],
+    ["a linux vad that is not a string", (i) => (i.linux["speech-english"].vad = 6), /linux\.speech-english: vad/],
+    ["a linux min_app part above u64", (i) => (i.linux.cleanup.min_app = "18446744073709551616"), /linux\.cleanup: min_app/],
+    ["a linux min_app below the first Linux version", (i) => (i.linux.cleanup.min_app = "1.13.1"), /linux\.cleanup: min_app/],
+    ["a linux min_app of one part below it", (i) => (i.linux["speech-english"].min_app = "1"), /linux\.speech-english: min_app/],
   ];
   const accepted = [
     ["the index as published", () => {}],
     ["a Windows min_app part at the u64 limit", (i) => (i.windows["speech-english"].min_app = "18446744073709551615")],
     ["a Mac min_app part at the Int limit", (i) => (i.mac.cleanup.min_app = "9223372036854775807")],
+    ["a linux min_app part at the u64 limit", (i) => (i.linux.cleanup.min_app = "18446744073709551615")],
+    ["a linux min_app above the first Linux version", (i) => (i.linux.cleanup.min_app = "1.14.1")],
+    ["a linux min_app of two parts at the first Linux version", (i) => (i.linux.cleanup.min_app = "1.14")],
   ];
   const problemsAfter = (mutate) => {
     const copy = structuredClone(index);

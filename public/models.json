@@ -53,5 +53,32 @@
       "min_app": "1.4.1",
       "notes": ""
     }
+  },
+  "linux": {
+    "speech-english": {
+      "identity": "sherpa-onnx-nemo-parakeet-ultra-int8",
+      "vad": "silero-vad-v6.2.1",
+      "manifest": "windows-speech-english-2.json",
+      "label": "English speech model",
+      "bytes": 488914608,
+      "min_app": "1.14.0",
+      "notes": ""
+    },
+    "speech-multilingual": {
+      "identity": "sherpa-onnx-whisper-turbo",
+      "manifest": "windows-speech-multilingual-1.json",
+      "label": "Multilingual speech model",
+      "bytes": 563790207,
+      "min_app": "1.14.0",
+      "notes": ""
+    },
+    "cleanup": {
+      "identity": "cleanup-qwen3-1.7b-q6_k-1",
+      "manifest": "cleanup-manifest-1.json",
+      "label": "Cleanup model",
+      "bytes": 1673007552,
+      "min_app": "1.14.0",
+      "notes": ""
+    }
   }
 }
