@@ -3,22 +3,19 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.13.0</title>
-            <pubDate>Mon, 12 Oct 2026 07:02:09 -0400</pubDate>
-            <sparkle:version>34</sparkle:version>
-            <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
+            <title>1.13.2</title>
+            <pubDate>Thu, 15 Oct 2026 18:06:15 -0400</pubDate>
+            <sparkle:version>35</sparkle:version>
+            <sparkle:shortVersionString>1.13.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.13.0</h2>
+            <description><![CDATA[<h2>Koegaki 1.13.2</h2>
 <ul>
-    <li>On the Mac, the cleanup model now downloads on its own after the speech model, so Clean turns on at once when you want it. Clean stays off until you turn it on, and once the model is on this Mac, the Home card offers to turn it on in one click.</li>
-    <li>On the Mac, the cleanup download waits while your Mac is on a connection it treats as costly, and does not start on an Intel Mac or when the disk lacks 2 GB to spare beyond the model. It and the speech model update after an app update also do not start while this Mac runs on battery below 20 percent, and go ahead once it is plugged in. Settings shows where each stands, and offers Download now when the connection or the battery holds one back, and when the disk holds back the cleanup model.</li>
-    <li>On Windows, the cleanup model now downloads on its own after the speech model, so Clean turns on at once when you want it. Clean stays off until you turn it on, and once the model is on this PC, the Home card offers to turn it on in one click.</li>
-    <li>On Windows, the cleanup download waits while your connection is metered, and does not start when the disk lacks 2 GB to spare beyond the model. Settings shows where it stands, and offers Download now when the connection or the disk holds it back.</li>
-    <li>On Windows, choosing Quit Koegaki in the tray, or Install and restart for an app update, now gives changes made in Settings time to save before Koegaki closes, as its own restarts already did.</li>
-    <li>On Windows, when Koegaki reopens itself after a crash, it now always checks the speech model files in full before loading them, even if the record of an earlier check could not be removed.</li>
+    <li>This release is for the Mac. Windows stays on 1.13.1.</li>
+    <li>On the Mac, with Restore my previous clipboard after inserting on, a dictation that no app took still waits on the clipboard for Cmd V, but it no longer takes the place of what you had copied. While the app stays open, Koegaki's next paste that lands puts back what you had copied before, or anything copied since. As before, Koegaki never puts back a password from a password manager, or a clipboard that is too large or that it cannot read in full, and leaves the new dictation there instead.</li>
+    <li>On the Mac, when a dictation ends, the on-screen pill now goes away and the stop sound plays as its text is pasted, about a quarter of a second sooner than before.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.0/Koegaki-1.13.0.dmg" length="31694015" type="application/octet-stream" sparkle:edSignature="ShFDG2oBVWas2y73V0wHbkAEZ+1ilise+uxnoZp+8z4PSK8bfEldjt8z7O11XglOhfU8QN5vzsUfjl5DVNCpAw=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.2/Koegaki-1.13.2.dmg" length="31755132" type="application/octet-stream" sparkle:edSignature="Ce/C5VRNVA2HNW8LBEfBdPabes3VYVOR+n0yRfRNxHxv9wpUuO3Ys2iXe/IRFF1HRnNFp6f8q2+ZHmtDXhDHCw=="/>
         </item>
     </channel>
 </rss>

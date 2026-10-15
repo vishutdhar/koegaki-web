@@ -1,0 +1,11 @@
+{
+  "version": "1.13.2",
+  "artifacts": {
+    "dmg": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.2/Koegaki-1.13.2.dmg",
+      "size": 31755132,
+      "sha256": "b3c80bcf1ddc729b07d0812c9faee668e7e120260102932238de7573a4119434",
+      "blake2b512": "c08e19223b065f6945f035998a6a516f88297f5edf4e16691428c8fc76730eeef62bdb2e439c7c664cb257ff3cadcd42f4f839f647881e7042d6aef166ee8934"
+    }
+  }
+}
