@@ -39,9 +39,13 @@ export function HowItWorks() {
               <p className="mt-2.5 text-sm leading-relaxed text-muted">{body}</p>
               {/*
                 Each platform's real default: Globe or a modifier chord on Mac,
-                Ctrl+Alt+D on Windows, and on Linux once it ships (the os-pc
-                variant shows on both). Showing Mac glyphs to a Windows or Linux
-                visitor would name keys their keyboard does not have.
+                Ctrl+Alt+D on Windows, and Ctrl+Alt+K on Linux once it ships
+                (Ubuntu's GNOME session binds Ctrl+Alt+D to show desktop, so
+                the Linux app defaults to K: Koegaki spec
+                2026-10-13-linux-default-chord). Showing Mac glyphs to a
+                Windows or Linux visitor would name keys their keyboard does
+                not have. Without a Linux release the Windows keycaps are
+                today's element, so the page stays today's to the byte.
               */}
               {i === 0 && (
                 <>
@@ -53,11 +57,25 @@ export function HowItWorks() {
                     <KeyCap>⌘</KeyCap>
                     <KeyCap>D</KeyCap>
                   </div>
-                  <div className={`${ifLinux("os-pc", "os-win")} mt-4 flex items-center gap-1.5`}>
-                    <KeyCap>Ctrl</KeyCap>
-                    <KeyCap>Alt</KeyCap>
-                    <KeyCap>D</KeyCap>
-                  </div>
+                  {ifLinux(
+                    <>
+                      <div className="os-win mt-4 flex items-center gap-1.5">
+                        <KeyCap>Ctrl</KeyCap>
+                        <KeyCap>Alt</KeyCap>
+                        <KeyCap>D</KeyCap>
+                      </div>
+                      <div className="os-linux mt-4 flex items-center gap-1.5">
+                        <KeyCap>Ctrl</KeyCap>
+                        <KeyCap>Alt</KeyCap>
+                        <KeyCap>K</KeyCap>
+                      </div>
+                    </>,
+                    <div className="os-win mt-4 flex items-center gap-1.5">
+                      <KeyCap>Ctrl</KeyCap>
+                      <KeyCap>Alt</KeyCap>
+                      <KeyCap>D</KeyCap>
+                    </div>,
+                  )}
                 </>
               )}
             </div>

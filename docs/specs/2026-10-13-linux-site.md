@@ -47,7 +47,9 @@ three platform site with no further site code, and nothing Linux may show before
   the code renders; the pin of rule 8 catches either mistake.
 - **Next inlines `env` from the config** at build time, so a value the config derives is a literal
   in every bundle, the `/buy` function included, and no runtime code reads the file system.
-- **The Linux app** (Koegaki main `62246245`): the default shortcut is Ctrl+Alt+D, hold or toggle;
+- **The Linux app** (Koegaki main `62246245`): the default shortcut is Ctrl+Alt+D, hold or toggle
+  (corrected 2026-10-15: Koegaki spec `2026-10-13-linux-default-chord` makes the Linux default
+  Ctrl+Alt+K, because the Ubuntu GNOME session binds Ctrl+Alt+D to show desktop);
   insertion presses Ctrl+V through a uinput virtual keyboard and, when it cannot, leaves the text on
   the clipboard and says so (insertion spec rules 2 and 10); paste access is granted at install
   through a `uaccess` udev rule, writing only, with no log out (rule 13), and removing the package
@@ -190,7 +192,7 @@ Lines are at main `09b3976`. "Today" stays while no record holds a deb.
 | components/download-cta.tsx:45-66 | Mac note links Windows; Windows note links Mac | each note links the other two; the Linux note links the install steps |
 | components/features.tsx:25 | "menu bar on Mac and the tray on Windows" | "menu bar on Mac and the tray on Windows and most Linux desktops" |
 | components/features.tsx:51-57 | engine for Mac and Windows | adds the Linux engine |
-| components/how-it-works.tsx:46-58 | Ctrl Alt D on Windows (os-win) | Ctrl Alt D on Windows and Linux (os-pc) |
+| components/how-it-works.tsx:46-58 | Ctrl Alt D on Windows (os-win) | Ctrl Alt D on Windows (os-win) and Ctrl Alt K on Linux (os-linux), corrected 2026-10-15 |
 | components/pricing.tsx:11 | "Mac and Windows, one licence" | "Mac, Windows and Linux, one licence" |
 | components/pricing.tsx:43 | "trial · Mac and Windows" | "trial · Mac, Windows and Linux" |
 | components/footer.tsx:50 | "for Mac and Windows" | "for Mac, Windows and Linux" |

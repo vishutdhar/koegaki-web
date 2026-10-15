@@ -3971,6 +3971,37 @@ test("with a Linux release every page's lastmod is at least the day the Linux co
   }
 });
 
+// Each platform's default shortcut is its own (Koegaki spec
+// 2026-10-13-linux-default-chord rule 1): the Linux app defaults to
+// Ctrl+Alt+K, because Ubuntu's GNOME session binds Ctrl+Alt+D to show
+// desktop, and Windows keeps Ctrl+Alt+D. The how it works keycaps show
+// each platform its own chord, and nothing tells a Linux visitor to press
+// Ctrl+Alt+D.
+function howItWorksKeys(doc) {
+  const keys = (cls) => {
+    // Matched loosely on purpose: Tailwind scans this file too, so a
+    // class name written here that no component uses would add a rule to
+    // the stylesheet and move every page off the gate off pin.
+    const block = doc.match(new RegExp(`<div class="${cls} mt-4 [^"]*">([\\s\\S]*?)</div>`));
+    return block ? [...block[1].matchAll(/<kbd[^>]*>([\s\S]*?)<\/kbd>/g)].map((m) => m[1]) : null;
+  };
+  return { win: keys("os-win"), linux: keys("os-linux"), pc: keys("os-pc") };
+}
+
+test("the how it works keycaps show Windows its own default shortcut", () => {
+  const caps = howItWorksKeys(html("/"));
+  assert.deepEqual(caps.win, ["Ctrl", "Alt", "D"], "Windows keeps Ctrl+Alt+D");
+  assert.equal(caps.pc, null, "no keycaps are shared by Windows and Linux");
+  if (!LINUX_ON) assert.equal(caps.linux, null, "no Linux keycaps without a Linux release");
+});
+
+test("with a Linux release the how it works keycaps and the Linux page name Ctrl+Alt+K", withLinux, () => {
+  assert.deepEqual(howItWorksKeys(html("/")).linux, ["Ctrl", "Alt", "K"]);
+  const text = decodeEntities(pageText(html("/linux")));
+  assert.ok(text.includes("The default shortcut is Ctrl+Alt+K"), "the Linux page names the Linux default");
+  assert.doesNotMatch(text, /Ctrl\+Alt\+D/, "the Linux page never names the Windows default");
+});
+
 test("the Linux page tells a visitor how to install, check, repair, update and remove Koegaki, with the record's digest", withLinux, () => {
   const doc = html("/linux");
   const deb = ASSET_NAME.deb(LINUX_RELEASE.version);
