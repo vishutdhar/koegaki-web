@@ -90,7 +90,7 @@ function linuxPage(release: LinuxRelease): LandingPage {
         heading: "Dictate into the app you are using",
         paragraphs: [
           "Koegaki waits in the background, in the system tray on desktops that show one. Wherever the cursor is, in a browser, a mail client, a document or a chat, hold your shortcut and speak. When you release it, Koegaki pastes the text where you were typing. If it cannot press the paste keys, it leaves the text on the clipboard for you to paste with Ctrl+V and tells you so.",
-          "The default shortcut is Ctrl+Alt+D and you can change it. Hold it to talk, or use toggle mode and press once to start and once to stop.",
+          "The default shortcut is Ctrl+Alt+K and you can change it. Hold it to talk, or use toggle mode and press once to start and once to stop.",
         ],
       },
       {
