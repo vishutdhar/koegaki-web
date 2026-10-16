@@ -4105,16 +4105,25 @@ test("while a Linux feed is served, the Linux page says the update asks for the 
   assert.deepEqual(linuxUpdateAnswerProblems(false, before), [], "with no feed the answers are not held to the update");
 });
 
-test("the Linux page says the cleanup model downloads on its own after the speech model", withLinux, () => {
-  // Koegaki for Linux, from its first release, downloads the cleanup model by
-  // itself once the speech model is in place, and waits on a metered
-  // connection (Koegaki 1.14.0 release notes; cleanup_service.rs
-  // fetch_after_speech), so the page lists that download and never says a
-  // cleanup model waits to be chosen.
+test("the Linux page lists the cleanup download, licence deactivation and the paste access password prompt", withLinux, () => {
+  // What Koegaki for Linux does from its first release, 1.14.0 (Koegaki
+  // 6acd2d49), beside its updater: it downloads the cleanup model by itself
+  // once the speech model is in place, waiting on a metered connection
+  // (cleanup_service.rs fetch_after_speech); Deactivate this computer posts
+  // to the licensing provider (license_service.rs deactivate); and Let
+  // Koegaki paste, offered when paste access is missing, runs the package's
+  // helper through pkexec, which asks for an administrator password
+  // (device_access_linux.rs run_helper, settings.html pasteAccessPassword).
   const page = LANDING_PAGES.find(({ path }) => path === "/linux");
-  const network = page.faqs.find(({ q }) => q === "Does it need an internet connection?")?.a ?? "";
+  const answer = (q) => page.faqs.find((faq) => faq.q === q)?.a ?? "";
+  const network = answer("Does it need an internet connection?");
   assert.ok(network.includes("the cleanup model download that follows it"), "the network answer does not list the cleanup model download");
   assert.ok(network.includes("The cleanup model download waits the same way."), "the network answer does not say the cleanup download waits on a metered connection");
+  assert.ok(network.includes("activating or deactivating a licence key"), "the network answer does not list licence deactivation");
+  const password = answer("Why does it ask for my password?");
+  assert.ok(password.includes("setting paste access up again"), "the password answer does not name the paste access repair");
+  assert.ok(password.includes("Let Koegaki paste"), "the password answer does not name the button that asks");
   const copy = JSON.stringify([page.lede, page.description, page.sections, page.faqs]);
   assert.doesNotMatch(copy, /cleanup model downloads only when you choose/i, "the Linux page says the cleanup model waits to be chosen");
+  assert.doesNotMatch(password, /\bfor two things\b/i, "the password answer counts two reasons, and 1.14.0 has three");
 });

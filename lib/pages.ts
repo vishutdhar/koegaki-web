@@ -77,8 +77,11 @@ const costlyExamples = ifLinux(
  * network answer say so. Like the Mac and Windows apps since 1.13.0, it
  * downloads the cleanup model by itself once the speech model is in place,
  * waiting on a metered connection (cleanup_service.rs fetch_after_speech), so
- * the network answer lists that download too. It never mentions a terminal:
- * terminals paste with Ctrl+Shift+V.
+ * the network answer lists that download too, as it does Deactivate this
+ * computer (license_service.rs deactivate). Let Koegaki paste, offered when
+ * paste access is missing, runs the helper through pkexec and so asks for the
+ * password too (device_access_linux.rs run_helper). It never mentions a
+ * terminal: terminals paste with Ctrl+Shift+V.
  */
 function linuxPage(release: LinuxRelease): LandingPage {
   const deb = `Koegaki-${release.version}-amd64.deb`;
@@ -168,11 +171,11 @@ function linuxPage(release: LinuxRelease): LandingPage {
       },
       {
         q: "Why does it ask for my password?",
-        a: "For two things, each only when you choose it: keyboard access, and installing an update. Reading the keyboard needs an administrator's permission, so your system asks for the password when you allow it. If your desktop has a shortcut dialog for apps, you can use that instead, and Koegaki never reads your keyboard. Install and restart asks for it once, to install the new version.",
+        a: "Only when you choose something that needs an administrator: keyboard access, setting paste access up again if it is missing, and installing an update. Reading the keyboard needs an administrator's permission, so your system asks for the password when you allow it. If your desktop has a shortcut dialog for apps, you can use that instead, and Koegaki never reads your keyboard. Let Koegaki paste in Settings asks for it when paste access is missing, and Install and restart asks for it once, to install the new version.",
       },
       {
         q: "Does it need an internet connection?",
-        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a check for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} The cleanup model download waits the same way. Each model downloads once. Being offline never locks a paid licence out.`,
+        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it, activating or deactivating a licence key and a quiet daily licence check, a check for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} The cleanup model download waits the same way. Each model downloads once. Being offline never locks a paid licence out.`,
       },
       {
         q: "Is there a subscription?",

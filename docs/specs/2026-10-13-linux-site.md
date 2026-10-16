@@ -303,16 +303,19 @@ and the Mac build map do not change.
 - **LINUX_UPDATES** is the approved sentence of section 6, and **LINUX_COPY_DATE** is 2026-10-16.
 - **Two answers on the Linux page follow the updater.** "Why does it ask for my password?" said only
   keyboard access asks; Install and restart asks too (Koegaki spec `2026-10-13-linux-updater` rule
-  4), so the answer names both. "Does it need an internet connection?" listed what goes online
-  without the version check and the update download, which 1.14.0 makes; it names both, as the Mac
-  and Windows answers do, and states no cadence, which the Updates section gives. A test holds both
-  answers while a Linux feed is served.
+  4), and so does Let Koegaki paste when paste access is missing (`device_access_linux.rs`,
+  `run_helper`), so the answer names all three. "Does it need an internet connection?" listed what
+  goes online without the version check and the update download, which 1.14.0 makes; it names both,
+  as the Mac and Windows answers do, and states no cadence, which the Updates section gives. A test
+  holds both answers while a Linux feed is served.
 - **The cleanup download is listed.** The network answer said "a cleanup model downloads only when
   you choose it". Linux 1.14.0, like the Mac and Windows apps since 1.13.0, downloads the cleanup
   model by itself once the speech model is in place and waits on a metered connection (Koegaki
   `cleanup_service.rs`, `fetch_after_speech`), so the answer lists that download and says it waits,
-  and a test holds it. The same stale sentence on the Mac, Windows and offline pages is outside this
-  release, which leaves Mac and Windows copy as it is.
+  and a test holds it. It also names deactivating a licence key, which posts to the licensing
+  provider (`license_service.rs`, `deactivate`). The same stale cleanup sentence on the Mac, Windows
+  and offline pages, and their lists without deactivation, are outside this release, which leaves
+  Mac and Windows copy as it is.
 - **The pin of rule 8 moves to a gate off build instead of retiring.** Section 5 had this unit remove
   the pin once it retired itself. Instead `npm test` builds a third site
   (`tests/build-gate-off-fixture.mjs`) from `releases/` with every deb taken out
