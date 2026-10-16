@@ -1,11 +1,11 @@
 {
-  "version": "1.13.1",
-  "notes": "When Koegaki crashes, it now reopens itself every time it should. Before, about one crash in ten left it closed. The Buy button now shows the price you pay at checkout, $30.",
-  "pub_date": "2026-10-13T08:44:35Z",
+  "version": "1.14.1",
+  "notes": "On Windows and Linux, with Restore my previous clipboard after inserting on, a dictation that did not paste no longer takes the place of what you had copied: while Koegaki stays open, the next one that pastes puts back what you had copied, or anything you copied since. On Linux, dictating into a terminal on KDE Plasma or an X11 desktop now pastes: Koegaki presses Ctrl+Shift+V when Konsole, kitty, Alacritty or another terminal is in front, so the shell no longer waits on a stray Ctrl+V.",
+  "pub_date": "2026-10-16T17:35:41Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2hqeWJJRzFpdnN4UXo0VVlmdXcvRWk3eldoVzBhQUtoMElHUVYwSnZZeTduaGx5N05ubyt4ajFlcks5WHd4S08zR0xRbjBMbkZHVjJvYXFGQkNhbndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxODgwOTg5CWZpbGU6S29lZ2FraV8xLjEzLjFfeDY0LXNldHVwLmV4ZQpXa2x0UEE5bzlnZkJNZW9GYWNiOXhYWGxmVldTVUNrTVozYXhOYkxjbEJPQnljTWp3cVpNcUMrVU9YakJlQmV2SUttcmNMZ3p3ZDlDK1VTMGozdHJEdz09Cg==",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.1/Koegaki-1.13.1-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN29GVlNtdVpNZ0Q0WmMxcUpUQW82eU5JYU42ZXZXRFExdWlFUkVIcFBJOEFkMndaR2FRd09uOEVjNnNGZFB3MXZGSy90Sm42THIxbGRJSFl5QkE2RlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTcxMjg0CWZpbGU6S29lZ2FraV8xLjE0LjFfeDY0LXNldHVwLmV4ZQpjTEJwZW1KTEVCcjlUQ2ZCKzNhdTI1V0lrcVkxcS9ibmgzeGhXd2YzNGh1ektJMzVXLzVOY0ZGQUkxazRHd0lmZUk5THRLTmVkTm8zb2NIVHhYRjZCdz09Cg==",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.14.1/Koegaki-1.14.1-setup.exe"
     }
   }
 }
