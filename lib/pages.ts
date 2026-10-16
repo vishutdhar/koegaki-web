@@ -37,13 +37,17 @@ const price = `$${SITE.priceUSD}`;
  * release, 1.14.0, ships the Linux updater (Koegaki spec 2026-10-13-linux-updater):
  * the app reads public/linux-updates.json, and Install and restart installs the
  * signed deb through pkexec and dpkg, or shows the download and the one command
- * when it cannot. The check runs once each time Koegaki starts, when its hidden
- * window loads, and showing the window again does not check (settings.js
- * renderUpdate). The site tests hold this to the approved sentence for as long
- * as a Linux feed is served (LINUX_UPDATES_IN_APP in tests/site.test.mjs).
+ * when it cannot. The check runs as Koegaki starts, when its hidden window
+ * loads, and showing the window again does not check (settings.js
+ * renderUpdate). The one start that does not check is the restart after an
+ * update that did not install, which shows that update's download card from
+ * what it was handed (Koegaki spec 2026-10-13-linux-updater rule 6), so the
+ * sentence says "when it starts", not "each time". The site tests hold this to
+ * the approved sentence for as long as a Linux feed is served
+ * (LINUX_UPDATES_IN_APP in tests/site.test.mjs).
  */
 export const LINUX_UPDATES =
-  "Koegaki for Linux checks for a new version each time it starts. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+  "Koegaki for Linux checks for a new version when it starts. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
 
 /**
  * When the Linux background download waits (Koegaki spec

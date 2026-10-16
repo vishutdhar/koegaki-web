@@ -258,10 +258,10 @@ of rule 5 is replaced by the feed's own checks, in `tests/site.test.mjs`:
   on the pull request).
 - **While a Linux feed is served, the page's update sentence (`LINUX_UPDATES`) is exactly the
   approved one** (`LINUX_UPDATES_IN_APP` in the tests): "Koegaki for Linux checks for a new
-  version each time it starts. Install and restart asks for your password, installs the new version
-  and opens it. If it cannot, it shows the download and the one command to install it yourself.
-  Your settings, history and downloaded models stay as they are." (Corrected 2026-10-16, section 7:
-  the first sentence read "checks for a new version when you open its window".)
+  version when it starts. Install and restart asks for your password, installs the new version and
+  opens it. If it cannot, it shows the download and the one command to install it yourself. Your
+  settings, history and downloaded models stay as they are." (Corrected 2026-10-16, section 7: the
+  first sentence read "checks for a new version when you open its window".)
 - The checks are tried against the fixture's signed 1.14.0 record and the self tests' Linux only
   record, and each damaged case is refused.
 
@@ -306,12 +306,17 @@ and the Mac build map do not change.
   version when you open its window". At Koegaki `6acd2d49` the settings window is created hidden at
   launch (`tauri.conf.json`, `"visible": false`), its page runs the check once as it loads
   (`settings.js`, `renderUpdate`), the handler for showing the window does not check, and closing
-  only hides it. So the check runs once each time Koegaki starts, a login start included, and never
-  when the window is opened later. The first sentence is now "Koegaki for Linux checks for a new
-  version each time it starts.", in `LINUX_UPDATES` and its test pin together, and the test refuses
-  the window wording. The Windows app checks the same way: the same page code runs on both, and its
-  own comment says closing only hides the page, so nothing runs the check again. Any sentence the
-  site gives about when Windows checks names the start too, so the two platforms stay parallel. The
+  only hides it. So the check runs as Koegaki starts, a login start included, and never when the
+  window is opened later. The one start that does not check is the restart after an update that did
+  not install (cancelled, refused, failed or left unpacked): it shows that update's download card
+  from what the supervisor handed it, before any network (Koegaki spec `2026-10-13-linux-updater`
+  rule 6, `linux_outcome_answer`), which is the card the third sentence describes. So the first
+  sentence is now "Koegaki for Linux checks for a new version when it starts.", naming the moment
+  without "each time", in `LINUX_UPDATES` and its test pin together, and the test refuses both the
+  window wording and the "each time it starts" wording. The Windows app checks the same way: the same
+  page code runs on both, and its own comment says closing only hides the page, so nothing runs the
+  check again; Windows has no outcome restart, so it checks at every start. Any sentence the site
+  gives about when Windows checks names the start too, so the two platforms stay parallel. The
   Windows answers still say "a daily check for new app versions"; that is Windows copy, outside this
   release, and a later Windows copy change should name the start the same way.
 - **Two answers on the Linux page follow the updater.** "Why does it ask for my password?" said only

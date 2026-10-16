@@ -3648,12 +3648,15 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
  * (Koegaki spec 2026-10-13-linux-updater rule 11): unit 10 sets
  * LINUX_UPDATES (lib/pages.ts) to exactly this when it adds the Linux feed.
  * Its first sentence was corrected on 2026-10-16 (this repository's spec
- * docs/specs/2026-10-13-linux-site.md section 7): the app checks once each time
- * it starts, when its hidden window loads (settings.js renderUpdate), and
- * showing the window again does not check, so the sentence names the start.
+ * docs/specs/2026-10-13-linux-site.md section 7): the app checks as it starts,
+ * when its hidden window loads (settings.js renderUpdate), and showing the
+ * window again does not check, so the sentence names the start. It says "when",
+ * not "each time": the restart after an update that did not install shows that
+ * update's download card from what it was handed, before any check (Koegaki
+ * spec 2026-10-13-linux-updater rule 6).
  */
 const LINUX_UPDATES_IN_APP =
-  "Koegaki for Linux checks for a new version each time it starts. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+  "Koegaki for Linux checks for a new version when it starts. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
 
 /**
  * What is wrong with the Linux feeds public/ serves: `named`, every Linux feed
@@ -3732,7 +3735,10 @@ test("the served feed check holds the feed to the real Linux release, and the pa
   // does not check, starting the app does.
   const windowWording =
     "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
-  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually.", windowWording]) {
+  // "Each time" overstates it: the restart after an update that did not
+  // install shows the saved download card and does not check.
+  const everyStartWording = windowWording.replace("when you open its window", "each time it starts");
+  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually.", windowWording, everyStartWording]) {
     assert.equal(linuxUpdatesSentenceProblems(true, denial).length, 1, denial);
   }
 });
