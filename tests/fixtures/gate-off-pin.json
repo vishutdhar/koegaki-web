@@ -101,13 +101,13 @@
   "vs/wispr-flow.segments/vs.segment.rsc": "ec2c22c4f1bc3b20d5de5a24d882ee762b26b3a4e09228910a9b5fb325005f41",
   "vs/wispr-flow.segments/vs/$d$slug.segment.rsc": "ec2c22c4f1bc3b20d5de5a24d882ee762b26b3a4e09228910a9b5fb325005f41",
   "vs/wispr-flow.segments/vs/$d$slug/__PAGE__.segment.rsc": "a8099e9e59e208e2f851bc856a08c5e8980c95c24580b1a622997a761c3b56d6",
-  "windows.html": "302d8f4047be4b87219e30b1c4ede4c68e8a261bb3c60b4c7074c6a4a2b3d414",
+  "windows.html": "dcb0af6612e2a15b553ef2650c4bdfee00358ee6639d497ca2e4c9ef76c27a89",
   "windows.meta": "21f9c6a6e5f509df666f2fcb3adb2f001912e3373ff0fbb6754e0ad2c1740b0a",
-  "windows.rsc": "e7a315208fbdae748e386a80a8a1e2f36c6262d92d6b9494008a8bb7e0d05ed2",
-  "windows.segments/_full.segment.rsc": "e7a315208fbdae748e386a80a8a1e2f36c6262d92d6b9494008a8bb7e0d05ed2",
+  "windows.rsc": "4d4bd7a78d61e84b7d731c7ebba26548e681a9d66e2e5f803bf5039ee9838e3f",
+  "windows.segments/_full.segment.rsc": "4d4bd7a78d61e84b7d731c7ebba26548e681a9d66e2e5f803bf5039ee9838e3f",
   "windows.segments/_head.segment.rsc": "851143de84d47e878520fe8f66db127dc3d21891cec385f6fdb84b4ffcde91d9",
   "windows.segments/_index.segment.rsc": "eb0868c418ad61477c47c3716c06a708c6d9f1895f401e0534e640ddf38d4364",
   "windows.segments/_tree.segment.rsc": "198528baa52f35ebed158b081e1337dad77fa1f8fc18ac5ea3620f067fb688d1",
   "windows.segments/windows.segment.rsc": "ec2c22c4f1bc3b20d5de5a24d882ee762b26b3a4e09228910a9b5fb325005f41",
-  "windows.segments/windows/__PAGE__.segment.rsc": "59759379b149c1c93fb123d37baf3aca3b377e15ab85f5a1a8a9a54be93eb0ce"
+  "windows.segments/windows/__PAGE__.segment.rsc": "fda08c3ddbc018afdee5955164e7da3fa709b2aaf95cb04774f838b2aba74bbc"
 }
