@@ -3647,9 +3647,13 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
  * The update sentence of the Linux page once Koegaki for Linux updates itself
  * (Koegaki spec 2026-10-13-linux-updater rule 11): unit 10 sets
  * LINUX_UPDATES (lib/pages.ts) to exactly this when it adds the Linux feed.
+ * Its first sentence was corrected on 2026-10-16 (this repository's spec
+ * docs/specs/2026-10-13-linux-site.md section 7): the app checks once each time
+ * it starts, when its hidden window loads (settings.js renderUpdate), and
+ * showing the window again does not check, so the sentence names the start.
  */
 const LINUX_UPDATES_IN_APP =
-  "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+  "Koegaki for Linux checks for a new version each time it starts. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
 
 /**
  * What is wrong with the Linux feeds public/ serves: `named`, every Linux feed
@@ -3724,7 +3728,11 @@ test("the served feed check holds the feed to the real Linux release, and the pa
   // Denials as fixed text: LINUX_UPDATES itself becomes the approved sentence in unit 10.
   const todaysDenial =
     "Koegaki for Linux does not install updates itself. To update, download the newest package from this page and install it the same way; apt replaces the old version, and your settings, history and downloaded models stay as they are.";
-  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually."]) {
+  // The first approved wording named the wrong moment: opening the window
+  // does not check, starting the app does.
+  const windowWording =
+    "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually.", windowWording]) {
     assert.equal(linuxUpdatesSentenceProblems(true, denial).length, 1, denial);
   }
 });
