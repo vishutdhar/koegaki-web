@@ -4104,3 +4104,17 @@ test("while a Linux feed is served, the Linux page says the update asks for the 
   assert.equal(linuxUpdateAnswerProblems(true, before).length, 3, "the answers from before the updater pass");
   assert.deepEqual(linuxUpdateAnswerProblems(false, before), [], "with no feed the answers are not held to the update");
 });
+
+test("the Linux page says the cleanup model downloads on its own after the speech model", withLinux, () => {
+  // Koegaki for Linux, from its first release, downloads the cleanup model by
+  // itself once the speech model is in place, and waits on a metered
+  // connection (Koegaki 1.14.0 release notes; cleanup_service.rs
+  // fetch_after_speech), so the page lists that download and never says a
+  // cleanup model waits to be chosen.
+  const page = LANDING_PAGES.find(({ path }) => path === "/linux");
+  const network = page.faqs.find(({ q }) => q === "Does it need an internet connection?")?.a ?? "";
+  assert.ok(network.includes("the cleanup model download that follows it"), "the network answer does not list the cleanup model download");
+  assert.ok(network.includes("The cleanup model download waits the same way."), "the network answer does not say the cleanup download waits on a metered connection");
+  const copy = JSON.stringify([page.lede, page.description, page.sections, page.faqs]);
+  assert.doesNotMatch(copy, /cleanup model downloads only when you choose/i, "the Linux page says the cleanup model waits to be chosen");
+});

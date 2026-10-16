@@ -307,6 +307,12 @@ and the Mac build map do not change.
   without the version check and the update download, which 1.14.0 makes; it names both, as the Mac
   and Windows answers do, and states no cadence, which the Updates section gives. A test holds both
   answers while a Linux feed is served.
+- **The cleanup download is listed.** The network answer said "a cleanup model downloads only when
+  you choose it". Linux 1.14.0, like the Mac and Windows apps since 1.13.0, downloads the cleanup
+  model by itself once the speech model is in place and waits on a metered connection (Koegaki
+  `cleanup_service.rs`, `fetch_after_speech`), so the answer lists that download and says it waits,
+  and a test holds it. The same stale sentence on the Mac, Windows and offline pages is outside this
+  release, which leaves Mac and Windows copy as it is.
 - **The pin of rule 8 moves to a gate off build instead of retiring.** Section 5 had this unit remove
   the pin once it retired itself. Instead `npm test` builds a third site
   (`tests/build-gate-off-fixture.mjs`) from `releases/` with every deb taken out

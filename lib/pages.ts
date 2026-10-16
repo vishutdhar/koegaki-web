@@ -74,8 +74,11 @@ const costlyExamples = ifLinux(
  * (spec 2026-10-13-linux-updater): the app checks koegaki.com for a new version,
  * and Install and restart downloads the signed deb and asks for the password
  * once to install it, so the update section, the password answer and the
- * network answer say so. It never mentions a terminal: terminals paste with
- * Ctrl+Shift+V.
+ * network answer say so. Like the Mac and Windows apps since 1.13.0, it
+ * downloads the cleanup model by itself once the speech model is in place,
+ * waiting on a metered connection (cleanup_service.rs fetch_after_speech), so
+ * the network answer lists that download too. It never mentions a terminal:
+ * terminals paste with Ctrl+Shift+V.
  */
 function linuxPage(release: LinuxRelease): LandingPage {
   const deb = `Koegaki-${release.version}-amd64.deb`;
@@ -169,7 +172,7 @@ function linuxPage(release: LinuxRelease): LandingPage {
       },
       {
         q: "Does it need an internet connection?",
-        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a check for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.`,
+        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a check for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} The cleanup model download waits the same way. Each model downloads once. Being offline never locks a paid licence out.`,
       },
       {
         q: "Is there a subscription?",
