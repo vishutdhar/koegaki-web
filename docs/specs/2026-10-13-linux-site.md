@@ -282,3 +282,40 @@ What unit 10 writes, from the release record the publish tool wrote, in the same
 ```
 
 and it sets `LINUX_UPDATES` to the approved sentence above.
+
+## 7. Amendment 2026-10-16: turned on with Linux 1.14.0
+
+The first Linux release, 1.14.0 (Koegaki `6acd2d49`), is one deb on the GitHub release `v1.14.0`,
+published 2026-10-16T07:25:13Z. Its record turns every Linux surface of rules 9 to 13 on. The Mac
+stays on 1.13.2 and Windows on 1.13.1: `appcast.xml`, `windows-updates.json`, their download links
+and the Mac build map do not change.
+
+- **The record.** `releases/1.14.0.json` is the publish tool's record, byte for byte: a deb alone,
+  31328372 bytes, SHA-256 `03e27a6c1cd3c11ea6a7beb4f1da83274c30c5d8996db5b760442e501fce2428`, its
+  BLAKE2b-512, and the updater signature, which names `com.vishutdhar.Koegaki_1.14.0_amd64.deb` and
+  verifies with the base key (`EEB67ED3DCE4459A`). The Linux link is that deb's url, derived from the
+  record (rules 4 and 7), so no link constant changes.
+- **The feed.** `public/linux-updates.json`, written from the record as section 6 says: version
+  1.14.0; notes, the five items of the app's Linux What's new list (`settings.html` at Koegaki
+  `6acd2d49`) joined by single spaces, as the Windows feed's notes are; pub_date
+  2026-10-16T07:25:13Z, the release's publication; and `platforms.linux-x86_64` holding the record's
+  deb url and signature. The Linux build reads it from the endpoint of `tauri.linux.conf.json`.
+- **LINUX_UPDATES** is the approved sentence of section 6, and **LINUX_COPY_DATE** is 2026-10-16.
+- **Two answers on the Linux page follow the updater.** "Why does it ask for my password?" said only
+  keyboard access asks; Install and restart asks too (Koegaki spec `2026-10-13-linux-updater` rule
+  4), so the answer names both. "Does it need an internet connection?" listed what goes online
+  without the version check and the update download, which 1.14.0 makes; it names both, as the Mac
+  and Windows answers do, and states no cadence, which the Updates section gives. A test holds both
+  answers while a Linux feed is served.
+- **The pin of rule 8 moves to a gate off build instead of retiring.** Section 5 had this unit remove
+  the pin once it retired itself. Instead `npm test` builds a third site
+  (`tests/build-gate-off-fixture.mjs`) from `releases/` with every deb taken out
+  (`tests/gate-off-releases.mjs`, written to `.next-gate-off-releases`), and runs every check of
+  `tests/site.test.mjs` on it, named "gate off: ...". There the pin and the check that nothing in the
+  build says Linux never skip, so the off side of every Linux gate stays the site before Linux to the
+  byte, and taking the Linux records out would give that site back. The real and fixture runs skip
+  both and say where they run. The config test holds the real config to the real records and the
+  gate off config to today's two keys.
+- **The floor.** The published deb's 18 ELF files need GLIBC 2.34 at most (measured on the deb), within
+  the claimed floor of Ubuntu 22.04 (2.35) and Debian 12 (2.36). The publish tool's ceiling, the
+  residual of section 5, is the Koegaki repository's and is not changed here.

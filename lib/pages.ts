@@ -33,15 +33,15 @@ export type LandingPage = {
 const price = `$${SITE.priceUSD}`;
 
 /**
- * How Koegaki for Linux updates, said once, on the Linux page. Its update check
- * and install are stubs that never reach the network (Koegaki Linux release plan
- * finding 2), so the visitor installs each new version by hand. The release that
- * first ships the Linux updater (unit 5 of the plan) changes this one sentence,
- * and only that release: until then nothing on the site promises an update that
- * arrives by itself.
+ * How Koegaki for Linux updates, said once, on the Linux page. The first Linux
+ * release, 1.14.0, ships the Linux updater (Koegaki spec 2026-10-13-linux-updater):
+ * the app reads public/linux-updates.json, and Install and restart installs the
+ * signed deb through pkexec and dpkg, or shows the download and the one command
+ * when it cannot. The site tests hold this to the approved sentence for as long
+ * as a Linux feed is served (LINUX_UPDATES_IN_APP in tests/site.test.mjs).
  */
 export const LINUX_UPDATES =
-  "Koegaki for Linux does not install updates itself. To update, download the newest package from this page and install it the same way; apt replaces the old version, and your settings, history and downloaded models stay as they are.";
+  "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
 
 /**
  * When the Linux background download waits (Koegaki spec
@@ -69,8 +69,13 @@ const costlyExamples = ifLinux(
  * docs/linux/evdev-privacy-disclosure.md); the repair command is rule 16's;
  * settings live in ~/.config/koegaki and history, licence and models in
  * ~/.local/share/koegaki (paths.rs); NetworkManager's metered verdict gates the
- * automatic downloads (spec 2026-10-12-linux-platform-gaps rules 6 and 7). It
- * never mentions a terminal: terminals paste with Ctrl+Shift+V.
+ * automatic downloads (spec 2026-10-12-linux-platform-gaps rules 6 and 7). The
+ * first Linux release, 1.14.0 (Koegaki 6acd2d49), also ships the Linux updater
+ * (spec 2026-10-13-linux-updater): the app checks koegaki.com for a new version,
+ * and Install and restart downloads the signed deb and asks for the password
+ * once to install it, so the update section, the password answer and the
+ * network answer say so. It never mentions a terminal: terminals paste with
+ * Ctrl+Shift+V.
  */
 function linuxPage(release: LinuxRelease): LandingPage {
   const deb = `Koegaki-${release.version}-amd64.deb`;
@@ -160,11 +165,11 @@ function linuxPage(release: LinuxRelease): LandingPage {
       },
       {
         q: "Why does it ask for my password?",
-        a: "Only for keyboard access, and only if you choose it. Reading the keyboard needs an administrator's permission, so your system asks for the password when you allow it. If your desktop has a shortcut dialog for apps, you can use that instead, and Koegaki never reads your keyboard.",
+        a: "For two things, each only when you choose it: keyboard access, and installing an update. Reading the keyboard needs an administrator's permission, so your system asks for the password when you allow it. If your desktop has a shortcut dialog for apps, you can use that instead, and Koegaki never reads your keyboard. Install and restart asks for it once, to install the new version.",
       },
       {
         q: "Does it need an internet connection?",
-        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for newer models, the download of a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.`,
+        a: `Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a check for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. ${LINUX_WAIT} Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.`,
       },
       {
         q: "Is there a subscription?",

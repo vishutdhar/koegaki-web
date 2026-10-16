@@ -7,11 +7,12 @@
 // publishing tool writes. Every case runs in a throwaway folder.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LINUX_RELEASE_ENV, linuxRelease, linuxReleaseEnv, releasesDir } from "../scripts/linux-release.mjs";
+import { gateOffRecords, writeGateOffReleases } from "./gate-off-releases.mjs";
 
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
 const REPO = fileURLToPath(new URL("../", import.meta.url));
@@ -119,14 +120,70 @@ test("the build inlines the Linux release as JSON of its version, url, size and 
   assert.deepEqual(JSON.parse(linuxReleaseEnv(offered("1.14.0"))), offered("1.14.0"));
 });
 
-test("next.config.ts inlines exactly the Linux release releases/ holds", async () => {
+test("next.config.ts inlines exactly the Linux release releases/ holds, and adds the Linux page's extension only with one", async () => {
   const { default: config } = await import("../next.config.ts");
-  assert.equal(config.env?.[LINUX_RELEASE_ENV], linuxReleaseEnv(linuxRelease(join(REPO, "releases"))));
-  // Today no record holds a deb, so nothing Linux is built.
-  assert.equal(config.env[LINUX_RELEASE_ENV], "");
+  const release = linuxRelease(join(REPO, "releases"));
+  assert.equal(config.env?.[LINUX_RELEASE_ENV], linuxReleaseEnv(release));
+  assert.deepEqual(Object.keys(config).sort(), release ? ["env", "pageExtensions", "turbopack"] : ["env", "turbopack"]);
+});
+
+test("built from releases/ with every deb taken out, the config is today's apart from the empty value", async (t) => {
+  // The gate off build (tests/build-gate-off-fixture.mjs) reads these records.
   // Gated off, the config is today's apart from that one value: no route,
   // output or extension setting moves (spec rule 8).
-  assert.deepEqual(Object.keys(config).sort(), ["env", "turbopack"]);
+  const dir = folder(t, {});
+  writeGateOffReleases(join(REPO, "releases"), dir);
+  const before = process.env.KOEGAKI_RELEASES_DIR;
+  process.env.KOEGAKI_RELEASES_DIR = dir;
+  try {
+    // The query gives another copy of the module, evaluated with those records.
+    const { default: config } = await import("../next.config.ts?gate-off");
+    assert.equal(config.env[LINUX_RELEASE_ENV], "");
+    assert.deepEqual(Object.keys(config).sort(), ["env", "turbopack"]);
+  } finally {
+    if (before === undefined) delete process.env.KOEGAKI_RELEASES_DIR;
+    else process.env.KOEGAKI_RELEASES_DIR = before;
+  }
+});
+
+test("the gate off records are releases/ with every deb taken out, and offer no Linux release", (t) => {
+  const files = {
+    "1.13.0.json": record("1.13.0", ["dmg", "exe"]),
+    "1.13.2.json": record("1.13.2", ["dmg"]),
+    "1.14.0.json": record("1.14.0", ["deb"]),
+    "1.15.0.json": record("1.15.0", ["dmg", "exe", "deb"]),
+    "1.15.1.json": record("1.15.1", ["exe", "deb"]),
+    "notes.txt": "not a record",
+  };
+  const { "1.15.0.json": both, "1.15.1.json": windowsAndLinux } = files;
+  assert.deepEqual(gateOffRecords(folder(t, files)), {
+    "1.13.0.json": files["1.13.0.json"],
+    "1.13.2.json": files["1.13.2.json"],
+    "1.15.0.json": { version: "1.15.0", artifacts: { dmg: both.artifacts.dmg, exe: both.artifacts.exe } },
+    "1.15.1.json": { version: "1.15.1", artifacts: { exe: windowsAndLinux.artifacts.exe } },
+  });
+  // A note beside the artifacts stays with its record.
+  const noted = { ...record("1.13.1", ["exe"]), note: "Windows only." };
+  assert.deepEqual(gateOffRecords(folder(t, { "1.13.1.json": noted })), { "1.13.1.json": noted });
+  // The real records, written as the gate off build reads them: no Linux
+  // release, no deb, and every other artifact of every record as it is.
+  const releases = join(REPO, "releases");
+  const dir = folder(t, {});
+  writeGateOffReleases(releases, dir);
+  assert.equal(linuxRelease(dir), null, "the gate off records offer a Linux release");
+  const read = (folderPath, name) => JSON.parse(readFileSync(join(folderPath, name), "utf8"));
+  const written = new Set(readdirSync(dir));
+  for (const name of written) assert.ok(!Object.hasOwn(read(dir, name).artifacts, "deb"), `${name} keeps its deb`);
+  for (const name of readdirSync(releases).filter((n) => /^\d+\.\d+\.\d+\.json$/.test(n))) {
+    const { version, artifacts } = read(releases, name);
+    for (const [kind, artifact] of Object.entries(artifacts).filter(([kind]) => kind !== "deb")) {
+      assert.ok(written.has(name), `${name} is missing, with its ${kind}`);
+      assert.equal(read(dir, name).version, version, name);
+      assert.deepEqual(read(dir, name).artifacts[kind], artifact, `${name} ${kind}`);
+    }
+    written.delete(name);
+  }
+  assert.deepEqual([...written], [], "the gate off records hold a release releases/ does not");
 });
 
 test("with a Linux release the config makes app/linux/page.linux.tsx a page, beside every default extension", async () => {
