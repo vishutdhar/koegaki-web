@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The fixture build the Linux tests read (tests/build-linux-fixture.mjs).
     ".next-linux-fixture/**",
+    // The gate off build the pin of the site before Linux reads (tests/build-gate-off-fixture.mjs).
+    ".next-gate-off/**",
   ]),
 ]);
 

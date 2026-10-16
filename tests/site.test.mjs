@@ -30,6 +30,15 @@
 // test "linux fixture: ...". Every page check runs on both builds, so the
 // Linux copy meets every rule today's copy meets, before a real Linux release
 // turns it on.
+//
+// Since releases/1.14.0.json, the first real Linux release, the real build
+// shows Linux too, so `npm test` runs this file a third time, from
+// tests/gate-off-fixture.test.mjs, on the gate off build in .next-gate-off,
+// which tests/build-gate-off-fixture.mjs makes from releases/ with every deb
+// taken out (tests/gate-off-releases.mjs), and names each test "gate off: ...".
+// That build has no Linux release, and there the pin of the site before Linux
+// and the check that nothing in the build says Linux always run (spec rule 8
+// and its 2026-10-16 amendment).
 import { test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
@@ -46,13 +55,16 @@ import { linuxRelease } from "../scripts/linux-release.mjs";
 
 /** True in the run on the fixture build (see the top of this file). */
 const LINUX_FIXTURE = process.env.KOEGAKI_SITE_BUILD === "linux-fixture";
-const test = LINUX_FIXTURE ? (name, ...rest) => nodeTest(`linux fixture: ${name}`, ...rest) : nodeTest;
-/** The release records the build read: releases/, or in the fixture run the fixture folder. */
-const BUILD_RELEASES = new URL(LINUX_FIXTURE ? "fixtures/linux-release/" : "../releases/", import.meta.url);
+/** True in the run on the gate off build, releases/ with every deb taken out (see the top of this file). */
+const GATE_OFF = process.env.KOEGAKI_SITE_BUILD === "gate-off";
+const RUN_PREFIX = LINUX_FIXTURE ? "linux fixture: " : GATE_OFF ? "gate off: " : "";
+const test = RUN_PREFIX ? (name, ...rest) => nodeTest(`${RUN_PREFIX}${name}`, ...rest) : nodeTest;
+/** The release records the build read: releases/, the fixture folder in the fixture run, or releases/ without its debs in the gate off run. */
+const BUILD_RELEASES = new URL(LINUX_FIXTURE ? "fixtures/linux-release/" : GATE_OFF ? "../.next-gate-off-releases/" : "../releases/", import.meta.url);
 /** Whether the build under test offers a Linux release, and so shows every Linux surface. */
 const LINUX_ON = SITE.linuxDownloadUrl !== null;
 
-const BUILD_ROOT = new URL(LINUX_FIXTURE ? "../.next-linux-fixture/" : "../.next/", import.meta.url);
+const BUILD_ROOT = new URL(LINUX_FIXTURE ? "../.next-linux-fixture/" : GATE_OFF ? "../.next-gate-off/" : "../.next/", import.meta.url);
 const BUILT = new URL("server/app/", BUILD_ROOT);
 
 function built(file) {
@@ -3298,9 +3310,11 @@ test(
   {
     skip: LINUX_FIXTURE
       ? "the fixture build's release is not published, so only the real build's run downloads"
-      : process.env.RELEASE_FETCH === "1"
-        ? false
-        : "needs the network: run with RELEASE_FETCH=1, as the top of this file says",
+      : GATE_OFF
+        ? "the gate off build offers a subset of the real build's downloads, so only the real build's run downloads"
+        : process.env.RELEASE_FETCH === "1"
+          ? false
+          : "needs the network: run with RELEASE_FETCH=1, as the top of this file says",
   },
   async (t) => {
     const manifest = publicJson("windows-updates.json");
@@ -3633,9 +3647,16 @@ test("the Linux feed check finds a feed by its name at any depth, or by a Linux 
  * The update sentence of the Linux page once Koegaki for Linux updates itself
  * (Koegaki spec 2026-10-13-linux-updater rule 11): unit 10 sets
  * LINUX_UPDATES (lib/pages.ts) to exactly this when it adds the Linux feed.
+ * Its first sentence was corrected on 2026-10-16 (this repository's spec
+ * docs/specs/2026-10-13-linux-site.md section 7): the app checks as it starts,
+ * when its hidden window loads (settings.js renderUpdate), and showing the
+ * window again does not check, so the sentence names the start. It says "when",
+ * not "each time": the restart after an update that did not install shows that
+ * update's download card from what it was handed, before any check (Koegaki
+ * spec 2026-10-13-linux-updater rule 6).
  */
 const LINUX_UPDATES_IN_APP =
-  "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+  "Koegaki for Linux checks for a new version when it starts. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
 
 /**
  * What is wrong with the Linux feeds public/ serves: `named`, every Linux feed
@@ -3710,7 +3731,14 @@ test("the served feed check holds the feed to the real Linux release, and the pa
   // Denials as fixed text: LINUX_UPDATES itself becomes the approved sentence in unit 10.
   const todaysDenial =
     "Koegaki for Linux does not install updates itself. To update, download the newest package from this page and install it the same way; apt replaces the old version, and your settings, history and downloaded models stay as they are.";
-  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually."]) {
+  // The first approved wording named the wrong moment: opening the window
+  // does not check, starting the app does.
+  const windowWording =
+    "Koegaki for Linux checks for a new version when you open its window. Install and restart asks for your password, installs the new version and opens it. If it cannot, it shows the download and the one command to install it yourself. Your settings, history and downloaded models stay as they are.";
+  // "Each time" overstates it: the restart after an update that did not
+  // install shows the saved download card and does not check.
+  const everyStartWording = windowWording.replace("when you open its window", "each time it starts");
+  for (const denial of [todaysDenial, "Koegaki for Linux cannot update itself. Download and install updates manually.", windowWording, everyStartWording]) {
     assert.equal(linuxUpdatesSentenceProblems(true, denial).length, 1, denial);
   }
 });
@@ -3774,7 +3802,11 @@ test("the Linux feed check refuses a damaged feed, record, signature or key", ()
 
 test(
   "while no release record holds a deb, nothing Linux is built",
-  { skip: LINUX_ON ? "a release record holds a deb, so the site shows Linux; spec rule 8 holds only before that" : false },
+  {
+    // Never skipped in the gate off run, whose build must have no Linux release:
+    // there a Linux release fails this test rather than hiding it.
+    skip: GATE_OFF ? false : LINUX_ON ? "this build has a Linux release, so the gate off run holds spec rule 8" : false,
+  },
   () => {
     assert.equal(LINUX_RELEASE, null);
     assert.deepEqual([SITE.linuxDownloadUrl, SITE.linuxRequirements, SITE.linuxEngine], [null, null, null]);
@@ -3818,16 +3850,21 @@ const GATE_OFF_PIN = new URL("fixtures/gate-off-pin.json", import.meta.url);
 test(
   "without a Linux release every page is today's, to the byte",
   {
-    skip: LINUX_FIXTURE
-      ? "the fixture build has a Linux release"
-      : LINUX_ON
-        ? "a release record holds a deb, so the pin of the site before Linux no longer applies (spec rule 8)"
-        : false,
+    // Never skipped in the gate off run (see the test above).
+    skip: GATE_OFF
+      ? false
+      : LINUX_FIXTURE
+        ? "the fixture build has a Linux release"
+        : LINUX_ON
+          ? "this build has a Linux release, so the gate off run holds the pin (spec rule 8)"
+          : false,
   },
   () => {
     // The pin was taken from the build of main 09b3976, before any Linux code.
-    // A deliberate change to today's pages refreshes it with
-    // UPDATE_GATE_OFF_PIN=1 npm test, and its diff names every file it moves.
+    // Since a real release holds a deb it is checked on the gate off build,
+    // releases/ with every deb taken out. A deliberate change to today's pages
+    // refreshes it with UPDATE_GATE_OFF_PIN=1 npm test, and its diff names every
+    // file it moves.
     const digests = gateOffDigests();
     if (process.env.UPDATE_GATE_OFF_PIN === "1") writeFileSync(GATE_OFF_PIN, `${JSON.stringify(digests, null, 2)}\n`);
     assert.deepEqual(digests, JSON.parse(readFileSync(GATE_OFF_PIN, "utf8")), "a prerendered file differs from the pin of the site before Linux");
@@ -4033,4 +4070,74 @@ test("the Linux page tells a visitor how to install, check, repair, update and r
   const page = LANDING_PAGES.find(({ path }) => path === "/linux");
   const copy = JSON.stringify([page.lede, page.description, page.sections, page.faqs]).replaceAll(SITE.contactEmail, "");
   assert.doesNotMatch(copy, /\bterminals?\b/i, "the Linux page promises dictation into a terminal");
+});
+
+/**
+ * What is wrong with the Linux page's answers about the password and the
+ * network while a Linux feed is served (`served`), given the page's `faqs`.
+ * With a feed the app checks koegaki.com for a new version, and Install and
+ * restart downloads the deb and asks for the password once to install it
+ * (Koegaki spec 2026-10-13-linux-updater rules 1 and 4), so the password answer
+ * names installing an update and the list of what goes online names the check
+ * and the download.
+ */
+function linuxUpdateAnswerProblems(served, faqs) {
+  if (!served) return [];
+  const answer = (q) => faqs.find((faq) => faq.q === q)?.a ?? "";
+  const problems = [];
+  const password = answer("Why does it ask for my password?");
+  if (!password.includes("installing an update") || /\bonly for keyboard access\b/i.test(password)) {
+    problems.push("a Linux feed is served, and the password answer does not name installing an update");
+  }
+  const network = answer("Does it need an internet connection?");
+  for (const said of ["a check for a new app version", "the download of an update"]) {
+    if (!network.includes(said)) problems.push(`a Linux feed is served, and the network answer does not name "${said}"`);
+  }
+  return problems;
+}
+
+test("while a Linux feed is served, the Linux page says the update asks for the password and goes online", withLinux, () => {
+  const served = linuxFeedsIn(new URL("../public/", import.meta.url)).length > 0;
+  const page = LANDING_PAGES.find(({ path }) => path === "/linux");
+  assert.deepEqual(linuxUpdateAnswerProblems(served, page.faqs), []);
+  const text = decodeEntities(pageText(html("/linux")));
+  for (const { q, a } of page.faqs.filter(({ q }) => /password|internet/.test(q))) {
+    assert.ok(text.includes(a), `the built Linux page does not answer "${q}" as lib/pages.ts does`);
+  }
+  // The answers the page gave before the Linux updater shipped, as fixed text.
+  const before = [
+    {
+      q: "Why does it ask for my password?",
+      a: "Only for keyboard access, and only if you choose it. Reading the keyboard needs an administrator's permission, so your system asks for the password when you allow it. If your desktop has a shortcut dialog for apps, you can use that instead, and Koegaki never reads your keyboard.",
+    },
+    {
+      q: "Does it need an internet connection?",
+      a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for newer models, the download of a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working.",
+    },
+  ];
+  assert.equal(linuxUpdateAnswerProblems(true, before).length, 3, "the answers from before the updater pass");
+  assert.deepEqual(linuxUpdateAnswerProblems(false, before), [], "with no feed the answers are not held to the update");
+});
+
+test("the Linux page lists the cleanup download, licence deactivation and the paste access password prompt", withLinux, () => {
+  // What Koegaki for Linux does from its first release, 1.14.0 (Koegaki
+  // 6acd2d49), beside its updater: it downloads the cleanup model by itself
+  // once the speech model is in place, waiting on a metered connection
+  // (cleanup_service.rs fetch_after_speech); Deactivate this computer posts
+  // to the licensing provider (license_service.rs deactivate); and Let
+  // Koegaki paste, offered when paste access is missing, runs the package's
+  // helper through pkexec, which asks for an administrator password
+  // (device_access_linux.rs run_helper, settings.html pasteAccessPassword).
+  const page = LANDING_PAGES.find(({ path }) => path === "/linux");
+  const answer = (q) => page.faqs.find((faq) => faq.q === q)?.a ?? "";
+  const network = answer("Does it need an internet connection?");
+  assert.ok(network.includes("the cleanup model download that follows it"), "the network answer does not list the cleanup model download");
+  assert.ok(network.includes("The cleanup model download waits the same way."), "the network answer does not say the cleanup download waits on a metered connection");
+  assert.ok(network.includes("activating or deactivating a licence key"), "the network answer does not list licence deactivation");
+  const password = answer("Why does it ask for my password?");
+  assert.ok(password.includes("setting paste access up again"), "the password answer does not name the paste access repair");
+  assert.ok(password.includes("Let Koegaki paste"), "the password answer does not name the button that asks");
+  const copy = JSON.stringify([page.lede, page.description, page.sections, page.faqs]);
+  assert.doesNotMatch(copy, /cleanup model downloads only when you choose/i, "the Linux page says the cleanup model waits to be chosen");
+  assert.doesNotMatch(password, /\bfor two things\b/i, "the password answer counts two reasons, and 1.14.0 has three");
 });

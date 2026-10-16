@@ -22,7 +22,7 @@ export function ifLinux<T>(withLinux: T, today: T): T {
  * most pages' copy change that day. The release that first records a deb sets
  * it to its own date (spec section 5).
  */
-export const LINUX_COPY_DATE = "2026-10-13";
+export const LINUX_COPY_DATE = "2026-10-16";
 
 /** A page's sitemap lastmod: `date`, raised to LINUX_COPY_DATE once Linux ships. */
 export function lastModified(date: string): string {
