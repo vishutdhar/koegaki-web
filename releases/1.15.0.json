@@ -1,0 +1,19 @@
+{
+  "version": "1.15.0",
+  "artifacts": {
+    "exe": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.0/Koegaki-1.15.0-setup.exe",
+      "size": 14686861,
+      "sha256": "3d9af529fe8ae6659e60004a8a646f502addc6a46f9bfae96776b636f2b36a21",
+      "blake2b512": "c749f3498320e7aa47c50810d3f20ff3dca97e0ac42e2fd48a4f30733b744a5b12c5881fa046a0c61f84f1a4c28c17251108cf61a0cfd60856985cc3124f2033",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN25PUnVFUlB1WXNQZWZYNlRXMTFIc3VwZzVCcm9BNk1LZVA3KzU4RldWU2IwaitUMXUwWkdLWWpzTDFJYkFySDNHLzllbkVNOFFMVm9xZnhudkFCTVF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTk0MzkxCWZpbGU6S29lZ2FraV8xLjE1LjBfeDY0LXNldHVwLmV4ZQowb0RpeUpPZW4zYlhIYkFLanl5T1QvRXFqVUpPNU00SkdVdmxnOUhyU0ZCSTh0dUNQYjNtdkNBTXdQeHdNb0hLUUFGSTNFMVBSUlNEbjBuQjF5NVpDUT09Cg=="
+    },
+    "deb": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.0/Koegaki-1.15.0-amd64.deb",
+      "size": 31358422,
+      "sha256": "e826b15dd8054a711e0c8b6be63ba4d489e1bff9f2dd0a29a811aadea018e34f",
+      "blake2b512": "59a67acd06d8834745cb4b079e7446dfd92ab8dba2b1e639df69146a61ec64bf058185fc663844a2bc8a466f46a8427b62c7e1220e1fa13a36557f17cefe48a3",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2xkV0JXNzNFUHN4eTl1SlFIYTNyY1BJdktQcHhRU00veXlCZkUrR1k0cy9xTDZlbGRqV09xTnRWWlErRHIwSHVyTHZjUFdSVVNWZi84YjM1emV0WmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTk2NTE3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjBfYW1kNjQuZGViCm1jRG1iMDIveW1oWldwRnhYNU82eVU3cHpaZDZVeUxnQnVhYWMyNmN0NW1MS1dORlpSY3RzVXlFUHB6UU9kVW10WFJ4NlNVSTVxMWFDeGJYcEszakNRPT0K"
+    }
+  }
+}
