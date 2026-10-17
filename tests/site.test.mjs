@@ -758,8 +758,10 @@ test("a page that promises a one-time model download also says how a new speech 
 /**
  * The wait for an unmetered connection (Koegaki spec
  * 2026-10-05-metered-connection-deferral, 1.9.0 on both platforms). The speech
- * model an app update brings, and a cleanup model the app fetches at launch,
- * wait while the computer is on a connection it treats as costly; a download
+ * model an app update brings, and the cleanup model the app downloads by itself
+ * (since 1.13.0, spec 2026-10-11-cleanup-auto-download rule 2, which amends
+ * rule 1 of the deferral spec), wait while the computer is on a connection it
+ * treats as costly; a download
  * the user starts, the first download after an install, a repair of a damaged
  * file and the app update go ahead on any connection. Apple documents its
  * expensive path as cellular or a Personal Hotspot and Low Data Mode as its
@@ -774,7 +776,7 @@ const WINDOWS_WAIT =
 const BOTH_WAIT =
   "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.";
 const PRIVACY_WAIT =
-  "That download, and the download of a cleanup model you turned on when the app has to fetch it at launch, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.";
+  "That download, and the cleanup model download, waits while your computer is on a connection it treats as costly, and starts by itself once you are back on an ordinary connection.";
 /**
  * The same wait on Linux (Koegaki spec 2026-10-12-linux-platform-gaps rules 6
  * and 7): NetworkManager's Metered property, yes or guess yes, is costly, and
@@ -891,21 +893,38 @@ test("every sentence that names a costly connection is a reviewed one, on exactl
  * speech model an app update brings, and the Clean setting stays off. So every
  * list of what goes online names it beside the speech model download, says
  * right after the wait that it waits the same way, in the page's text and in
- * its JSON-LD, and no page says it downloads only when chosen.
+ * its JSON-LD, and no page says it downloads only when chosen or only once
+ * turned on. The privacy page says it in its own words: the cleanup model
+ * downloads on its own after the speech model, on a Mac only when the app runs
+ * natively on Apple Silicon (rule 3: an Intel Mac, or the app under Rosetta,
+ * downloads nothing by itself), and its wait sentence names the cleanup model
+ * download beside the speech model an update brings.
  */
 const CLEANUP_LISTED = "the speech model download on first launch and the cleanup model download that follows it";
 const CLEANUP_WAIT = "The cleanup model download waits the same way.";
+const PRIVACY_CLEANUP =
+  "Once that is done, the cleanup model downloads on its own (on a Mac, only when the app runs natively on Apple Silicon), and cleanup stays off until you turn it on.";
 
 test("every list of what goes online names the cleanup model download that follows the speech model, and its wait", () => {
   const listing = [];
   for (const path of ROUTES) {
     for (const { part, texts } of runsOf(html(path))) {
       const run = texts.join(" ");
-      assert.doesNotMatch(run, /cleanup model downloads? only when you choose/i, `${path} ${part} says the cleanup model waits to be chosen`);
-      if (!run.includes("the speech model download on first launch")) continue;
+      assert.doesNotMatch(
+        run,
+        /cleanup model downloads? only when you choose|cleanup model you turned on/i,
+        `${path} ${part} says the cleanup model waits to be chosen`,
+      );
+      if (!/the speech model download on first launch|On first launch, Koegaki downloads its speech model/.test(run)) continue;
       listing.push(`${path} ${part}`);
-      assert.ok(run.includes(CLEANUP_LISTED), `${path} ${part} lists the speech model download without the cleanup model download that follows it`);
       const sentences = texts.flatMap(sentencesOf);
+      if (path === "/privacy") {
+        const at = sentences.indexOf(PRIVACY_CLEANUP);
+        assert.ok(at > 0 && /^On first launch, Koegaki downloads its speech model\b/.test(sentences[at - 1]), `${path} ${part} does not say, right after the speech model download, that the cleanup model downloads on its own`);
+        assert.ok(sentences.includes(PRIVACY_WAIT), `${path} ${part} does not say the cleanup model download waits`);
+        continue;
+      }
+      assert.ok(run.includes(CLEANUP_LISTED), `${path} ${part} lists the speech model download without the cleanup model download that follows it`);
       const at = sentences.indexOf(CLEANUP_WAIT);
       assert.ok(at > 0 && WAIT_CLAIMS.includes(sentences[at - 1]), `${path} ${part} does not say, right after the wait, that the cleanup model download waits the same way`);
     }
@@ -915,6 +934,7 @@ test("every list of what goes online names the cleanup model download that follo
     "/mac body",
     "/mac standalone",
     "/offline-dictation body",
+    "/privacy body",
     "/windows body",
     "/windows standalone",
   ]);

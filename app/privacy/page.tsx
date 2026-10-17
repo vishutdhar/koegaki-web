@@ -51,7 +51,10 @@ export default function PrivacyPage() {
                 {ifLinux(
                   <>
                     On first launch, {SITE.name} downloads its speech model so dictation can then
-                    run offline. Dictation itself needs no internet connection at all. Beyond that,
+                    run offline. Once that is done, the cleanup model downloads on its own (on a
+                    Mac, only when the app runs natively on Apple Silicon), and cleanup stays off
+                    until you turn it on. Dictation itself needs no internet connection at all.
+                    Beyond that,
                     the app talks to the network to verify your license key (at activation, then a
                     quiet daily check while licensed), to check koegaki.com for new versions, and,
                     when an update installs, to download the new app package from our hosting
@@ -64,9 +67,9 @@ export default function PrivacyPage() {
                     you keep dictating on your current model until the new one is ready. That download
                     is a plain request for the model files, carries nothing about you or your
                     dictations, and uses only the internet connection you already have. That
-                    download, and the download of a cleanup model you turned on when the app has to
-                    fetch it at launch, waits while your computer is on a connection it treats as
-                    costly, and starts by itself once you are back on an ordinary connection. Costly
+                    download, and the cleanup model download, waits while your computer is on a
+                    connection it treats as costly, and starts by itself once you are back on an
+                    ordinary connection. Costly
                     connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
                     in Windows a cellular link and any network you marked as metered, which you can
                     do for a phone hotspot, and on Linux any connection NetworkManager treats as metered.
@@ -77,7 +80,10 @@ export default function PrivacyPage() {
                   </>,
                   <>
                     On first launch, {SITE.name} downloads its speech model so dictation can then
-                    run offline. Dictation itself needs no internet connection at all. Beyond that,
+                    run offline. Once that is done, the cleanup model downloads on its own (on a
+                    Mac, only when the app runs natively on Apple Silicon), and cleanup stays off
+                    until you turn it on. Dictation itself needs no internet connection at all.
+                    Beyond that,
                     the app talks to the network to verify your license key (at activation, then a
                     quiet daily check while licensed), to check koegaki.com for new versions, and,
                     when an update installs, to download the new app package from our hosting
@@ -90,9 +96,9 @@ export default function PrivacyPage() {
                     you keep dictating on your current model until the new one is ready. That download
                     is a plain request for the model files, carries nothing about you or your
                     dictations, and uses only the internet connection you already have. That
-                    download, and the download of a cleanup model you turned on when the app has to
-                    fetch it at launch, waits while your computer is on a connection it treats as
-                    costly, and starts by itself once you are back on an ordinary connection. Costly
+                    download, and the cleanup model download, waits while your computer is on a
+                    connection it treats as costly, and starts by itself once you are back on an
+                    ordinary connection. Costly
                     connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
                     and in Windows a cellular link and any network you marked as metered, which you can
                     do for a phone hotspot. A download you start yourself, and the first download after
