@@ -342,7 +342,7 @@ export const LANDING_PAGES: LandingPage[] = [
       "macOS 14.0 or later, Windows 10, Windows 11, Debian 12 or later, Ubuntu 22.04 or later",
       "macOS 14.0 or later, Windows 10, Windows 11",
     ),
-    lastModified: lastModified("2026-10-05"),
+    lastModified: lastModified("2026-10-17"),
     name: "Offline dictation",
     title: ifLinux("Offline dictation software for Mac, Windows and Linux", "Offline dictation software for Mac and Windows"),
     description: `Dictation that works with no internet connection. The speech model runs on your ${ifLinux("own computer", "Mac or PC")}, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
