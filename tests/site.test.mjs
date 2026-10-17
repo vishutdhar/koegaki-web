@@ -883,6 +883,43 @@ test("every sentence that names a costly connection is a reviewed one, on exactl
   }
 });
 
+/**
+ * The cleanup model downloads by itself once the speech model is in place
+ * (Koegaki spec 2026-10-11-cleanup-auto-download rules 1, 2 and 5): on the Mac
+ * and Windows since 1.13.0, on Linux from its first release, 1.14.0. It is an
+ * automatic download, held on a costly connection behind the same gate as the
+ * speech model an app update brings, and the Clean setting stays off. So every
+ * list of what goes online names it beside the speech model download, says
+ * right after the wait that it waits the same way, in the page's text and in
+ * its JSON-LD, and no page says it downloads only when chosen.
+ */
+const CLEANUP_LISTED = "the speech model download on first launch and the cleanup model download that follows it";
+const CLEANUP_WAIT = "The cleanup model download waits the same way.";
+
+test("every list of what goes online names the cleanup model download that follows the speech model, and its wait", () => {
+  const listing = [];
+  for (const path of ROUTES) {
+    for (const { part, texts } of runsOf(html(path))) {
+      const run = texts.join(" ");
+      assert.doesNotMatch(run, /cleanup model downloads? only when you choose/i, `${path} ${part} says the cleanup model waits to be chosen`);
+      if (!run.includes("the speech model download on first launch")) continue;
+      listing.push(`${path} ${part}`);
+      assert.ok(run.includes(CLEANUP_LISTED), `${path} ${part} lists the speech model download without the cleanup model download that follows it`);
+      const sentences = texts.flatMap(sentencesOf);
+      const at = sentences.indexOf(CLEANUP_WAIT);
+      assert.ok(at > 0 && WAIT_CLAIMS.includes(sentences[at - 1]), `${path} ${part} does not say, right after the wait, that the cleanup model download waits the same way`);
+    }
+  }
+  assert.deepEqual(listing.sort(), [
+    ...(LINUX_ON ? ["/linux body", "/linux standalone"] : []),
+    "/mac body",
+    "/mac standalone",
+    "/offline-dictation body",
+    "/windows body",
+    "/windows standalone",
+  ]);
+});
+
 test("no page promises a change for an app version the site already serves", () => {
   // Copy written ahead of a release ("the Windows app gains this in version
   // 1.7.0") is a promise, and it turns false the day that version ships. Each

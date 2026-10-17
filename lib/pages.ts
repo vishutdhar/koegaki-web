@@ -196,7 +196,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/mac",
     linkLabel: "Dictation for Mac",
     operatingSystem: "macOS 14.0 or later",
-    lastModified: lastModified("2026-10-08"),
+    lastModified: lastModified("2026-10-17"),
     name: "Koegaki for Mac",
     title: "Dictation app for Mac that runs on-device",
     description: `Private dictation for macOS. Hold a key, speak, and the text lands in almost any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
@@ -254,7 +254,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it need an internet connection?",
-        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
+        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. The cleanup model download waits the same way. Each model downloads once. Being offline never locks a paid licence out.",
       },
       {
         q: "Is there a subscription?",
@@ -266,7 +266,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/windows",
     linkLabel: "Dictation for Windows",
     operatingSystem: "Windows 10, Windows 11",
-    lastModified: lastModified("2026-10-08"),
+    lastModified: lastModified("2026-10-17"),
     name: "Koegaki for Windows",
     title: "Dictation software for Windows that works offline",
     description: `Private dictation for Windows 10 and 11. Hold a key, speak, and the text lands in almost any program. Recognition runs on your PC, not the cloud. ${price} one-time.`,
@@ -321,7 +321,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it work without internet?",
-        a: "Yes. Once the speech model has downloaded, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a check for a new app version when it starts, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot. Each model downloads once, and a cleanup model downloads only when you choose it. Being offline never locks a paid licence out.",
+        a: "Yes. Once the speech model has downloaded, dictation runs entirely offline. Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a check for a new app version when it starts, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your PC is on a connection Windows treats as metered, such as a cellular link or a network you have set as metered, which you can do for a phone hotspot. The cleanup model download waits the same way. Each model downloads once. Being offline never locks a paid licence out.",
       },
       {
         q: "Which versions of Windows are supported?",
@@ -367,7 +367,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          `A few things, none of them involving audio or text: the speech model download on first launch, activating a licence key and a quiet daily licence check, a check with koegaki.com for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. The Mac looks for a new app version once a day; ${ifLinux("Windows and Linux look", "Windows looks")} when the app starts. Each model downloads once, and a cleanup model downloads only when you choose it. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
+          `A few things, none of them involving audio or text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a check with koegaki.com for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. The cleanup model download waits the same way. The Mac looks for a new app version once a day; ${ifLinux("Windows and Linux look", "Windows looks")} when the app starts. Each model downloads once. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
         ],
       },
       {
