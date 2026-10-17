@@ -1,11 +1,11 @@
 {
-  "version": "1.14.1",
-  "notes": "On Windows and Linux, with Restore my previous clipboard after inserting on, a dictation that did not paste no longer takes the place of what you had copied: while Koegaki stays open, the next one that pastes puts back what you had copied, or anything you copied since. On Linux, dictating into a terminal on KDE Plasma or an X11 desktop now pastes: Koegaki presses Ctrl+Shift+V when Konsole, kitty, Alacritty or another terminal is in front, so the shell no longer waits on a stray Ctrl+V.",
-  "pub_date": "2026-10-16T17:35:41Z",
+  "version": "1.15.0",
+  "notes": "On Windows and Linux, custom words now bias recognition the way the Mac does: the bias keeps a saved name only when the whole word is heard, so it changes far fewer ordinary sentences than before.",
+  "pub_date": "2026-10-17T00:36:41Z",
   "platforms": {
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3NmVS84T1BRS2hmSkF2UEtqei96VjdKTnBJQ0xJQTE4c1FzL3NLaEVpZERPQ1FyQ1BWZTBsN2RHMmhhblB0T3lRYWd4bVpaQlk2ak1Dc3A5Y0lGVndvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTcyMDk5CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE0LjFfYW1kNjQuZGViCm1Ha3IxbVhJNXhialhaWFp4MzV6WUtPbkdER3VtaW9iUGdJMFhFWnQwcnZZdVRvNHlDeFFaMTBMQ0pYSmtHZUhTL3pHbDJOZXNNTnkrVGhQcUFjdkRnPT0K",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.14.1/Koegaki-1.14.1-amd64.deb"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2xkV0JXNzNFUHN4eTl1SlFIYTNyY1BJdktQcHhRU00veXlCZkUrR1k0cy9xTDZlbGRqV09xTnRWWlErRHIwSHVyTHZjUFdSVVNWZi84YjM1emV0WmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTk2NTE3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjBfYW1kNjQuZGViCm1jRG1iMDIveW1oWldwRnhYNU82eVU3cHpaZDZVeUxnQnVhYWMyNmN0NW1MS1dORlpSY3RzVXlFUHB6UU9kVW10WFJ4NlNVSTVxMWFDeGJYcEszakNRPT0K",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.0/Koegaki-1.15.0-amd64.deb"
     }
   }
 }
