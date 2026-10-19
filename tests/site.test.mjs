@@ -925,11 +925,17 @@ test("every list of what goes online names the cleanup model download that follo
         continue;
       }
       assert.ok(run.includes(CLEANUP_LISTED), `${path} ${part} lists the speech model download without the cleanup model download that follows it`);
+      // The app's own checks go online too: for a new app version (each
+      // platform's updater) and, once a day, for newer models.
+      assert.match(run, /\bcheck (?:with koegaki\.com )?for (?:a )?new app versions?\b/, `${path} ${part} lists what goes online without the check for a new app version`);
+      assert.match(run, /\bdaily check for (?:new app versions and )?newer models\b/, `${path} ${part} lists what goes online without the daily check for newer models`);
       const at = sentences.indexOf(CLEANUP_WAIT);
       assert.ok(at > 0 && WAIT_CLAIMS.includes(sentences[at - 1]), `${path} ${part} does not say, right after the wait, that the cleanup model download waits the same way`);
     }
   }
   assert.deepEqual(listing.sort(), [
+    "/ body",
+    "/ standalone",
     ...(LINUX_ON ? ["/linux body", "/linux standalone"] : []),
     "/mac body",
     "/mac standalone",
@@ -938,6 +944,83 @@ test("every list of what goes online names the cleanup model download that follo
     "/windows body",
     "/windows standalone",
   ]);
+});
+
+/**
+ * The battery hold on the Mac (Koegaki spec 2026-10-11-cleanup-auto-download
+ * rule 9, shipped in Mac 1.13.0 and its release notes): every download the Mac
+ * app starts by itself, the speech model an app update brings and the cleanup
+ * model, starts no request while the Mac runs on battery below 20 percent, and
+ * starts by itself once it is on power (PowerSource.swift lowChargeLine 0.20,
+ * wired into both AutomaticDownloads in KoegakiMacApp.swift). A transfer under
+ * way is not stopped, so the sentence says the download does not start, not
+ * that it waits. Windows and Linux have no battery rule, so only the Mac page
+ * says it, right after each sentence that says the Mac's downloads wait on a
+ * costly connection: after the wait itself where it describes the speech model
+ * an update brings, and after the cleanup wait where it lists both.
+ */
+const MAC_BATTERY = "It also does not start while your Mac is on battery below 20 percent, and goes ahead once the Mac is plugged in.";
+const MAC_BATTERY_BOTH =
+  "Neither download starts while your Mac is on battery below 20 percent, and each goes ahead once the Mac is plugged in.";
+
+test("the Mac page says its automatic downloads do not start on a low battery wherever it says they wait, and no other page names the battery", () => {
+  const said = [];
+  for (const path of ROUTES) {
+    for (const { part, texts } of runsOf(html(path))) {
+      const sentences = texts.flatMap(sentencesOf);
+      sentences.forEach((sentence, at) => {
+        if (/\bbattery\b/i.test(sentence)) {
+          assert.ok(
+            path === "/mac" && [MAC_BATTERY, MAC_BATTERY_BOTH].includes(sentence),
+            `${path} ${part} says something unreviewed about the battery: "${sentence}"`,
+          );
+        }
+        if (sentence !== MAC_WAIT) return;
+        said.push(`${path} ${part}`);
+        const next = sentences[at + 1];
+        assert.ok(
+          next === MAC_BATTERY || (next === CLEANUP_WAIT && sentences[at + 2] === MAC_BATTERY_BOTH),
+          `${path} ${part} says the Mac's downloads wait on a costly connection without the low battery hold`,
+        );
+      });
+    }
+  }
+  // The speech model prose and the network answer in the body, and the
+  // network answer in the JSON-LD.
+  assert.deepEqual(said.sort(), ["/mac body", "/mac body", "/mac standalone"]);
+});
+
+/**
+ * Intel Macs. The shipped Mac app is universal: every binary in the 1.13.3
+ * disk image (the app, llama.framework and Sparkle's helpers) carries x86_64
+ * and arm64, its LSMinimumSystemVersion is 14.0, it asks for no native
+ * execution, and the appcast sets no hardware requirement, so it opens on an
+ * Intel Mac with macOS 14 or later. The speech models load with Core ML's CPU
+ * and Neural Engine units and no architecture check (FluidAudioTranscriber and
+ * ManifestAsrModels in Koegaki, WhisperKit's RealWhisperEngine), so on an Intel
+ * Mac, which has no Neural Engine, they run on the processor. The cleanup model
+ * does not download by itself there (Koegaki spec 2026-10-11-cleanup-auto-download
+ * rule 3, CleanupAutoDownload.decide), as the privacy page says. Apple Silicon
+ * is the Mac the app is made, tested and supported for, which the Mac page's
+ * requirement line names. Through 1.5.0 the export was arm64 only, which is
+ * when the answer said the app does not run on an Intel Mac.
+ */
+const MAC_INTEL_ANSWER = `Koegaki for Mac is made for Apple Silicon (M1 and later) on macOS 14 or later, where the speech model runs on the Neural Engine, and that is the only kind of Mac we test and support. The app is universal, so it also opens on an Intel Mac with macOS 14 or later. An Intel Mac has no Neural Engine, so there the speech model runs on the processor, and the cleanup model does not download by itself. The ${SITE.trialDays}-day free trial is the way to find out how it runs on yours.`;
+
+test("the Intel answer says what the universal Mac app does on an Intel Mac, and no page says it does not run there", () => {
+  const intel = LANDING_PAGES.find((p) => p.path === "/mac").faqs.find(({ q }) => /\bIntel\b/.test(q));
+  assert.equal(intel?.a, MAC_INTEL_ANSWER, "the Mac page's Intel answer is not the reviewed one");
+  const { body, standalone } = textBlocks(html("/mac"));
+  assert.ok(body.some(({ text }) => text === MAC_INTEL_ANSWER), "the Mac page does not show the Intel answer");
+  assert.ok(standalone.includes(MAC_INTEL_ANSWER), "the Mac page's JSON-LD does not carry the Intel answer");
+  for (const path of ROUTES) {
+    const text = html(path).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    assert.doesNotMatch(
+      text,
+      /\b(?:does not|doesn't|will not|won't|cannot|can't) (?:run|work) on (?:an )?Intel\b/i,
+      `${path} says the Mac app does not run on an Intel Mac`,
+    );
+  }
 });
 
 test("no page promises a change for an app version the site already serves", () => {
