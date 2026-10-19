@@ -1,11 +1,11 @@
 {
-  "version": "1.15.0",
-  "notes": "On Windows and Linux, custom words now bias recognition the way the Mac does: the bias keeps a saved name only when the whole word is heard, so it changes far fewer ordinary sentences than before.",
-  "pub_date": "2026-10-17T00:36:41Z",
+  "version": "1.15.1",
+  "notes": "Koegaki no longer opens System Settings every time it starts on KDE Plasma 6.3: a shortcut you already set in your desktop is used as it is.",
+  "pub_date": "2026-10-19T21:35:28Z",
   "platforms": {
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2xkV0JXNzNFUHN4eTl1SlFIYTNyY1BJdktQcHhRU00veXlCZkUrR1k0cy9xTDZlbGRqV09xTnRWWlErRHIwSHVyTHZjUFdSVVNWZi84YjM1emV0WmdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTk2NTE3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjBfYW1kNjQuZGViCm1jRG1iMDIveW1oWldwRnhYNU82eVU3cHpaZDZVeUxnQnVhYWMyNmN0NW1MS1dORlpSY3RzVXlFUHB6UU9kVW10WFJ4NlNVSTVxMWFDeGJYcEszakNRPT0K",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.0/Koegaki-1.15.0-amd64.deb"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2c3akJtb2RyekdNLytlbGRQMzRjWm5odzJhNXFNRkM5RmM0UW1NeWNjNkhKQkVoNXExMERaZnk3Q2NwNEoyWFFudkRFdkJIZFZac09hWEJLQ3hlVndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDQ1Njc3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjFfYW1kNjQuZGViCktRL2Z1Q1cwZGZxNG9OVmd2ZmVGRzV5Ry9hODNFQjgrNFlPQzJoMW52cU5XdGdEQXNNeFRycUlXdEdDMXBDdzdSdWtNVm9wZ25GU01ZdVcwaUVuMURBPT0K",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.1/Koegaki-1.15.1-amd64.deb"
     }
   }
 }
