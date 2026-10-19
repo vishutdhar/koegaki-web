@@ -10,7 +10,7 @@ import { COMPARISONS } from "@/lib/compare";
  * Once Linux ships, every page's copy changed that day, so each date is at
  * least LINUX_COPY_DATE (lastModified in lib/site.ts).
  */
-const HOME_LAST_MODIFIED = "2026-10-08";
+const HOME_LAST_MODIFIED = "2026-10-19";
 const PRIVACY_LAST_MODIFIED = "2026-10-17";
 
 export default function sitemap(): MetadataRoute.Sitemap {

@@ -196,7 +196,7 @@ export const LANDING_PAGES: LandingPage[] = [
     path: "/mac",
     linkLabel: "Dictation for Mac",
     operatingSystem: "macOS 14.0 or later",
-    lastModified: lastModified("2026-10-17"),
+    lastModified: lastModified("2026-10-19"),
     name: "Koegaki for Mac",
     title: "Dictation app for Mac that runs on-device",
     description: `Private dictation for macOS. Hold a key, speak, and the text lands in almost any app. The model runs on your Mac, so your voice never leaves it. ${price} one-time.`,
@@ -214,7 +214,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "The speech model runs on your Mac",
         paragraphs: [
-          `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
+          `Koegaki transcribes with ${SITE.engine}. The model downloads once, on first launch, and after that dictation works with the network cable unplugged. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. It also does not start while your Mac is on battery below 20 percent, and goes ahead once the Mac is plugged in. Your audio and the text it becomes are never uploaded, never stored on a server, and never seen by us.`,
           "That is the whole reason the app exists. Most dictation apps send your voice to a server because that is the easy way to build one. Apple Silicon is fast enough that it no longer has to be, and Koegaki uses the Neural Engine so transcription feels instant. A multilingual speech model and an optional cleanup model are separate downloads, and they run on your Mac too.",
         ],
       },
@@ -242,7 +242,7 @@ export const LANDING_PAGES: LandingPage[] = [
     faqs: [
       {
         q: "Does Koegaki work on Intel Macs?",
-        a: "The current Mac build is for Apple Silicon (M1 and later) on macOS 14 or later, where the model runs on the Neural Engine. It does not run on Intel Macs.",
+        a: `Koegaki for Mac is made for Apple Silicon (M1 and later) on macOS 14 or later, where the speech model runs on the Neural Engine, and that is the only kind of Mac we test and support. The app is universal, so it also opens on an Intel Mac with macOS 14 or later. An Intel Mac has no Neural Engine, so there the speech model runs on the processor, and the cleanup model does not download by itself. The ${SITE.trialDays}-day free trial is the way to find out how it runs on yours.`,
       },
       {
         q: "Is this different from the dictation built into macOS?",
@@ -254,7 +254,7 @@ export const LANDING_PAGES: LandingPage[] = [
       },
       {
         q: "Does it need an internet connection?",
-        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. The cleanup model download waits the same way. Each model downloads once. Being offline never locks a paid licence out.",
+        a: "Dictation itself never touches the network. The app does go online for a few things that carry no audio and no text: the speech model download on first launch and the cleanup model download that follows it (only when the app runs natively on Apple Silicon), activating a licence key and a quiet daily licence check, a daily check for new app versions and newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your Mac is on a connection it treats as costly, such as an iPhone's Personal Hotspot or a network with Low Data Mode turned on. The cleanup model download waits the same way. Neither download starts while your Mac is on battery below 20 percent, and each goes ahead once the Mac is plugged in. Each model downloads once. Being offline never locks a paid licence out.",
       },
       {
         q: "Is there a subscription?",
@@ -342,7 +342,7 @@ export const LANDING_PAGES: LandingPage[] = [
       "macOS 14.0 or later, Windows 10, Windows 11, Debian 12 or later, Ubuntu 22.04 or later",
       "macOS 14.0 or later, Windows 10, Windows 11",
     ),
-    lastModified: lastModified("2026-10-17"),
+    lastModified: lastModified("2026-10-19"),
     name: "Offline dictation",
     title: ifLinux("Offline dictation software for Mac, Windows and Linux", "Offline dictation software for Mac and Windows"),
     description: `Dictation that works with no internet connection. The speech model runs on your ${ifLinux("own computer", "Mac or PC")}, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
@@ -367,7 +367,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          `A few things, none of them involving audio or text: the speech model download on first launch and the cleanup model download that follows it, activating a licence key and a quiet daily licence check, a check with koegaki.com for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. The cleanup model download waits the same way. The Mac looks for a new app version once a day; ${ifLinux("Windows and Linux look", "Windows looks")} when the app starts. Each model downloads once. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
+          `A few things, none of them involving audio or text: the speech model download on first launch and the cleanup model download that follows it (on a Mac, only when the app runs natively on Apple Silicon), activating a licence key and a quiet daily licence check, a check with koegaki.com for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. The cleanup model download waits the same way. The Mac looks for a new app version once a day; ${ifLinux("Windows and Linux look", "Windows looks")} when the app starts. Each model downloads once. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
         ],
       },
       {
