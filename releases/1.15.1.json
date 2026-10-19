@@ -1,0 +1,12 @@
+{
+  "version": "1.15.1",
+  "artifacts": {
+    "deb": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.1/Koegaki-1.15.1-amd64.deb",
+      "size": 31379150,
+      "sha256": "972aee6aed3bb975b8a78e1b4cb78fd1fdd2afbbca1610b1ccc1f31d44b881e6",
+      "blake2b512": "f4ddf2bac228c9f70ccf21c0e7afdfe2425cc6b09c70fb539c61538b0c296b37fc6786c44ed114d60a6f4edd4d3c5816cbd1bb478852c84302b59ff482ae05d6",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2c3akJtb2RyekdNLytlbGRQMzRjWm5odzJhNXFNRkM5RmM0UW1NeWNjNkhKQkVoNXExMERaZnk3Q2NwNEoyWFFudkRFdkJIZFZac09hWEJLQ3hlVndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDQ1Njc3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjFfYW1kNjQuZGViCktRL2Z1Q1cwZGZxNG9OVmd2ZmVGRzV5Ry9hODNFQjgrNFlPQzJoMW52cU5XdGdEQXNNeFRycUlXdEdDMXBDdzdSdWtNVm9wZ25GU01ZdVcwaUVuMURBPT0K"
+    }
+  }
+}
