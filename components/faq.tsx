@@ -16,7 +16,7 @@ export const FAQS = [
   },
   {
     q: "Does it need the internet?",
-    a: `Barely. Dictation itself never touches the network. The app goes online for the speech model download on first launch and the cleanup model download that follows it, activating a license and a quiet daily license check, a check for a new app version, a daily check for newer models, and the download of an update or a model when you choose one. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. ${ifLinux(
+    a: `Barely. Dictation itself never touches the network. The app goes online for the speech model download on first launch and the cleanup model download that follows it (on a Mac, only when the app runs natively on Apple Silicon), activating a license and a quiet daily license check, a check for a new app version, a daily check for newer models, and the download of an update or a model when you choose one. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps working. ${ifLinux(
       "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac, a network you have set as metered in Windows, or one NetworkManager treats as metered on Linux.",
       "That background download waits while your computer is on a connection it treats as costly, such as an iPhone's Personal Hotspot on a Mac or a network you have set as metered in Windows.",
     )} The cleanup model download waits the same way. Being offline never locks you out, and no audio or text is ever involved.`,

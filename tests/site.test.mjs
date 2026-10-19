@@ -901,6 +901,18 @@ test("every sentence that names a costly connection is a reviewed one, on exactl
  * download beside the speech model an update brings.
  */
 const CLEANUP_LISTED = "the speech model download on first launch and the cleanup model download that follows it";
+/**
+ * On a Mac that download happens by itself only when the app runs natively on
+ * Apple Silicon (rule 3: an Intel Mac, or the app under Rosetta, downloads
+ * nothing by itself), so a list on a page that covers the Mac says so right
+ * where it names it, in the privacy page's words; the Mac page leaves out "on a
+ * Mac". The Windows and Linux pages name no Mac.
+ */
+const CLEANUP_NATIVE_ONLY = {
+  "/": "(on a Mac, only when the app runs natively on Apple Silicon)",
+  "/mac": "(only when the app runs natively on Apple Silicon)",
+  "/offline-dictation": "(on a Mac, only when the app runs natively on Apple Silicon)",
+};
 const CLEANUP_WAIT = "The cleanup model download waits the same way.";
 const PRIVACY_CLEANUP =
   "Once that is done, the cleanup model downloads on its own (on a Mac, only when the app runs natively on Apple Silicon), and cleanup stays off until you turn it on.";
@@ -925,6 +937,12 @@ test("every list of what goes online names the cleanup model download that follo
         continue;
       }
       assert.ok(run.includes(CLEANUP_LISTED), `${path} ${part} lists the speech model download without the cleanup model download that follows it`);
+      if (path in CLEANUP_NATIVE_ONLY) {
+        assert.ok(
+          run.includes(`${CLEANUP_LISTED} ${CLEANUP_NATIVE_ONLY[path]}`),
+          `${path} ${part} names the cleanup model download that follows the speech model without saying a Mac makes it by itself only natively on Apple Silicon`,
+        );
+      }
       // The app's own checks go online too: for a new app version (each
       // platform's updater) and, once a day, for newer models.
       assert.match(run, /\bcheck (?:with koegaki\.com )?for (?:a )?new app versions?\b/, `${path} ${part} lists what goes online without the check for a new app version`);
