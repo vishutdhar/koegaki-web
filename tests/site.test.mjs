@@ -2240,6 +2240,7 @@ const MAC_BUILDS = new Map([
   ["1.13.0", 34],
   ["1.13.2", 35],
   ["1.13.3", 36],
+  ["1.13.4", 37],
 ]);
 
 /** Below zero, zero or above zero as version a is below, equal to or above b, part by part, a missing part counting as 0. */

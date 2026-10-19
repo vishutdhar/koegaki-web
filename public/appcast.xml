@@ -3,20 +3,19 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.13.3</title>
-            <pubDate>Fri, 16 Oct 2026 10:31:05 -0400</pubDate>
-            <sparkle:version>36</sparkle:version>
-            <sparkle:shortVersionString>1.13.3</sparkle:shortVersionString>
+            <title>1.13.4</title>
+            <pubDate>Mon, 19 Oct 2026 19:19:25 -0400</pubDate>
+            <sparkle:version>37</sparkle:version>
+            <sparkle:shortVersionString>1.13.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.13.3</h2>
+            <description><![CDATA[<h2>Koegaki 1.13.4</h2>
 <ul>
-    <li>This release is for the Mac. Windows stays on 1.13.1 and Linux on 1.14.0.</li>
-    <li>On the Mac, quitting Koegaki with Clean on, or letting it quit to install a later update, no longer leaves a crash report, and the app no longer comes straight back after you quit it.</li>
-    <li>On the Mac, a dictation no longer waits on Koegaki's own bookkeeping when your Mac is busy: the paste goes out as soon as the text is ready, and a slow sound cue can only delay the cue.</li>
-    <li>On the Mac, Settings now says what Cmd V pastes after a dictation: the dictation itself, still the default, or what you had copied before.</li>
+    <li>This release is for the Mac. Windows stays on 1.15.0 and Linux on 1.15.1.</li>
+    <li>On the Mac, Koegaki now updates itself in the background: new versions download quietly and install at a moment you are not dictating, and Koegaki comes back in the menu bar without opening its window, with one note on the pill saying it updated itself.</li>
+    <li>This update still arrives through the update window; from the next one on, updates install themselves.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.3/Koegaki-1.13.3.dmg" length="31796823" type="application/octet-stream" sparkle:edSignature="skX6K7QoepZUVwhgPFxeU37rgtQJUIlYDnfF3D0w+IvfdbZlKeCw4XG5rbmh7259v4udwscSaRdnMcVPz0h0DQ=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.4/Koegaki-1.13.4.dmg" length="31868364" type="application/octet-stream" sparkle:edSignature="1KaKlEL1xo8Cz2cv+5DBdQfjNNm8fPIEQroLpiJdMc2r5I+7kwJMOaFzEiuySxCwGi5m0LA7XnsZGuePkG7TBg=="/>
         </item>
     </channel>
 </rss>
