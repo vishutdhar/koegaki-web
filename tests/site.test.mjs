@@ -10,14 +10,20 @@
 // BLAKE2b-512), and verifies the updater signature over each downloaded
 // installer; then it downloads the installer the manifest and the
 // Windows link serve, from whichever host, and holds it to its record, or to
-// the installer public/downloads holds, and to the manifest's updater
-// signature; then it downloads every disk image the appcast offers, from
-// whichever host, and holds it to its enclosure's length and Sparkle
-// signature, and to its record when one records its release. Without
-// RELEASE_FETCH=1 it is reported as skipped, never as passed.
-// Run it alone with
+// its entry in the Windows archive (scripts/windows-archive.mjs), and to the
+// manifest's updater signature; then it downloads every disk image the
+// appcast offers, from whichever host, and holds it to its enclosure's length
+// and Sparkle signature, and to its record when one records its release. A
+// second one asks koegaki.com for each archived installer's old url, holds the
+// answer to a 301 to the asset of the same name in the windows-archive
+// release, follows it, and holds the bytes to the archive entry; and it holds
+// paths under /downloads that are not archived to a 404. Set
+// RELEASE_FETCH_ORIGIN to another deployment's origin (a preview url) to ask
+// it instead, before it reaches koegaki.com. Without RELEASE_FETCH=1 both are
+// reported as skipped, never as passed.
+// Run them alone with
 //
-//   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub" tests/site.test.mjs
+//   RELEASE_FETCH=1 node --import ./tests/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-name-pattern="downloaded from GitHub|archived installer" tests/site.test.mjs
 //
 // or with the whole suite as `RELEASE_FETCH=1 npm test`.
 //
@@ -52,6 +58,7 @@ import { LINUX_COPY_DATE, LINUX_RELEASE, SITE } from "../lib/site.ts";
 import { LANDING_PAGES, LINUX_UPDATES } from "../lib/pages.ts";
 import { COMPARISONS } from "../lib/compare.ts";
 import { linuxRelease } from "../scripts/linux-release.mjs";
+import { ARCHIVE_DOWNLOAD, ARCHIVE_REDIRECT_STATUS, ARCHIVE_TAG, WINDOWS_ARCHIVE, archiveAssetUrl, archiveEntry } from "../scripts/windows-archive.mjs";
 
 /** True in the run on the fixture build (see the top of this file). */
 const LINUX_FIXTURE = process.env.KOEGAKI_SITE_BUILD === "linux-fixture";
@@ -1340,10 +1347,10 @@ test("the model index check refuses what the app readers refuse", () => {
  * digest is the only field the checks here can authenticate; the sizes, the
  * SHA-256 digests and the disk image's BLAKE2b-512 are held to their shape,
  * to each other where the manifest and the appcast repeat them, and to the
- * bytes where public/downloads still holds the installer. Otherwise they rest
- * on the publishing tool, which measured them on the files it downloaded back
- * from the release, and on the test that downloads the release again
- * (RELEASE_FETCH=1, see the top of this file).
+ * Windows archive entry of the installer where it is archived (1.9.0's).
+ * Otherwise they rest on the publishing tool, which measured them on the files
+ * it downloaded back from the release, and on the test that downloads the
+ * release again (RELEASE_FETCH=1, see the top of this file).
  */
 const RELEASES = new URL("../releases/", import.meta.url);
 /** The fixture's records, read beside the real ones in the fixture run only. */
@@ -1526,19 +1533,19 @@ const MAC_ONLY_RECORD_AS = (version) => {
 
 /** `sources`, finding LINUX_ONLY_RECORD as the record of its release. */
 const withLinuxOnlyRelease = (sources) => ({
-  installer: sources.installer,
+  archived: sources.archived,
   record: (version) => (version === LINUX_ONLY_RECORD.version ? LINUX_ONLY_RECORD : sources.record(version)),
 });
 
 /** `sources` (see windowsUpdateProblems), finding MAC_ONLY_RECORD as the record of its release. */
 const withMacOnlyRelease = (sources) => ({
-  installer: sources.installer,
+  archived: sources.archived,
   record: (version) => (version === MAC_ONLY_RECORD.version ? MAC_ONLY_RECORD : sources.record(version)),
 });
 
 /** `sources`, finding the record of `version` without its `kind` artifact, as a release that shipped on the other platform only states it. */
 const withoutArtifact = (sources, version, kind) => ({
-  installer: sources.installer,
+  archived: sources.archived,
   record: (release) => {
     const record = sources.record(release);
     if (release !== version || !record) return record;
@@ -1548,22 +1555,22 @@ const withoutArtifact = (sources, version, kind) => ({
   },
 });
 
-test("every release record has the published shape and describes the same bytes as an installer public/downloads still holds", () => {
+test("every release record has the published shape and describes the same bytes as the Windows archive entry of its installer", () => {
   const records = releaseRecords();
   assert.ok(records.length > 0, "releases/ holds no record");
   for (const { name, version, record } of records) {
     assert.ok(version, `releases/${name} is not named <version>.json`);
     assert.deepEqual(releaseRecordProblems(record, version), [], `releases/${name}`);
-    // 1.9.0 and earlier shipped from this repository, so where the installer is
-    // here too, the record must describe exactly those bytes.
-    const local = new URL(`../public/downloads/${ASSET_NAME.exe(version)}`, import.meta.url);
-    if (!existsSync(local)) continue;
-    const bytes = readFileSync(local);
+    // 1.9.0 and earlier shipped from koegaki.com/downloads, and their bytes are
+    // in the Windows archive, so where a record states one of them it must
+    // describe exactly the bytes the archive entry states.
+    const entry = archiveEntry(ASSET_NAME.exe(version));
+    if (!entry) continue;
     const { size, sha256, blake2b512 } = record.artifacts.exe;
     assert.deepEqual(
       { size, sha256, blake2b512 },
-      { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), blake2b512: createHash("blake2b512").update(bytes).digest("hex") },
-      `releases/${name} does not describe public/downloads/${ASSET_NAME.exe(version)}`,
+      { size: entry.size, sha256: entry.sha256, blake2b512: entry.blake2b512 },
+      `releases/${name} does not describe ${ASSET_NAME.exe(version)} as the Windows archive does`,
     );
   }
 });
@@ -1831,15 +1838,17 @@ function decodedPath(url) {
 const hostOf = (url) => (typeof url === "string" && URL.canParse(url) ? new URL(url).host : undefined);
 
 /**
- * Why a release cannot be on GitHub, or undefined. public/downloads holds the
- * installers of every release that shipped before releases moved to GitHub,
- * and nothing new lands there, so a GitHub url never names one of those; this
- * keeps releases/1.9.0.json, which exists for the self tests, from letting a
+ * Why a release cannot be on GitHub as a release of its own, or undefined. The
+ * Windows archive (scripts/windows-archive.mjs) holds the installers of every
+ * release that shipped from koegaki.com/downloads before releases moved to
+ * GitHub, as assets of the one windows-archive release, and nothing new is
+ * added to it, so a v<version> url never names one of those; this keeps
+ * releases/1.9.0.json, which exists for the self tests, from letting a
  * manifest or appcast point at a v1.9.0 release that was never published.
  */
 function frozenReleaseProblem(version, sources) {
-  if (!sources.installer(version)) return undefined;
-  return `${ASSET_NAME.exe(version)} is in public/downloads, so ${version} shipped before releases moved to GitHub and no GitHub release of it exists`;
+  if (!sources.archived(version)) return undefined;
+  return `${ASSET_NAME.exe(version)} is in the Windows archive, so ${version} shipped before releases moved to GitHub and no v${version} GitHub release of it exists`;
 }
 
 /**
@@ -1847,25 +1856,26 @@ function frozenReleaseProblem(version, sources) {
  * (koegaki.com/downloads, or the Blob host), or undefined. A release with a
  * record in releases/ was published as a GitHub release, so every download
  * link, the updater manifest and the appcast serve it from github.com. The one
- * exception is a release public/downloads holds: it shipped from there before
- * releases moved to GitHub, and its record (1.9.0's) exists only so the self
- * tests run against a real signed release (see frozenReleaseProblem).
+ * exception is a release in the Windows archive: it shipped from
+ * koegaki.com/downloads before releases moved to GitHub, and its record
+ * (1.9.0's) exists only so the self tests run against a real signed release
+ * (see frozenReleaseProblem).
  */
 function legacyHostProblem(version, sources) {
-  if (!sources.record(version) || sources.installer(version)) return undefined;
+  if (!sources.record(version) || sources.archived(version)) return undefined;
   return `releases/${version}.json records ${version} as a GitHub release, which is served from github.com only`;
 }
 
 /**
  * The BLAKE2b-512 digest of the installer the manifest's url serves, and what
  * stops it being known. A url on github.com must be exactly the release asset
- * of this version, of a release that did not ship from public/downloads, and
- * the digest is the one its record states, which the signature check then
- * holds to the signed installer. Otherwise the url must be on the Blob host,
- * where the updater fetched every installer shipped from this repository
- * through 1.9.0, of a release with no record but one public/downloads holds
- * (see legacyHostProblem), so its bytes are read from public/downloads, and a
- * record never stands in for them.
+ * of this version, of a release that is not in the Windows archive, and the
+ * digest is the one its record states, which the signature check then holds
+ * to the signed installer. Otherwise the url must be on the Blob host, where
+ * the updater fetched every installer shipped from this repository through
+ * 1.9.0, of a release with no record but one in the Windows archive (see
+ * legacyHostProblem), so its digest is the one its archive entry states, and
+ * a record never stands in for it.
  */
 function installerDigest(target, version, sources) {
   const problems = [];
@@ -1891,15 +1901,16 @@ function installerDigest(target, version, sources) {
   if (hostOf(target.url) !== BLOB_HOST) problems.push(`the url ${target.url} is on neither github.com nor the Blob host ${BLOB_HOST}`);
   const legacy = legacyHostProblem(version, sources);
   if (legacy) problems.push(`the url ${target.url} is not on github.com, and ${legacy}`);
-  const file = sources.installer(version);
-  if (!file) return { problems: [...problems, `public/downloads/${ASSET_NAME.exe(version)}, the installer the url names, is missing`] };
-  return { problems, digest: createHash("blake2b512").update(file).digest() };
+  const entry = sources.archived(version);
+  if (!entry) return { problems: [...problems, `${ASSET_NAME.exe(version)}, the installer the url names, is not in the Windows archive`] };
+  return { problems, digest: Buffer.from(entry.blake2b512, "hex") };
 }
 
 /**
  * What the Windows updater would refuse in this manifest, given `sources`,
- * which finds a release's installer bytes (installer(version), a Buffer) and
- * its record (record(version)). It deserializes the whole manifest before it
+ * which finds the Windows archive entry of a release's installer
+ * (archived(version): its name, size, SHA-256 and BLAKE2b-512) and its record
+ * (record(version)). It deserializes the whole manifest before it
  * picks its own platform (the RemoteRelease deserializer in
  * tauri-plugin-updater 2.10.1): every platform entry must be an object with a
  * parseable url and a string signature, or no platform updates. Publication
@@ -2011,12 +2022,16 @@ function linuxUpdateProblems(feed, record, pubkey, windowsFeed) {
   return problems;
 }
 
-/** Where the release checks find a release's bytes: the installer in public/downloads, and its record in releases/. */
+/**
+ * Where the release checks find what a release's bytes are: the Windows
+ * archive entry of its installer, for a release that shipped from
+ * koegaki.com/downloads (scripts/windows-archive.mjs), and its record in
+ * releases/.
+ */
 const RELEASE_SOURCES = {
-  installer(version) {
+  archived(version) {
     if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return undefined;
-    const file = new URL(`../public/downloads/${ASSET_NAME.exe(version)}`, import.meta.url);
-    return existsSync(file) ? readFileSync(file) : undefined;
+    return archiveEntry(ASSET_NAME.exe(version));
   },
   record: releaseRecord,
 };
@@ -2024,16 +2039,16 @@ const RELEASE_SOURCES = {
 /**
  * The release the updater manifest check is tried against, whatever the site
  * serves now: 1.9.0, as its manifest was published (its installer on Blob,
- * shipped from public/downloads) with notes and a date from the live manifest.
- * Its installer is still in public/downloads and releases/1.9.0.json records it,
- * so both ways of knowing an installer's bytes can be exercised.
+ * shipped from koegaki.com/downloads) with notes and a date from the live
+ * manifest. The Windows archive holds its installer and releases/1.9.0.json
+ * records it, so both ways of knowing an installer's digest can be exercised.
  */
 function updaterSelfTestRelease() {
   const version = "1.9.0";
   const record = releaseRecord(version);
   assert.ok(record, `releases/${version}.json, the record the updater checks are tried against, is missing`);
-  const installer = RELEASE_SOURCES.installer(version);
-  assert.ok(installer, `public/downloads/${ASSET_NAME.exe(version)}, the installer the updater checks are tried against, is missing`);
+  const installer = RELEASE_SOURCES.archived(version);
+  assert.ok(installer, `${ASSET_NAME.exe(version)}, the installer the updater checks are tried against, is not in the Windows archive`);
   const manifest = structuredClone(publicJson("windows-updates.json"));
   manifest.version = version;
   manifest.platforms = {
@@ -2077,23 +2092,25 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     copy[at] ^= 0x01;
     return copy;
   };
+  const flippedHex = (text) => `${text[0] === "0" ? "1" : "0"}${text.slice(1)}`;
   const keyLines = decoded(WINDOWS_UPDATER_PUBKEY);
-  // A case names `file` or `record` to change what the sources find, undefined
-  // for none; otherwise they find the release's own installer and record.
+  // A case names `archived` or `record` to change what the sources find,
+  // undefined for none; otherwise they find the release's own archive entry
+  // and record.
   const check = (change) => {
     const { sig = signature, href = url, date, release = version, key = WINDOWS_UPDATER_PUBKEY, edit } = change;
-    const file = "file" in change ? change.file : installer;
+    const archived = "archived" in change ? change.archived : installer;
     const recorded = "record" in change ? change.record : record;
     const copy = structuredClone(manifest);
     Object.assign(copy.platforms["windows-x86_64"], { signature: sig, url: href });
     copy.version = release;
     if (date !== undefined) copy.pub_date = date;
     edit?.(copy);
-    return windowsUpdateProblems(copy, { installer: () => file, record: () => recorded }, key);
+    return windowsUpdateProblems(copy, { archived: () => archived, record: () => recorded }, key);
   };
   // The same installer as a GitHub release asset, and its record changed one
-  // way. A release on GitHub has no installer in public/downloads, so those
-  // cases find none there.
+  // way. A release on GitHub is not in the Windows archive, so those cases
+  // find no archive entry.
   const githubUrl = githubAssetUrl(version, "exe");
   const notGithubUrl = new RegExp(`the url .* is not ${escaped(githubUrl)}`);
   const recordWith = (change) => {
@@ -2109,7 +2126,7 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
   })();
   const refused = [
     ["one signature byte", { sig: withLine(1, (l) => flipByte(l, 40)) }, /installer signature does not verify/],
-    ["one installer byte", { file: flipped(installer, Math.floor(installer.length / 2)) }, /installer signature does not verify/],
+    ["an archived installer digest one bit off", { archived: { ...installer, blake2b512: flippedHex(installer.blake2b512) } }, /installer signature does not verify/],
     ["the signed file name", { sig: withLine(2, (l) => l.replace(/file:\S+/, `file:Koegaki_${otherRelease}_x64-setup.exe`)) }, /trusted comment signature does not verify/],
     ["the key id", { sig: withLine(1, (l) => flipByte(l, 2)) }, /key ids differ/],
     ["a release the trusted comment does not name", { release: otherRelease }, new RegExp(`does not name Koegaki_${escaped(otherRelease)}_x64-setup\\.exe`)],
@@ -2139,13 +2156,13 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["a prerelease version", { release: "1.7.0-beta.1" }, /^version/],
     ["a version with build metadata", { release: "1.7.0+22" }, /^version/],
     [
-      "an installer missing from public/downloads, though a record of it exists",
-      { file: undefined },
-      new RegExp(`public/downloads/Koegaki-${escaped(version)}-setup\\.exe, the installer the url names, is missing`),
+      "an installer the Windows archive does not hold, though a record of it exists",
+      { archived: undefined },
+      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe, the installer the url names, is not in the Windows archive`),
     ],
     [
       "a Blob url for a release published on GitHub",
-      { file: undefined },
+      { archived: undefined },
       new RegExp(`is not on github\\.com, and releases/${escaped(version)}\\.json records ${escaped(version)} as a GitHub release`),
     ],
     ["a GitHub url on another tag", { href: githubUrl.replace(`/v${version}/`, `/v${otherRelease}/`) }, notGithubUrl],
@@ -2155,34 +2172,34 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["a GitHub url with a query", { href: `${githubUrl}?raw=1` }, notGithubUrl],
     ["a GitHub url over http", { href: githubUrl.replace(/^https:/, "http:") }, notGithubUrl],
     [
-      "a GitHub url for a release public/downloads holds, though a record of it exists",
+      "a GitHub url for a release in the Windows archive, though a record of it exists",
       { href: githubUrl },
-      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
+      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in the Windows archive, so ${escaped(version)} shipped before releases moved to GitHub`),
     ],
     [
       "a GitHub url with no record",
-      { href: githubUrl, file: undefined, record: undefined },
+      { href: githubUrl, archived: undefined, record: undefined },
       new RegExp(`no releases/${escaped(version)}\\.json records the GitHub release`),
     ],
     [
       "a recorded digest one byte off",
-      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.blake2b512 = flipped(Buffer.from(r.artifacts.exe.blake2b512, "hex"), 0).toString("hex"))) },
+      { href: githubUrl, archived: undefined, record: recordWith((r) => (r.artifacts.exe.blake2b512 = flipped(Buffer.from(r.artifacts.exe.blake2b512, "hex"), 0).toString("hex"))) },
       /installer signature does not verify/,
     ],
     [
       "a recorded digest that is not lowercase hex",
-      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.blake2b512 = r.artifacts.exe.blake2b512.toUpperCase())) },
+      { href: githubUrl, archived: undefined, record: recordWith((r) => (r.artifacts.exe.blake2b512 = r.artifacts.exe.blake2b512.toUpperCase())) },
       /releases\/.*: exe: blake2b512/,
     ],
-    ["a record of another version", { href: githubUrl, file: undefined, record: recordWith((r) => (r.version = otherRelease)) }, /names version/],
+    ["a record of another version", { href: githubUrl, archived: undefined, record: recordWith((r) => (r.version = otherRelease)) }, /names version/],
     [
       "a record whose signature is not the manifest's",
-      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.signature = encoded(decoded(signature), "\r\n"))) },
+      { href: githubUrl, archived: undefined, record: recordWith((r) => (r.artifacts.exe.signature = encoded(decoded(signature), "\r\n"))) },
       /records another signature/,
     ],
     [
       "a record whose installer url is another release's",
-      { href: githubUrl, file: undefined, record: recordWith((r) => (r.artifacts.exe.url = r.artifacts.exe.url.replace(`/v${version}/`, `/v${otherRelease}/`))) },
+      { href: githubUrl, archived: undefined, record: recordWith((r) => (r.artifacts.exe.url = r.artifacts.exe.url.replace(`/v${version}/`, `/v${otherRelease}/`))) },
       /records the installer at/,
     ],
   ];
@@ -2191,7 +2208,7 @@ test("the updater manifest check refuses a damaged manifest, signature, installe
     ["the signature text with CRLF line ends", { sig: encoded(decoded(signature), "\r\n") }],
     ["a pub_date with an offset", { date: "2026-10-03T17:26:44+02:00" }],
     ["another well formed platform", { edit: (m) => (m.platforms["darwin-aarch64"] = { url: "https://example.com/Koegaki.app.tar.gz", signature: "x" }) }],
-    ["the GitHub release url with its record, and no installer in public/downloads", { href: githubUrl, file: undefined }],
+    ["the GitHub release url with its record, and no Windows archive entry", { href: githubUrl, archived: undefined }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -2498,12 +2515,12 @@ function buildNumberProblems(version, build, builds) {
  * of 64 bytes as canonical base64, the shape Sparkle can check; the signature
  * itself is over the whole disk image, which is not here, so only the test
  * that downloads the release verifies it. An enclosure on github.com must be
- * exactly the release asset of that version, of a release that did not ship
- * from public/downloads, and the length Sparkle is told must be the size that
+ * exactly the release asset of that version, of a release that is not in the
+ * Windows archive, and the length Sparkle is told must be the size that
  * release's record states. An enclosure on the Blob host, as every one was
  * through 1.9.0, must be exactly https://<Blob host>/Koegaki-<version>.dmg, the
  * url every one of them had, and may name only a release with no record, or
- * one that shipped from public/downloads (see legacyHostProblem); any other
+ * one in the Windows archive (see legacyHostProblem); any other
  * host is refused, so a misspelled host cannot skip these checks.
  */
 function appcastProblems(xml, sources, builds = MAC_BUILDS) {
@@ -2628,13 +2645,16 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     change(copy);
     return copy;
   };
-  // A release on GitHub has no installer in public/downloads, so the sources
-  // find none there unless a case names `file`.
+  // A release on GitHub is not in the Windows archive, so the sources find no
+  // archive entry unless a case names `archived`.
   const check = (change) => {
-    const { url = github, length = size, file, builds, xml = appcastOf(version, url, length) } = change;
+    const { url = github, length = size, archived, builds, xml = appcastOf(version, url, length) } = change;
     const recorded = "record" in change ? change.record : record;
-    return appcastProblems(xml, change.sources ?? { installer: () => file, record: () => recorded }, builds);
+    return appcastProblems(xml, change.sources ?? { archived: () => archived, record: () => recorded }, builds);
   };
+  // The Windows archive entry of the release these cases offer, 1.9.0.
+  const entry = archiveEntry(ASSET_NAME.exe(version));
+  assert.ok(entry, `${ASSET_NAME.exe(version)} is not in the Windows archive`);
   // A build table of its own for the cases that need releases around this one,
   // so they hold whatever ships next.
   const listed = new Map([["1.9.0", 25], ["1.9.1", 26]]);
@@ -2772,9 +2792,9 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
     ["no record", { record: undefined }, new RegExp(`no releases/${escaped(version)}\\.json records`)],
     ["a record of another version", { record: recordWith((r) => (r.version = "1.9.1")) }, /names version/],
     [
-      "a release public/downloads holds, though a record of it exists",
-      { file: Buffer.from("MZ") },
-      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in public/downloads, so ${escaped(version)} shipped before releases moved to GitHub`),
+      "a release in the Windows archive, though a record of it exists",
+      { archived: entry },
+      new RegExp(`Koegaki-${escaped(version)}-setup\\.exe is in the Windows archive, so ${escaped(version)} shipped before releases moved to GitHub`),
     ],
     ["a record of another disk image", { record: recordWith((r) => (r.artifacts.dmg.url = r.artifacts.dmg.url.replace(/[^/]+$/, "Koegaki.dmg"))) }, /records the disk image at/],
     ["a Blob enclosure for a release published on GitHub", { url: blob(version) }, /item 1\.9\.0: the enclosure url .* is not on github\.com, and releases\/1\.9\.0\.json records 1\.9\.0 as a GitHub release/],
@@ -2783,7 +2803,7 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       {
         xml: appcastOf("1.8.5", blob("1.9.1"), 1, { build: 24 }),
         builds: listed,
-        sources: { installer: () => undefined, record: (release) => (release === "1.9.1" ? record : undefined) },
+        sources: { archived: () => undefined, record: (release) => (release === "1.9.1" ? record : undefined) },
       },
       /item 1\.8\.5: the enclosure url .*Koegaki-1\.9\.1\.dmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
     ],
@@ -2791,14 +2811,14 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       "a Blob enclosure whose percent encoded file name names a release published on GitHub, in the item of 1.9.0",
       {
         xml: appcastOf(version, `https://${BLOB_HOST}/Koegaki-%31.9.1%2Edmg`, 1),
-        sources: { installer: (release) => (release === version ? Buffer.from("MZ") : undefined), record: (release) => (release === version || release === "1.9.1" ? record : undefined) },
+        sources: { archived: (release) => (release === version ? entry : undefined), record: (release) => (release === version || release === "1.9.1" ? record : undefined) },
       },
       /Koegaki-%31\.9\.1%2Edmg is not on github\.com, and releases\/1\.9\.1\.json records 1\.9\.1 as a GitHub release/,
     ],
     ["a record whose disk image size is one byte off", { record: recordWith((r) => (r.artifacts.dmg.size += 1)) }, /enclosure length/],
     [
       "a Blob enclosure that serves the Windows installer as the disk image",
-      { url: `https://${BLOB_HOST}/Koegaki-${version}-setup.exe`, file: Buffer.from("MZ") },
+      { url: `https://${BLOB_HOST}/Koegaki-${version}-setup.exe`, archived: entry },
       new RegExp(`the enclosure url .*-setup\\.exe is not https://${escaped(BLOB_HOST)}/Koegaki-1\\.9\\.0\\.dmg`),
     ],
     [
@@ -2873,7 +2893,7 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
       },
     ],
     ["a Blob url of any length, with no record", { url: `https://npdal36mxz3kcwxv.public.blob.vercel-storage.com/Koegaki-${version}.dmg`, length: 1, record: undefined }],
-    ["a Blob enclosure for 1.9.0, which shipped from public/downloads, though a record of it exists", { url: blob(version), file: Buffer.from("MZ") }],
+    ["a Blob enclosure for 1.9.0, which is in the Windows archive, though a record of it exists", { url: blob(version), archived: entry }],
     ["a build number written as CDATA", { xml: withBuild("<![CDATA[25]]>") }],
     // A namespace declaration binds a prefix and gives Sparkle no value.
     ["a namespace prefix named version declared on the enclosure", { xml: appcastOf(version, github, size).replace("<enclosure ", '<enclosure xmlns:version="urn:example:other" ') }],
@@ -2889,10 +2909,13 @@ test("the appcast check refuses a GitHub enclosure at another url, of another si
 });
 
 /**
- * The installers public/downloads serves, frozen. Through 1.9.0 each release
- * added one here; from 1.9.1 the installers are GitHub release assets and
- * nothing new lands in this folder. These stay served because winget manifests
- * (1.2.1, 1.4.0, 1.5.0, 1.5.1) and a third party collection point at them.
+ * The installers koegaki.com/downloads served as files through 1.9.0, frozen.
+ * From 1.9.1 the installers are GitHub release assets, and since October 2026
+ * these twelve are assets of the windows-archive release, which each old url
+ * redirects to. They stay served because winget manifests (1.2.1, 1.4.0,
+ * 1.5.0, 1.5.1) and a third party collection point at them. This list is
+ * written out here, apart from scripts/windows-archive.mjs, so a name dropped
+ * from or added to the archive is caught.
  */
 const FROZEN_DOWNLOADS = [
   "Koegaki-1.2.1-setup.exe",
@@ -2909,28 +2932,131 @@ const FROZEN_DOWNLOADS = [
   "Koegaki-1.9.0-setup.exe",
 ];
 
-test("public/downloads holds exactly the 12 installers published before GitHub releases, and nothing new", () => {
-  assert.deepEqual(readdirSync(new URL("../public/downloads/", import.meta.url)).sort(), FROZEN_DOWNLOADS);
+test("nothing is ever served from public/downloads again: the folder does not exist", () => {
+  // Each file there would ship in every production deployment again; an
+  // installer belongs to a GitHub release, and an old url to a redirect.
+  assert.equal(existsSync(new URL("../public/downloads", import.meta.url)), false, "public/downloads exists");
 });
 
-/** Whether this deployment serves a file at this path, which is in public/. */
-const servedFromPublic = (pathname) => existsSync(new URL(`../public${pathname}`, import.meta.url));
+test("no file in public/ is an installer, a disk image or a deb package", () => {
+  const binaries = filesUnder(new URL("../public/", import.meta.url)).filter((path) => /\.(?:exe|msi|dmg|deb|rpm|appimage|zip)$/i.test(path));
+  assert.deepEqual(binaries, [], "public/ holds release files, which every deployment would carry");
+});
+
+/**
+ * The SHA-256 each merged winget manifest of FreedomTerminal.Koegaki states for
+ * an installer it serves from koegaki.com/downloads, copied from
+ * microsoft/winget-pkgs manifests/f/FreedomTerminal/Koegaki/<version>/
+ * FreedomTerminal.Koegaki.installer.yaml (InstallerSha256). winget refuses an
+ * installer whose bytes differ, so the archive must hold exactly these bytes.
+ */
+const WINGET_SHA256 = new Map([
+  ["Koegaki-1.2.1-setup.exe", "A826527457A6858B7E882144B6FF9BA631080527A89DA4E451879F5643E7B3C2"],
+  ["Koegaki-1.4.0-setup.exe", "812FFEB966C75FA4DAA5C321DFB023200FF23CA25DB4F9BEEEED223D1FDBB980"],
+  ["Koegaki-1.5.0-setup.exe", "A4065C85E9189B8CBCD657642998BB50133B2E1C480EAF7FFEC570E19757E452"],
+  ["Koegaki-1.5.1-setup.exe", "CC7EE5E1AAAE86986A867C77B9CDDDDFFB09C281D5E8FD85AC399E20274BEE5B"],
+]);
+
+test("the Windows archive records the 12 frozen installers, the bytes winget and the 1.9.0 record name", () => {
+  assert.deepEqual(WINDOWS_ARCHIVE.map(({ name }) => name), FROZEN_DOWNLOADS, "the archive does not list the frozen installers, oldest first");
+  for (const entry of WINDOWS_ARCHIVE) {
+    assert.deepEqual(Object.keys(entry), ["name", "size", "sha256", "blake2b512"], entry.name);
+    assert.ok(Number.isSafeInteger(entry.size) && entry.size > 0, `${entry.name}: size ${entry.size}`);
+    assert.match(entry.sha256, /^[0-9a-f]{64}$/, entry.name);
+    assert.match(entry.blake2b512, /^[0-9a-f]{128}$/, entry.name);
+  }
+  for (const digest of ["sha256", "blake2b512"]) {
+    assert.equal(new Set(WINDOWS_ARCHIVE.map((entry) => entry[digest])).size, WINDOWS_ARCHIVE.length, `two entries state one ${digest}`);
+  }
+  for (const [name, sha256] of WINGET_SHA256) assert.equal(archiveEntry(name)?.sha256, sha256.toLowerCase(), `${name}: the winget manifest's SHA-256`);
+  const exe = releaseRecord("1.9.0")?.artifacts?.exe;
+  assert.ok(exe, "releases/1.9.0.json records no installer");
+  const entry = archiveEntry("Koegaki-1.9.0-setup.exe");
+  assert.deepEqual({ size: entry?.size, sha256: entry?.sha256, blake2b512: entry?.blake2b512 }, { size: exe.size, sha256: exe.sha256, blake2b512: exe.blake2b512 });
+  assert.equal(ARCHIVE_DOWNLOAD, `${GITHUB_DOWNLOAD}/${ARCHIVE_TAG}`);
+  assert.equal(archiveAssetUrl(FROZEN_DOWNLOADS[0]), `${GITHUB_DOWNLOAD}/windows-archive/${FROZEN_DOWNLOADS[0]}`);
+});
+
+/** The redirects the build serves, from the routes manifest Next wrote: every one but Next's own trailing slash redirect. */
+function builtRedirects() {
+  const manifest = JSON.parse(built("../../routes-manifest.json"));
+  return { caseSensitive: manifest.caseSensitive === true, redirects: manifest.redirects.filter((redirect) => !redirect.internal) };
+}
+
+/** The redirects of the build that a request for `pathname` matches, as Next matches them (case sensitive only when the build says so). */
+function redirectsFor(pathname) {
+  const { caseSensitive, redirects } = builtRedirects();
+  return redirects.filter((redirect) => new RegExp(redirect.regex, caseSensitive ? "" : "i").test(pathname));
+}
+
+test("the build redirects each archived installer's old url to its windows-archive asset with a 301, and nothing else under /downloads", () => {
+  const { redirects } = builtRedirects();
+  // Every redirect the build serves is one of these, whole, so no pattern can
+  // send a name that is not archived to some other file, and no condition
+  // (has, missing, basePath, locale) can keep an ordinary request from one.
+  assert.deepEqual(
+    redirects.map(({ regex, ...redirect }) => redirect),
+    FROZEN_DOWNLOADS.map((name) => ({ source: `/downloads/${name}`, destination: `${GITHUB_DOWNLOAD}/windows-archive/${name}`, statusCode: 301 })),
+  );
+  assert.equal(ARCHIVE_REDIRECT_STATUS, 301);
+  for (const name of FROZEN_DOWNLOADS) {
+    const path = `/downloads/${name}`;
+    assert.deepEqual(redirectsFor(path).map(({ destination }) => destination), [`${GITHUB_DOWNLOAD}/windows-archive/${name}`], path);
+    // Next matches a path whatever its case unless the build says otherwise, so
+    // the name in other case reaches the same asset, never another file.
+    const lower = `/downloads/${name.toLowerCase()}`;
+    assert.deepEqual(redirectsFor(lower).map(({ destination }) => destination), builtRedirects().caseSensitive ? [] : [`${GITHUB_DOWNLOAD}/windows-archive/${name}`], lower);
+    // Each pattern names its file exactly: a dot is not a wildcard, and no
+    // prefix, suffix or folder around the name matches.
+    for (const near of [
+      `/downloads/${name.replaceAll(".", "x")}`,
+      `/downloads/${name}.sig`,
+      `/downloads/${name}x`,
+      `/downloads/x${name}`,
+      `/downloads/old/${name}`,
+      `/${name}`,
+      `/downloads/${name}/x`,
+    ]) {
+      assert.deepEqual(redirectsFor(near), [], `${near} matches a redirect`);
+    }
+  }
+  // Paths under /downloads that name no archived installer match no redirect,
+  // and with no file under public/downloads they are the ordinary 404.
+  for (const other of [
+    "/downloads",
+    "/downloads/",
+    "/downloads/Koegaki-1.1.0-setup.exe",
+    "/downloads/Koegaki-1.9.1-setup.exe",
+    "/downloads/Koegaki-1.15.0-setup.exe",
+    "/downloads/Koegaki-1.9.0.dmg",
+    "/downloads/Koegaki-1.14.0-amd64.deb",
+  ]) {
+    assert.deepEqual(redirectsFor(other), [], `${other} matches a redirect`);
+    assert.equal(servedBySite(other), false, `${other} is served`);
+  }
+});
+
+/**
+ * Whether this deployment answers a request for this path with something: a
+ * file in public/, or a redirect the build serves.
+ */
+const servedBySite = (pathname) => existsSync(new URL(`../public${pathname}`, import.meta.url)) || redirectsFor(pathname).length > 0;
 
 /**
  * What is wrong with a download link of this kind ("dmg" or "exe"), given
- * `sources` (see windowsUpdateProblems) and `serves` (see servedFromPublic).
+ * `sources` (see windowsUpdateProblems) and `serves` (see servedBySite).
  * The link names a release by its file name and is exactly one of three urls
  * for it. On github.com it is that release's asset, of a release whose record
  * states an asset of this kind, since a release that shipped on one platform
- * only has none of the other, and that did not ship from public/downloads.
+ * only has none of the other, and that is not in the Windows archive.
  * The hosts used before GitHub, as
- * https://koegaki.com/downloads/<file>, which this deployment must serve, or
- * https://<Blob host>/<file>, may name only a release with no record, or one
- * that shipped from public/downloads (see legacyHostProblem). From 1.9.1
- * public/downloads gains nothing, so a link left on koegaki.com when its
- * release moves to GitHub would serve a 404 there.
+ * https://koegaki.com/downloads/<file>, which this deployment must serve (by
+ * its redirect to the windows-archive release), or https://<Blob host>/<file>,
+ * may name only a release with no record, or one in the Windows archive (see
+ * legacyHostProblem). From 1.9.1 the archive gains nothing, so a link left on
+ * koegaki.com when its release moves to GitHub would serve a 404 there.
  */
-function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
+function downloadLinkProblems(kind, link, sources, serves = servedBySite) {
   const at = `the link ${link}`;
   const file = typeof link === "string" && URL.canParse(link) ? new URL(link).pathname.split("/").at(-1) : undefined;
   const named = { dmg: /^Koegaki-(\d+\.\d+\.\d+)\.dmg$/, exe: /^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/, deb: /^Koegaki-(\d+\.\d+\.\d+)-amd64\.deb$/ };
@@ -2957,7 +3083,7 @@ function downloadLinkProblems(kind, link, sources, serves = servedFromPublic) {
   const legacyUrl = legacyUrls.get(host);
   if (!legacyUrl) return [`${at} is on ${host}, which serves no release`];
   if (link !== legacyUrl) problems.push(`${at} is not ${legacyUrl}`);
-  else if (host === "koegaki.com" && !serves(new URL(link).pathname)) problems.push(`${at} names no file in public/`);
+  else if (host === "koegaki.com" && !serves(new URL(link).pathname)) problems.push(`${at} names nothing this deployment serves`);
   const legacy = legacyHostProblem(version, sources);
   if (legacy) problems.push(`${at} is not on github.com, and ${legacy}`);
   return problems;
@@ -3056,7 +3182,7 @@ test("the live release checks refuse an appcast with no release, a link the feed
   const [item] = appcastItems(xml).items;
   assert.ok(item?.version, "the live appcast offers no release these cases can start from");
   const seed = releaseRecord("1.9.0");
-  assert.ok(seed && RELEASE_SOURCES.installer("1.9.0"), "releases/1.9.0.json or its installer, which these cases use as an older release, is missing");
+  assert.ok(seed && RELEASE_SOURCES.archived("1.9.0"), "releases/1.9.0.json or its Windows archive entry, which these cases use as an older release, is missing");
   // 1.9.0's appcast as it was served, from the Blob host.
   const appcast190 = appcastOf("1.9.0", `https://${BLOB_HOST}/Koegaki-1.9.0.dmg`, seed.artifacts.dmg.size);
   // A Mac only release, MAC_ONLY_RECORD, on the appcast and the Mac link, as
@@ -3133,16 +3259,16 @@ test("every download link is a GitHub release asset, or names a release with no 
 
 test("the download link check refuses a recorded release off GitHub, a link on any other host, and a link to no release", () => {
   // Three releases from the repository as it is: one published on GitHub for
-  // both platforms, so recorded with both assets and no installer in
-  // public/downloads; 1.9.0, recorded only for the self tests although
-  // public/downloads holds it; and one public/downloads holds that no record
-  // names. MAC_ONLY_RECORD stands for a release published for the Mac only.
+  // both platforms, so recorded with both assets and not in the Windows
+  // archive; 1.9.0, recorded only for the self tests although the archive
+  // holds it; and one the archive holds that no record names. MAC_ONLY_RECORD
+  // stands for a release published for the Mac only.
   const versionOf = ({ version }) => version;
   const github = releaseRecords()
-    .filter(({ version, record }) => version && !RELEASE_SOURCES.installer(version) && record?.artifacts?.dmg && record?.artifacts?.exe)
+    .filter(({ version, record }) => version && !RELEASE_SOURCES.archived(version) && record?.artifacts?.dmg && record?.artifacts?.exe)
     .map(versionOf)
     .at(-1);
-  const seed = releaseRecords().filter(({ version }) => version && RELEASE_SOURCES.installer(version)).map(versionOf).at(-1);
+  const seed = releaseRecords().filter(({ version }) => version && RELEASE_SOURCES.archived(version)).map(versionOf).at(-1);
   const unrecorded = FROZEN_DOWNLOADS.map((name) => name.match(/^Koegaki-(\d+\.\d+\.\d+)-setup\.exe$/)[1]).filter((version) => !releaseRecord(version)).at(-1);
   assert.ok(github && seed && unrecorded, `the releases these cases need are missing: ${JSON.stringify({ github, seed, unrecorded })}`);
   const macOnly = MAC_ONLY_RECORD.version;
@@ -3155,14 +3281,16 @@ test("the download link check refuses a recorded release off GitHub, a link on a
     ["a Mac link on the Blob host for a release published on GitHub", ["dmg", blob("dmg", github)], offGithub(github)],
     ["a Windows link on the Blob host for a release published on GitHub", ["exe", blob("exe", github)], offGithub(github)],
     ["a Windows link on koegaki.com for a release published on GitHub, though the file is served", ["exe", site(github), () => true], offGithub(github)],
-    ["a Windows link on koegaki.com naming a file this deployment does not serve", ["exe", site("1.1.0")], /names no file in public\//],
+    ["a Windows link on koegaki.com naming a file this deployment does not serve", ["exe", site("1.1.0")], /names nothing this deployment serves/],
+    ["a Windows link on koegaki.com to a release nobody published, which no redirect serves", ["exe", site("9.9.9")], /names nothing this deployment serves/],
     ["a link on another host", ["exe", `https://example.com/${ASSET_NAME.exe(unrecorded)}`], /is on example\.com, which serves no release/],
     ["a koegaki.com link outside downloads", ["exe", `https://koegaki.com/${ASSET_NAME.exe(unrecorded)}`, () => true], /is not https:\/\/koegaki\.com\/downloads\//],
     ["a Blob link over http", ["dmg", blob("dmg", unrecorded).replace(/^https:/, "http:")], /is not https:/],
     ["a link that names no release", ["dmg", `https://${BLOB_HOST}/Koegaki.dmg`], /names no disk image of a release/],
     ["a Mac link to an installer", ["dmg", githubAssetUrl(github, "exe")], /names no disk image of a release/],
     ["a GitHub link to a release with no record", ["dmg", githubAssetUrl("9.9.9", "dmg")], /no releases\/9\.9\.9\.json records/],
-    ["a GitHub link to a release public/downloads holds", ["exe", githubAssetUrl(seed, "exe")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in public/downloads`)],
+    ["a GitHub link to a release the Windows archive holds", ["exe", githubAssetUrl(seed, "exe")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in the Windows archive`)],
+    ["a GitHub link to an archived installer as a v<version> release", ["exe", githubAssetUrl(unrecorded, "exe")], new RegExp(`${escaped(ASSET_NAME.exe(unrecorded))} is in the Windows archive`)],
     ["a GitHub link with a query", ["dmg", `${githubAssetUrl(github, "dmg")}?raw=1`], /is not https:\/\/github\.com\//],
     ["a GitHub link in another repo", ["dmg", githubAssetUrl(github, "dmg").replace("/koegaki-releases/", "/koegaki/")], /is not https:\/\/github\.com\//],
     ["a Windows link on GitHub to a Mac only release", ["exe", githubAssetUrl(macOnly, "exe")], new RegExp(`is on GitHub but releases/${escaped(macOnly)}\\.json records no installer of ${escaped(macOnly)}`)],
@@ -3182,7 +3310,7 @@ test("the download link check refuses a recorded release off GitHub, a link on a
     ["a Linux link to an installer", ["deb", githubAssetUrl(linuxOnly, "exe")], /names no deb package of a release/],
     ["a Linux link with a query", ["deb", `${githubAssetUrl(linuxOnly, "deb")}?raw=1`], /is not https:\/\/github\.com\//],
     ["a Linux link on another tag", ["deb", githubAssetUrl(linuxOnly, "deb").replace(`/v${linuxOnly}/`, "/v1.13.1/")], /is not https:\/\/github\.com\//],
-    ["a Linux link to a release public/downloads holds", ["deb", githubAssetUrl(seed, "deb")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in public/downloads`)],
+    ["a Linux link to a release the Windows archive holds", ["deb", githubAssetUrl(seed, "deb")], new RegExp(`${escaped(ASSET_NAME.exe(seed))} is in the Windows archive`)],
     ["a Mac link to a Linux only release", ["dmg", githubAssetUrl(linuxOnly, "dmg")], new RegExp(`records no disk image of ${escaped(linuxOnly)}`)],
     ["a Windows link to a Linux only release", ["exe", githubAssetUrl(linuxOnly, "exe")], new RegExp(`records no installer of ${escaped(linuxOnly)}`)],
   ];
@@ -3307,21 +3435,48 @@ function installerSignatureProblems(bytes, signature, version, key) {
 /**
  * What is wrong with an installer of `version` as the update manifest or the
  * Windows download link serves it, from whichever host: its bytes are not the
- * release's, as its record states them, or for a release with no record as the
- * installer public/downloads holds (the bytes the offline checks hold the
+ * release's, as its record states them, or for a release with no record as its
+ * Windows archive entry states them (the digest the offline checks hold the
  * manifest's signature to), or `signature`, the one the manifest carries, does
  * not verify over them with `key` (as WINDOWS_UPDATER_PUBKEY). `sources` is as
  * windowsUpdateProblems takes it.
  */
 function servedInstallerProblems(bytes, version, signature, sources, key) {
   const record = sources.record(version);
-  const file = record ? undefined : sources.installer(version);
-  if (!record && !file) return [`neither releases/${version}.json nor public/downloads states the bytes of ${ASSET_NAME.exe(version)}`];
-  const hex = (digest) => createHash(digest).update(file).digest("hex");
-  const [expected, source] = record
-    ? [record.artifacts?.exe, `releases/${version}.json`]
-    : [{ size: file.length, sha256: hex("sha256"), blake2b512: hex("blake2b512") }, `public/downloads/${ASSET_NAME.exe(version)}`];
+  const entry = record ? undefined : sources.archived(version);
+  if (!record && !entry) return [`neither releases/${version}.json nor the Windows archive states the bytes of ${ASSET_NAME.exe(version)}`];
+  const [expected, source] = record ? [record.artifacts?.exe, `releases/${version}.json`] : [entry, `the Windows archive entry of ${ASSET_NAME.exe(version)}`];
   return [...assetBytesProblems(bytes, expected, source), ...installerSignatureProblems(bytes, signature, version, key)];
+}
+
+/**
+ * An installer made for the self tests that need an installer's bytes, which
+ * this repository no longer holds: `bytes`, starting "MZ" as a Windows
+ * executable does; `digests`, their size, SHA-256 and BLAKE2b-512 as a record
+ * or an archive entry states them; `signature`, an updater signature of them
+ * as the 1.9.0 installer, Koegaki_1.9.0_x64-setup.exe, made with a key made for
+ * these tests, whose public key is `pubkey` and whose `sign(digest, file)`
+ * signs any other digest the same way.
+ */
+const TEST_INSTALLER = (() => {
+  const bytes = Buffer.concat([Buffer.from("MZ"), createHash("sha512").update("an installer made for the self tests").digest()]);
+  const key = minisignKey();
+  const hex = (digest) => createHash(digest).update(bytes).digest("hex");
+  return {
+    bytes,
+    digests: { size: bytes.length, sha256: hex("sha256"), blake2b512: hex("blake2b512") },
+    signature: key.sign(createHash("blake2b512").update(bytes).digest(), "Koegaki_1.9.0_x64-setup.exe"),
+    pubkey: key.pubkey,
+    sign: key.sign,
+  };
+})();
+
+/** releases/1.9.0.json with its installer restated as TEST_INSTALLER: its size, digests and signature. */
+function testInstallerRecord() {
+  const record = structuredClone(releaseRecord("1.9.0"));
+  assert.ok(record, "releases/1.9.0.json, the record these cases start from, is missing");
+  Object.assign(record.artifacts.exe, TEST_INSTALLER.digests, { signature: TEST_INSTALLER.signature });
+  return record;
 }
 
 /** Each of `signatures` that does not verify over the disk image `bytes` with Sparkle's key `key` (as MAC_SPARKLE_PUBKEY), as a problem. */
@@ -3415,20 +3570,22 @@ test("the served disk image check refuses another length, no signature, one that
 });
 
 test("the served installer check refuses bytes that are not the release's, on any host, and a signature that does not verify over them", () => {
-  // The 1.9.0 installer public/downloads holds stands in for a downloaded one,
-  // with its real updater signature, both as releases/1.9.0.json records it
-  // and as a release with no record, which public/downloads alone describes.
-  const record = releaseRecord("1.9.0");
-  const exe = RELEASE_SOURCES.installer("1.9.0");
-  assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
-  const unrecorded = { installer: RELEASE_SOURCES.installer, record: () => undefined };
-  const otherSignature = releaseRecords().find(({ version, record }) => version && version !== "1.9.0" && record?.artifacts?.exe)?.record.artifacts.exe.signature;
-  assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
+  // No installer is in this repository, so TEST_INSTALLER stands in for a
+  // downloaded one, with its own updater signature, both as a record of 1.9.0
+  // states it and as a release with no record, which its Windows archive entry
+  // alone describes.
+  const record = testInstallerRecord();
+  const exe = TEST_INSTALLER.bytes;
+  const entry = { name: ASSET_NAME.exe("1.9.0"), ...TEST_INSTALLER.digests };
+  const recorded = { archived: () => undefined, record: (version) => (version === "1.9.0" ? record : undefined) };
+  const unrecorded = { archived: (version) => (version === "1.9.0" ? entry : undefined), record: () => undefined };
+  // A signature of another installer by the same key.
+  const otherSignature = TEST_INSTALLER.sign(createHash("blake2b512").update("another installer").digest(), "Koegaki_1.9.0_x64-setup.exe");
   const flipped = Buffer.from(exe);
   flipped[Math.floor(exe.length / 2)] ^= 0x01;
   const check = (change) => {
-    const { bytes = exe, version = "1.9.0", signature = record.artifacts.exe.signature, sources = RELEASE_SOURCES } = change;
-    return servedInstallerProblems(bytes, version, signature, sources, WINDOWS_UPDATER_PUBKEY);
+    const { bytes = exe, version = "1.9.0", signature = TEST_INSTALLER.signature, sources = recorded, key = TEST_INSTALLER.pubkey } = change;
+    return servedInstallerProblems(bytes, version, signature, sources, key);
   };
   const refused = [
     ["an installer one byte off, by its SHA-256", { bytes: flipped }, /^sha256 .* is not .*, the digest releases\/1\.9\.0\.json states$/],
@@ -3438,26 +3595,31 @@ test("the served installer check refuses bytes that are not the release's, on an
     [
       "an unrecorded release's installer one byte off, by its SHA-256",
       { bytes: flipped, sources: unrecorded },
-      /^sha256 .* is not .*, the digest public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/,
+      /^sha256 .* is not .*, the digest the Windows archive entry of Koegaki-1\.9\.0-setup\.exe states$/,
     ],
     [
       "an unrecorded release's installer one byte off, by its BLAKE2b-512",
       { bytes: flipped, sources: unrecorded },
-      /^blake2b512 .* is not .*, the digest public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/,
+      /^blake2b512 .* is not .*, the digest the Windows archive entry of Koegaki-1\.9\.0-setup\.exe states$/,
     ],
     ["an unrecorded release's installer one byte off, by its updater signature", { bytes: flipped, sources: unrecorded }, /^the installer signature does not verify$/],
-    ["an unrecorded release's installer one byte short", { bytes: exe.subarray(0, -1), sources: unrecorded }, /^\d+ bytes, not the \d+ public\/downloads\/Koegaki-1\.9\.0-setup\.exe states$/],
-    ["an updater signature of another release", { signature: otherSignature }, /^the installer signature does not verify$/],
+    [
+      "an unrecorded release's installer one byte short",
+      { bytes: exe.subarray(0, -1), sources: unrecorded },
+      /^\d+ bytes, not the \d+ the Windows archive entry of Koegaki-1\.9\.0-setup\.exe states$/,
+    ],
+    ["an updater signature of another installer", { signature: otherSignature }, /^the installer signature does not verify$/],
+    ["a signature by a key the Windows build does not trust", { key: WINDOWS_UPDATER_PUBKEY }, /^the key ids differ$/],
     [
       "another version than the file its updater signature names",
-      { version: "1.9.9", sources: { installer: () => exe, record: () => undefined } },
+      { version: "1.9.9", sources: { archived: () => entry, record: () => undefined } },
       /^the trusted comment .* does not name Koegaki_1\.9\.9_x64-setup\.exe$/,
     ],
-    ["a release neither recorded nor in public/downloads", { sources: { installer: () => undefined, record: () => undefined } }, /^neither releases\/1\.9\.0\.json nor public\/downloads/],
+    ["a release neither recorded nor archived", { sources: { archived: () => undefined, record: () => undefined } }, /^neither releases\/1\.9\.0\.json nor the Windows archive/],
   ];
   const accepted = [
     ["the recorded release, as signed", {}],
-    ["a release public/downloads alone describes, as signed", { sources: unrecorded }],
+    ["a release its Windows archive entry alone describes, as signed", { sources: unrecorded }],
   ];
   const missed = refused.filter(([, change, expected]) => !check(change).some((p) => expected.test(p)));
   assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
@@ -3526,7 +3688,7 @@ test(
     for (const url of new Set([target.url, SITE_LINKS.exe])) {
       const problems = servedInstallerProblems(await download(url), manifest.version, target.signature, RELEASE_SOURCES, WINDOWS_UPDATER_PUBKEY);
       assert.deepEqual(problems, [], `the installer at ${url}`);
-      const source = RELEASE_SOURCES.record(manifest.version) ? `releases/${manifest.version}.json records` : "public/downloads holds";
+      const source = RELEASE_SOURCES.record(manifest.version) ? `releases/${manifest.version}.json records` : "the Windows archive entry states";
       t.diagnostic(`${manifest.version}: ${url} is the installer ${source}, and the manifest's updater signature verifies over it`);
     }
     // Every disk image the appcast offers, from whichever host serves it, has
@@ -3542,22 +3704,68 @@ test(
   },
 );
 
+/**
+ * The origin whose /downloads urls the archive test asks: koegaki.com, or the
+ * deployment RELEASE_FETCH_ORIGIN names, such as a preview, to check a change
+ * before it reaches koegaki.com.
+ */
+const RELEASE_FETCH_ORIGIN = process.env.RELEASE_FETCH_ORIGIN || "https://koegaki.com";
+
+test(
+  "each archived installer's old url redirects to its windows-archive asset, which serves the bytes the archive records",
+  {
+    skip: LINUX_FIXTURE
+      ? "the fixture build serves the same redirects, so only the real build's run downloads"
+      : GATE_OFF
+        ? "the gate off build serves the same redirects, so only the real build's run downloads"
+        : process.env.RELEASE_FETCH === "1"
+          ? false
+          : "needs the network: run with RELEASE_FETCH=1, as the top of this file says",
+  },
+  async (t) => {
+    const origin = new URL(RELEASE_FETCH_ORIGIN).origin;
+    t.diagnostic(`asking ${origin}`);
+    const timeout = () => AbortSignal.timeout(10 * 60_000);
+    for (const entry of WINDOWS_ARCHIVE) {
+      const url = `${origin}/downloads/${entry.name}`;
+      // The first answer: the permanent redirect to the asset of the same name.
+      const first = await fetch(url, { redirect: "manual", signal: timeout() });
+      await first.body?.cancel();
+      assert.equal(first.status, ARCHIVE_REDIRECT_STATUS, `${url} answered HTTP ${first.status}`);
+      assert.equal(first.headers.get("location"), archiveAssetUrl(entry.name), `${url} redirects elsewhere`);
+      // What a client that follows it gets: the archived bytes, as the archive
+      // table and the winget manifests state them.
+      const response = await fetch(url, { signal: timeout() });
+      assert.ok(response.ok, `${url}, followed, answered HTTP ${response.status}`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      assert.deepEqual(assetBytesProblems(bytes, entry, `the Windows archive entry of ${entry.name}`), [], url);
+      t.diagnostic(`${url}: ${first.status} to ${first.headers.get("location")}, then ${bytes.length} bytes from ${new URL(response.url).host}, sha256 ${entry.sha256}`);
+    }
+    // Paths under /downloads that name no archived installer are the ordinary 404.
+    for (const path of ["/downloads/Koegaki-1.9.1-setup.exe", "/downloads/Koegaki-1.1.0-setup.exe", "/downloads/Koegaki-1.9.0.dmg", "/downloads"]) {
+      const response = await fetch(`${origin}${path}`, { redirect: "manual", signal: timeout() });
+      await response.body?.cancel();
+      assert.equal(response.status, 404, `${origin}${path} answered HTTP ${response.status}`);
+    }
+  },
+);
+
 test("the download check refuses bytes that differ from the record and signatures that do not verify over them", () => {
-  // The 1.9.0 installer public/downloads holds stands in for a downloaded one,
-  // with its real record and updater signature. No disk image is here, so one
-  // is made up, recorded, and signed with a key made for this test.
-  const record = structuredClone(releaseRecord("1.9.0"));
-  const exe = RELEASE_SOURCES.installer("1.9.0");
-  assert.ok(record && exe, "releases/1.9.0.json or the 1.9.0 installer these cases start from is missing");
+  // No installer is in this repository, so TEST_INSTALLER stands in for a
+  // downloaded one, recorded in the 1.9.0 record with its own updater
+  // signature. No disk image is here either, so one is made up, recorded, and
+  // signed with a key made for this test.
+  const record = testInstallerRecord();
+  const exe = TEST_INSTALLER.bytes;
   const hex = (digest, bytes) => createHash(digest).update(bytes).digest("hex");
   const dmg = createHash("sha512").update("a disk image made for this test").digest();
   Object.assign(record.artifacts.dmg, { size: dmg.length, sha256: hex("sha256", dmg), blake2b512: hex("blake2b512", dmg) });
   const rawKey = (key) => key.export({ format: "der", type: "spki" }).subarray(ED25519_SPKI_PREFIX.length).toString("base64");
   const sparkle = generateKeyPairSync("ed25519");
-  const keys = { updater: WINDOWS_UPDATER_PUBKEY, sparkle: rawKey(sparkle.publicKey) };
+  const keys = { updater: TEST_INSTALLER.pubkey, sparkle: rawKey(sparkle.publicKey) };
   const edSignature = sign(null, dmg, sparkle.privateKey).toString("base64");
-  const otherSignature = releaseRecords().find(({ version, record }) => version && version !== "1.9.0" && record?.artifacts?.exe)?.record.artifacts.exe.signature;
-  assert.ok(otherSignature, "no record of a release other than 1.9.0 to take another signature from");
+  // A signature of another installer by the same key.
+  const otherSignature = TEST_INSTALLER.sign(createHash("blake2b512").update("another installer").digest(), "Koegaki_1.9.0_x64-setup.exe");
   const flipped = (bytes, at) => {
     const copy = Buffer.from(bytes);
     copy[at] ^= 0x01;
@@ -3595,7 +3803,8 @@ test("the download check refuses bytes that differ from the record and signature
     ["a record whose disk image size is one byte off", { edit: (r) => (r.artifacts.dmg.size -= 1) }, /dmg: \d+ bytes, not the \d+ the record states/],
     ["a record whose disk image SHA-256 is wrong", { edit: (r) => (r.artifacts.dmg.sha256 = flippedHex(r.artifacts.dmg.sha256)) }, /dmg: sha256 .* is not/],
     ["a record whose disk image BLAKE2b-512 is wrong", { edit: (r) => (r.artifacts.dmg.blake2b512 = flippedHex(r.artifacts.dmg.blake2b512)) }, /dmg: blake2b512 .* is not/],
-    ["an updater signature of another release", { edit: (r) => (r.artifacts.exe.signature = otherSignature) }, /exe: the installer signature does not verify/],
+    ["an updater signature of another installer", { edit: (r) => (r.artifacts.exe.signature = otherSignature) }, /exe: the installer signature does not verify/],
+    ["an installer signed by a key the Windows build does not trust", { key: { ...keys, updater: WINDOWS_UPDATER_PUBKEY } }, /exe: the key ids differ/],
     ["a record of another version than the file its updater signature names", { edit: (r) => (r.version = "1.9.9") }, /exe: the trusted comment .* does not name Koegaki_1\.9\.9_x64-setup\.exe/],
     ["a disk image one byte off", { assets: { dmg: flipped(dmg, 0), exe } }, /dmg: the Sparkle signature .* does not verify/],
     ["a Sparkle signature by another key", { key: { ...keys, sparkle: rawKey(generateKeyPairSync("ed25519").publicKey) } }, /dmg: the Sparkle signature .* does not verify/],
