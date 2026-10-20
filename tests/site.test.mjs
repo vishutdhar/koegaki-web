@@ -2991,10 +2991,11 @@ function redirectsFor(pathname) {
 
 test("the build redirects each archived installer's old url to its windows-archive asset with a 301, and nothing else under /downloads", () => {
   const { redirects } = builtRedirects();
-  // Every redirect the build serves is one of these, so no pattern can send
-  // a name that is not archived to some other file.
+  // Every redirect the build serves is one of these, whole, so no pattern can
+  // send a name that is not archived to some other file, and no condition
+  // (has, missing, basePath, locale) can keep an ordinary request from one.
   assert.deepEqual(
-    redirects.map(({ source, destination, statusCode }) => ({ source, destination, statusCode })),
+    redirects.map(({ regex, ...redirect }) => redirect),
     FROZEN_DOWNLOADS.map((name) => ({ source: `/downloads/${name}`, destination: `${GITHUB_DOWNLOAD}/windows-archive/${name}`, statusCode: 301 })),
   );
   assert.equal(ARCHIVE_REDIRECT_STATUS, 301);

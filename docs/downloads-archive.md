@@ -66,6 +66,22 @@ built on that stack. WinINet follows 308 only from Windows 10 (browser
 compatibility data for Internet Explorer 11: "Does not work below Windows 10").
 A 301 is followed by all of them.
 
+## Edge cases, measured on a preview deployment
+
+- A redirect passes the query string on, and a trailing slash first gets
+  Next's own 308 to the path without it, then the 301.
+- Next and Vercel match redirects whatever the case of the path, so
+  `/downloads/koegaki-1.2.1-setup.exe` also answers 301 to the canonical asset
+  (the site tests pin this). It used to be a 404, since static files are
+  looked up case sensitively. It can only ever reach the asset of the same
+  name, never another file.
+- A percent-encoded spelling of a name, such as `Koegaki-%31.2.1-setup.exe`,
+  used to reach the file, because the static file lookup decodes the path, and
+  is now a 404, because redirects match the path as sent. No client encodes
+  letters, digits, dots or hyphens (RFC 3986 section 6.2.2.2 has them
+  decoded), and every link and manifest names the plain url.
+- Any other path under `/downloads` is a 404, as before.
+
 ## How to check it
 
 - Offline, `npm test`: the routes manifest of the build holds exactly the
