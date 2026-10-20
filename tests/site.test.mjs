@@ -979,40 +979,86 @@ test("every list of what goes online names the cleanup model download that follo
  * starts by itself once it is on power (PowerSource.swift lowChargeLine 0.20,
  * wired into both AutomaticDownloads in KoegakiMacApp.swift). A transfer under
  * way is not stopped, so the sentence says the download does not start, not
- * that it waits. Windows and Linux have no battery rule, so only the Mac page
- * says it, right after each sentence that says the Mac's downloads wait on a
- * costly connection: after the wait itself where it describes the speech model
- * an update brings, and after the cleanup wait where it lists both.
+ * that it waits. Windows and Linux have no battery rule, so the Mac page says
+ * it in its own words, and the offline and privacy pages, which cover every
+ * platform, say it of a Mac by name. Each says it right after each sentence that
+ * says the downloads wait on a costly connection: after the wait itself where it
+ * describes the speech model an update brings, after the cleanup wait where it
+ * lists both, and on the privacy page after the costly connections it names.
+ * The home page's network answer does not say it yet.
  */
 const MAC_BATTERY = "It also does not start while your Mac is on battery below 20 percent, and goes ahead once the Mac is plugged in.";
 const MAC_BATTERY_BOTH =
   "Neither download starts while your Mac is on battery below 20 percent, and each goes ahead once the Mac is plugged in.";
+const ON_A_MAC_BATTERY =
+  "On a Mac it also does not start while the Mac is on battery below 20 percent, and goes ahead once the Mac is plugged in.";
+const ON_A_MAC_BATTERY_BOTH =
+  "On a Mac, neither download starts while the Mac is on battery below 20 percent, and each goes ahead once the Mac is plugged in.";
+/** Each battery sentence and the pages it was reviewed for. */
+const REVIEWED_BATTERY = new Map([
+  [MAC_BATTERY, ["/mac"]],
+  [MAC_BATTERY_BOTH, ["/mac"]],
+  [ON_A_MAC_BATTERY, ["/offline-dictation"]],
+  [ON_A_MAC_BATTERY_BOTH, ["/offline-dictation", "/privacy"]],
+]);
+/**
+ * What must follow a wait sentence on each page that says the battery hold:
+ * the battery sentence for the one download, or the cleanup wait and then the
+ * battery sentence for both.
+ */
+const BATTERY_AFTER_WAIT = {
+  "/mac": { waits: [MAC_WAIT], one: MAC_BATTERY, both: MAC_BATTERY_BOTH },
+  "/offline-dictation": { waits: [BOTH_WAIT, THREE_WAIT], one: ON_A_MAC_BATTERY, both: ON_A_MAC_BATTERY_BOTH },
+};
 
-test("the Mac page says its automatic downloads do not start on a low battery wherever it says they wait, and no other page names the battery", () => {
+test("the Mac, offline and privacy pages say the Mac's automatic downloads do not start on a low battery wherever they say they wait, and no other page names the battery", () => {
   const said = [];
+  const pagesOf = new Map([...REVIEWED_BATTERY.keys()].map((sentence) => [sentence, new Set()]));
   for (const path of ROUTES) {
     for (const { part, texts } of runsOf(html(path))) {
       const sentences = texts.flatMap(sentencesOf);
       sentences.forEach((sentence, at) => {
         if (/\bbattery\b/i.test(sentence)) {
           assert.ok(
-            path === "/mac" && [MAC_BATTERY, MAC_BATTERY_BOTH].includes(sentence),
+            REVIEWED_BATTERY.get(sentence)?.includes(path),
             `${path} ${part} says something unreviewed about the battery: "${sentence}"`,
           );
+          pagesOf.get(sentence).add(path);
         }
-        if (sentence !== MAC_WAIT) return;
+        if (path === "/privacy") {
+          if (sentence !== PRIVACY_WAIT) return;
+          said.push(`${path} ${part}`);
+          assert.ok(
+            /^Costly connections include\b/.test(sentences[at + 1] ?? "") && sentences[at + 2] === ON_A_MAC_BATTERY_BOTH,
+            `${path} ${part} says the two downloads wait on a costly connection without, after the connections it names, the Mac's low battery hold`,
+          );
+          return;
+        }
+        const rule = BATTERY_AFTER_WAIT[path];
+        if (!rule?.waits.includes(sentence)) return;
         said.push(`${path} ${part}`);
         const next = sentences[at + 1];
         assert.ok(
-          next === MAC_BATTERY || (next === CLEANUP_WAIT && sentences[at + 2] === MAC_BATTERY_BOTH),
-          `${path} ${part} says the Mac's downloads wait on a costly connection without the low battery hold`,
+          next === rule.one || (next === CLEANUP_WAIT && sentences[at + 2] === rule.both),
+          `${path} ${part} says the downloads wait on a costly connection without the Mac's low battery hold`,
         );
       });
     }
   }
-  // The speech model prose and the network answer in the body, and the
-  // network answer in the JSON-LD.
-  assert.deepEqual(said.sort(), ["/mac body", "/mac body", "/mac standalone"]);
+  // The Mac page's speech model prose and network answer in the body, and its
+  // network answer in the JSON-LD; the offline page's speech model prose and
+  // network answer; the privacy page's network section.
+  assert.deepEqual(said.sort(), [
+    "/mac body",
+    "/mac body",
+    "/mac standalone",
+    "/offline-dictation body",
+    "/offline-dictation body",
+    "/privacy body",
+  ]);
+  for (const [sentence, where] of REVIEWED_BATTERY) {
+    assert.deepEqual([...pagesOf.get(sentence)].sort(), [...where].sort(), `pages that say "${sentence}"`);
+  }
 });
 
 /**
@@ -2359,6 +2405,7 @@ const MAC_BUILDS = new Map([
   ["1.13.2", 35],
   ["1.13.3", 36],
   ["1.13.4", 37],
+  ["1.13.5", 38],
 ]);
 
 /** Below zero, zero or above zero as version a is below, equal to or above b, part by part, a missing part counting as 0. */

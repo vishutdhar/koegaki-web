@@ -73,6 +73,8 @@ export default function PrivacyPage() {
                     connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
                     in Windows a cellular link and any network you marked as metered, which you can
                     do for a phone hotspot, and on Linux any connection NetworkManager treats as metered.
+                    On a Mac, neither download starts while the Mac is on battery below 20 percent,
+                    and each goes ahead once the Mac is plugged in.
                     A download you start yourself, and the first download after
                     you install, go ahead on any connection. The license and update checks carry only
                     license and version metadata; the update download is the app itself. None of this
@@ -101,7 +103,9 @@ export default function PrivacyPage() {
                     ordinary connection. Costly
                     connections include an iPhone&apos;s Personal Hotspot and Low Data Mode on a Mac,
                     and in Windows a cellular link and any network you marked as metered, which you can
-                    do for a phone hotspot. A download you start yourself, and the first download after
+                    do for a phone hotspot. On a Mac, neither download starts while the Mac is on
+                    battery below 20 percent, and each goes ahead once the Mac is plugged in. A download
+                    you start yourself, and the first download after
                     you install, go ahead on any connection. The license and update checks carry only
                     license and version metadata; the update download is the app itself. None of this
                     ever includes audio or transcripts.
