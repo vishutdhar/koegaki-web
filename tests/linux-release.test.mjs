@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LINUX_RELEASE_ENV, linuxRelease, linuxReleaseEnv, releasesDir } from "../scripts/linux-release.mjs";
+import { archiveRedirects } from "../scripts/windows-archive.mjs";
 import { gateOffRecords, writeGateOffReleases } from "./gate-off-releases.mjs";
 
 const GITHUB_DOWNLOAD = "https://github.com/vishutdhar/koegaki-releases/releases/download";
@@ -124,7 +125,9 @@ test("next.config.ts inlines exactly the Linux release releases/ holds, and adds
   const { default: config } = await import("../next.config.ts");
   const release = linuxRelease(join(REPO, "releases"));
   assert.equal(config.env?.[LINUX_RELEASE_ENV], linuxReleaseEnv(release));
-  assert.deepEqual(Object.keys(config).sort(), release ? ["env", "pageExtensions", "turbopack"] : ["env", "turbopack"]);
+  // The redirects of the Windows archive are there with or without a Linux release.
+  assert.deepEqual(Object.keys(config).sort(), release ? ["env", "pageExtensions", "redirects", "turbopack"] : ["env", "redirects", "turbopack"]);
+  assert.deepEqual(await config.redirects(), archiveRedirects());
 });
 
 test("built from releases/ with every deb taken out, the config is today's apart from the empty value", async (t) => {
@@ -139,7 +142,8 @@ test("built from releases/ with every deb taken out, the config is today's apart
     // The query gives another copy of the module, evaluated with those records.
     const { default: config } = await import("../next.config.ts?gate-off");
     assert.equal(config.env[LINUX_RELEASE_ENV], "");
-    assert.deepEqual(Object.keys(config).sort(), ["env", "turbopack"]);
+    assert.deepEqual(Object.keys(config).sort(), ["env", "redirects", "turbopack"]);
+    assert.deepEqual(await config.redirects(), archiveRedirects());
   } finally {
     if (before === undefined) delete process.env.KOEGAKI_RELEASES_DIR;
     else process.env.KOEGAKI_RELEASES_DIR = before;

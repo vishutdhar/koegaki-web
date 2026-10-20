@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/strip-preview-installers.mjs && next build"
+  "buildCommand": "node scripts/check-release-downloads.mjs && next build"
 }
