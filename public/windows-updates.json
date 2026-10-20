@@ -1,11 +1,11 @@
 {
-  "version": "1.15.0",
-  "notes": "On Windows and Linux, custom words now bias recognition the way the Mac does: the bias keeps a saved name only when the whole word is heard, so it changes far fewer ordinary sentences than before.",
-  "pub_date": "2026-10-17T00:36:41Z",
+  "version": "1.15.2",
+  "notes": "Settings now says what Ctrl V pastes after a dictation: the dictation itself, still the default, or what you had copied before. With Ctrl V set to paste what you copied before, a dictation Koegaki left on the clipboard is still known as its own after Koegaki quits, updates or restarts, so the next dictation no longer puts it back as if you had copied it.",
+  "pub_date": "2026-10-20T02:19:10Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN25PUnVFUlB1WXNQZWZYNlRXMTFIc3VwZzVCcm9BNk1LZVA3KzU4RldWU2IwaitUMXUwWkdLWWpzTDFJYkFySDNHLzllbkVNOFFMVm9xZnhudkFCTVF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTk0MzkxCWZpbGU6S29lZ2FraV8xLjE1LjBfeDY0LXNldHVwLmV4ZQowb0RpeUpPZW4zYlhIYkFLanl5T1QvRXFqVUpPNU00SkdVdmxnOUhyU0ZCSTh0dUNQYjNtdkNBTXdQeHdNb0hLUUFGSTNFMVBSUlNEbjBuQjF5NVpDUT09Cg==",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.0/Koegaki-1.15.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN243RkJKRmV6RElDbS90SXp2bmZyaUZVYnFoVE1DY0JxMCs2SEppTUFIRW5HaGd6SlZZZzFsT1orMEkwK21IRWwzOTdJTEoyT2lvcjZhODJFaHo4dmdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDYyNTY5CWZpbGU6S29lZ2FraV8xLjE1LjJfeDY0LXNldHVwLmV4ZQpLUXF4bVpZKzhoWHZpNWFJclJEZ09HZmtHcWhLTFZ6V0NLZlRHQ09PdUZ3Qmo5ZmdRSmZzYWFKYUVaTk5kcExZdE5Kb3FkUk5tbmlLT0dyL1QvUjRCUT09Cg==",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.2/Koegaki-1.15.2-setup.exe"
     }
   }
 }
