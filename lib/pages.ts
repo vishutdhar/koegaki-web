@@ -342,7 +342,7 @@ export const LANDING_PAGES: LandingPage[] = [
       "macOS 14.0 or later, Windows 10, Windows 11, Debian 12 or later, Ubuntu 22.04 or later",
       "macOS 14.0 or later, Windows 10, Windows 11",
     ),
-    lastModified: lastModified("2026-10-19"),
+    lastModified: lastModified("2026-10-20"),
     name: "Offline dictation",
     title: ifLinux("Offline dictation software for Mac, Windows and Linux", "Offline dictation software for Mac and Windows"),
     description: `Dictation that works with no internet connection. The speech model runs on your ${ifLinux("own computer", "Mac or PC")}, so it keeps working on a plane or behind a firewall. ${price} one-time.`,
@@ -354,7 +354,7 @@ export const LANDING_PAGES: LandingPage[] = [
         heading: "Why most dictation stops working offline",
         paragraphs: [
           "Most dictation tools are a microphone connected to a server. They record you, upload the audio, and wait for a transcript to come back. Lose the connection and they stop. Keep the connection and every word you say passes through someone else's computer.",
-          `Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}.`,
+          `Koegaki does the recognition itself. The speech model is downloaded once, on first launch, and from then on the app never needs the network to turn speech into text. When an app update brings a new speech model, that model downloads once, in the background, while the current one keeps transcribing. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. On a Mac it also does not start while the Mac is on battery below 20 percent, and goes ahead once the Mac is plugged in.`,
         ],
       },
       {
@@ -367,7 +367,7 @@ export const LANDING_PAGES: LandingPage[] = [
       {
         heading: "What still uses the network",
         paragraphs: [
-          `A few things, none of them involving audio or text: the speech model download on first launch and the cleanup model download that follows it (on a Mac, only when the app runs natively on Apple Silicon), activating a licence key and a quiet daily licence check, a check with koegaki.com for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. The cleanup model download waits the same way. The Mac looks for a new app version once a day; ${ifLinux("Windows and Linux look", "Windows looks")} when the app starts. Each model downloads once. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
+          `A few things, none of them involving audio or text: the speech model download on first launch and the cleanup model download that follows it (on a Mac, only when the app runs natively on Apple Silicon), activating a licence key and a quiet daily licence check, a check with koegaki.com for a new app version, a daily check for newer models, the download of an update or a model when you choose one, and the background download of a new speech model when an app update brings one, while the current model keeps working. That background download waits while your computer is on a connection it treats as costly, ${costlyExamples}. The cleanup model download waits the same way. On a Mac, neither download starts while the Mac is on battery below 20 percent, and each goes ahead once the Mac is plugged in. The Mac looks for a new app version once a day; ${ifLinux("Windows and Linux look", "Windows looks")} when the app starts. Each model downloads once. If you are offline when a check would run, nothing happens; a paid licence is never revoked for being offline.`,
         ],
       },
       {
