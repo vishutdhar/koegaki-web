@@ -75,7 +75,7 @@ export const SITE = {
    */
   downloadUrl:
     process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
-    "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.5/Koegaki-1.13.5.dmg",
+    "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.6/Koegaki-1.13.6.dmg",
 
   requirements: "macOS 14+ · Apple Silicon recommended",
   /** The Macs the shipped build supports; the secondary pages state this. The binary itself is universal (arm64 and x86_64, read from the 1.13.3 DMG), so this names a support line, not the architectures the export holds. */
