@@ -3,18 +3,18 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
-            <title>1.13.5</title>
-            <pubDate>Tue, 20 Oct 2026 19:36:45 -0400</pubDate>
-            <sparkle:version>38</sparkle:version>
-            <sparkle:shortVersionString>1.13.5</sparkle:shortVersionString>
+            <title>1.13.7</title>
+            <pubDate>Thu, 22 Oct 2026 21:44:26 -0400</pubDate>
+            <sparkle:version>40</sparkle:version>
+            <sparkle:shortVersionString>1.13.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Koegaki 1.13.5</h2>
+            <description><![CDATA[<h2>Koegaki 1.13.7</h2>
 <ul>
     <li>This release is for the Mac. Windows stays on 1.15.2 and Linux on 1.15.1.</li>
-    <li>On the Mac, a dictation now lands even while Koegaki is busy: the app you paste into no longer waits on Koegaki, and the text arrives confirmed.</li>
+    <li>On the Mac, Koegaki no longer quits by itself after a dictation, after Check for Updates, or when you close its window.</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.5/Koegaki-1.13.5.dmg" length="31993268" type="application/octet-stream" sparkle:edSignature="9KBmTvR+AqYTEbOpASAZ8LacYOUHsY8zLDv/YRLbbhY4yLVvWQNI5VQkq7OF7byvMBSV2alqOVPnRAyIf7OqDg=="/>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.7/Koegaki-1.13.7.dmg" length="32280147" type="application/octet-stream" sparkle:edSignature="q2nTgUL1bNl03y2FxM2nU6Go8uYICBbFXfqVeAkkDymKbMTpBqyva8DO4Sjcu6vIZ9Dg6LK2RXfYDWOPA8y5Dw=="/>
         </item>
     </channel>
 </rss>
