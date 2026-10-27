@@ -3,6 +3,22 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
+            <title>1.13.8</title>
+            <pubDate>Sat, 24 Oct 2026 23:01:05 -0400</pubDate>
+            <sparkle:version>41</sparkle:version>
+            <sparkle:shortVersionString>1.13.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>Koegaki 1.13.8</h2>
+<ul>
+    <li>This release is for the Mac. Windows stays on 1.15.2 and Linux on 1.15.1.</li>
+    <li>On the Mac, updates now install by themselves even when Koegaki runs into trouble. An update that is waiting installs as soon as Koegaki opens, and if Koegaki ever quits on its own twice within an hour, it repairs itself by installing the newest version and tells you so.</li>
+    <li>On the Mac, Check for Updates is safe to choose at any time: it waits until its menu has closed and can no longer close Koegaki.</li>
+    <li>On the Mac, a dictation now pastes reliably even when your Mac is under heavy load.</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.8/Koegaki-1.13.8.dmg" length="32509187" type="application/octet-stream" sparkle:edSignature="At96CJUhUQQZevSLYjN45sFSkBd13UxGpxjpEyA4p6bqE2Uv6lFWMwUzSaZcPSn9X/PKl4S71MeQ+ve+UlrYDg=="/>
+        </item>
+        <item>
             <title>1.13.7</title>
             <pubDate>Thu, 22 Oct 2026 21:44:26 -0400</pubDate>
             <sparkle:version>40</sparkle:version>
