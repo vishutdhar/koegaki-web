@@ -2419,6 +2419,7 @@ const MAC_BUILDS = new Map([
   ["1.13.6", 39],
   ["1.13.7", 40],
   ["1.13.8", 41],
+  ["1.13.9", 42],
 ]);
 
 /** Below zero, zero or above zero as version a is below, equal to or above b, part by part, a missing part counting as 0. */
@@ -3357,8 +3358,10 @@ test("the live release checks refuse an appcast with no release, a link the feed
   const manifest = publicJson("windows-updates.json");
   const xml = readFileSync(new URL("../public/appcast.xml", import.meta.url), "utf8");
   const { version } = manifest;
-  const [item] = appcastItems(xml).items;
-  assert.ok(item?.version, "the live appcast offers no release these cases can start from");
+  // The item the Mac download link serves: the first one, unless a canary release sits above it (the link never
+  // names a canary release, so it stays on the item below until that release is promoted).
+  const item = appcastItems(xml).items.find(({ enclosures }) => enclosures.some(({ url }) => url === SITE.downloadUrl));
+  assert.ok(item?.version, "the live appcast offers no release at the Mac download link these cases can start from");
   const seed = releaseRecord("1.9.0");
   assert.ok(seed && RELEASE_SOURCES.archived("1.9.0"), "releases/1.9.0.json or its Windows archive entry, which these cases use as an older release, is missing");
   // 1.9.0's appcast as it was served, from the Blob host.
