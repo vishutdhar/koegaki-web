@@ -3,6 +3,23 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
+            <title>1.13.9</title>
+            <pubDate>Tue, 27 Oct 2026 00:22:39 -0400</pubDate>
+            <sparkle:channel>canary</sparkle:channel>
+            <sparkle:version>42</sparkle:version>
+            <sparkle:shortVersionString>1.13.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>Koegaki 1.13.9</h2>
+<ul>
+    <li>This release is for the Mac. Windows stays on 1.15.2 and Linux on 1.15.1.</li>
+    <li>On the Mac, the first download of the speech model keeps trying through an outage, picks up where it stopped, and has a second source to fall back on.</li>
+    <li>On the Mac, Koegaki never asks you to relaunch it. When it needs a fresh start, it restarts itself with one button.</li>
+    <li>On the Mac, updates can arrive early on Macs that opt into early releases.</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.9/Koegaki-1.13.9.dmg" length="32713087" type="application/octet-stream" sparkle:edSignature="QgQIed/hsm5uW2s4K199a/C7RPJ+QEiAPUssAMyek2Td+bphy/fuRZ9IIclodPT7JWjRFkny+bSKDiug74E6Cg=="/>
+        </item>
+        <item>
             <title>1.13.8</title>
             <pubDate>Sat, 24 Oct 2026 23:01:05 -0400</pubDate>
             <sparkle:version>41</sparkle:version>
