@@ -42,3 +42,16 @@ conventions from older versions (see `AGENTS.md`).
   push-protected.
 - The Mac app itself lives in the private `Koegaki` repo; its release procedure is
   `docs/RELEASE-1.0-runbook.md` there.
+
+## Mac releases: canary first
+
+Every Mac release is first offered only in the Sparkle channel `canary`, which only Macs that opted in
+take (spec `docs/superpowers/specs/2026-10-25-mac-forward-rollback-and-canary.md` in the Koegaki repo).
+Its pull request here carries the appcast item with `<sparkle:channel>canary</sparkle:channel>`, the
+record `releases/<version>.json` with `"channel": "canary"`, and the `MAC_BUILDS` line, and leaves the
+Mac download link in `lib/site.ts` where it is. After about a day on the owner's Macs, the Koegaki
+repo's `Tools/promote-release.sh <version>` opens the pull request that gives it to everyone: the
+channel line leaves the item and the record, and the Mac link moves to it. The tests refuse an item and
+a record that disagree, a channel Sparkle cannot read, and a Mac link that names a canary release.
+A rollback is a forward release (a new, higher version of earlier code) and usually goes to everyone at
+once.

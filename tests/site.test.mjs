@@ -1452,11 +1452,17 @@ function releaseRecordProblems(record, version) {
   if (!isPlainObject(record)) return ["the record is not an object"];
   const problems = [];
   const sameKeys = (object, expected) => Object.keys(object).sort().join() === [...expected].sort().join();
-  if (!sameKeys(Object.fromEntries(Object.entries(record).filter(([key]) => key !== "note")), ["version", "artifacts"])) {
-    problems.push(`the record holds ${JSON.stringify(Object.keys(record))}, not version, artifacts and an optional note`);
+  if (!sameKeys(Object.fromEntries(Object.entries(record).filter(([key]) => key !== "note" && key !== "channel")), ["version", "artifacts"])) {
+    problems.push(`the record holds ${JSON.stringify(Object.keys(record))}, not version, artifacts, an optional channel and an optional note`);
   }
   if (record.version !== version) problems.push(`the record names version ${JSON.stringify(record.version)}, not ${version}`);
   if ("note" in record && typeof record.note !== "string") problems.push("the note is not a string");
+  // The channel of the release's Mac appcast item (canaryRecordOf): exactly "canary" while only the Macs that
+  // opted in take it, and no key at all once every Mac does. Windows and Linux have no channels.
+  if ("channel" in record) {
+    if (record.channel !== "canary") problems.push(`the channel ${JSON.stringify(record.channel)} is not "canary", the one channel a record names (a release every Mac takes names none)`);
+    if (!isPlainObject(record.artifacts?.dmg)) problems.push("the record names a channel but holds no disk image: the channel is the Mac appcast item's");
+  }
   if (!isPlainObject(record.artifacts)) return [...problems, "artifacts is not an object"];
   const kinds = Object.keys(record.artifacts);
   if (kinds.length === 0 || !kinds.every((kind) => Object.hasOwn(RECORD_FIELDS, kind))) {
@@ -2507,10 +2513,18 @@ function appcastItems(xml) {
       const [only] = versions.length === 1 ? versions : [];
       const builds = sparkleChildren(item, "sparkle:version");
       const [build] = builds.length === 1 ? builds : [];
+      // The canary channel: the children Sparkle files under sparkle:channel, and any other child named channel,
+      // which Sparkle never reads, so the item would be every Mac's while it reads as canary.
+      const channels = sparkleChildren(item, "sparkle:channel");
+      const [channel] = channels.length === 1 ? channels : [];
       return {
         version: only ? only.text : null,
         versions: versions.length,
         markup: Boolean(only?.children.length || only?.comments),
+        channel: channel ? channel.text : null,
+        channels: channels.length,
+        channelMarkup: Boolean(channel?.children.length || channel?.comments),
+        foreignChannels: item.children.filter((child) => child.local === "channel" && sparkleName(child) !== "sparkle:channel").length,
         build: build ? build.text : null,
         builds: builds.length,
         buildMarkup: Boolean(build?.children.length || build?.comments),
@@ -2527,8 +2541,9 @@ function appcastItems(xml) {
   return { items, stray: descendants(root).filter((element) => element.local === "enclosure").length - read };
 }
 
-/** Every enclosure of these items, each with its item's short version. */
-const enclosuresOf = (items) => items.flatMap(({ version, enclosures }) => enclosures.map((enclosure) => ({ ...enclosure, version })));
+/** Every enclosure of these items, each with its item's short version and how many channels the item is in. */
+const enclosuresOf = (items) =>
+  items.flatMap(({ version, channels, enclosures }) => enclosures.map((enclosure) => ({ ...enclosure, version, channels })));
 
 /**
  * What is wrong with an item's build number, the sparkle:version Sparkle
@@ -2591,9 +2606,17 @@ function appcastProblems(xml, sources, builds = MAC_BUILDS) {
   if (stray !== 0) problems.push(`${stray} enclosure${stray === 1 ? "" : "s"} outside the items the check reads`);
   // Every item's version is checked, an item without a disk image included,
   // since Sparkle shows that version too.
-  for (const { version, versions, markup, build, builds: buildCount, buildMarkup, enclosures } of items) {
+  for (const { version, versions, markup, channel, channels, channelMarkup, foreignChannels, build, builds: buildCount, buildMarkup, enclosures } of items) {
     const at = `item ${version}`;
     if (version === null) problems.push(`an item holds ${versions} short versions, not one`);
+    // Sparkle puts an item whose channel it cannot use (empty, or not a plain name) on the default channel,
+    // every Mac's, and reads the first of two; so a channel is one child, plain text, exactly canary.
+    if (foreignChannels) problems.push(`${at}: it holds an element named channel that Sparkle does not read as sparkle:channel, so the item would be every Mac's`);
+    if (channels > 1) problems.push(`${at}: it holds ${channels} channels (sparkle:channel), not one`);
+    else if (channels === 1 && channelMarkup) problems.push(`${at}: its channel holds markup, not only text`);
+    else if (channels === 1 && channel !== "canary") {
+      problems.push(`${at}: its channel ${JSON.stringify(channel)} is not exactly canary; Sparkle offers an item whose channel it cannot use to every Mac`);
+    }
     else if (markup) problems.push(`${at}: its short version holds markup, not only text`);
     else if (!/^\d+\.\d+\.\d+$/.test(version)) problems.push(`${at}: the short version ${JSON.stringify(version)} is not a plain version`);
     if (build === null) problems.push(`${at}: it holds ${buildCount} build numbers (sparkle:version), not one`);
@@ -2601,7 +2624,7 @@ function appcastProblems(xml, sources, builds = MAC_BUILDS) {
     else problems.push(...buildNumberProblems(version, build, builds).map((problem) => `${at}: ${problem}`));
     if (enclosures.length === 0) problems.push(`${at}: it offers no disk image, and every item in this feed must`);
   }
-  for (const { version, versioned, built, url, length, signatures } of enclosuresOf(items)) {
+  for (const { version, versioned, built, url, length, signatures, channels } of enclosuresOf(items)) {
     const at = `item ${version}`;
     if (versioned) problems.push(`${at}: the enclosure gives a short version on its enclosure, which Sparkle would show instead of the item's`);
     if (built) problems.push(`${at}: the enclosure gives a build number on its enclosure, which Sparkle reads instead of the item's`);
@@ -2623,6 +2646,7 @@ function appcastProblems(xml, sources, builds = MAC_BUILDS) {
         const legacy = release ? legacyHostProblem(release, sources) : undefined;
         if (legacy) problems.push(`${at}: the enclosure url ${url} is not on github.com, and ${legacy}`);
       }
+      if (channels) problems.push(`${at}: it is in a channel, and a disk image on the Blob host is never in a channel`);
       continue;
     }
     const asset = githubAssetUrl(version, "dmg");
@@ -2637,6 +2661,13 @@ function appcastProblems(xml, sources, builds = MAC_BUILDS) {
     problems.push(...releaseRecordProblems(record, version).map((problem) => `${at}: releases/${version}.json: ${problem}`));
     const dmg = record.artifacts?.dmg;
     if (dmg?.url !== url) problems.push(`${at}: releases/${version}.json records the disk image at ${JSON.stringify(dmg?.url)}, not at the enclosure url`);
+    // The item and its record name the same channel: a promotion (Tools/promote-release.sh) changes both.
+    if (record.channel === "canary" && !channels) {
+      problems.push(`${at}: releases/${version}.json says canary, but the item is not in the canary channel, so Sparkle offers it to every Mac`);
+    }
+    if (record.channel !== "canary" && channels) {
+      problems.push(`${at}: the item is in the canary channel, but releases/${version}.json names none: promote both or neither (Tools/promote-release.sh)`);
+    }
     if (!/^[1-9][0-9]*$/.test(length ?? "") || Number(length) !== dmg?.size) {
       problems.push(`${at}: the enclosure length ${JSON.stringify(length)} is not ${dmg?.size}, the size releases/${version}.json records`);
     }
@@ -2651,20 +2682,110 @@ const SIGNATURE_1_9_0 = "P9sOI9lFDNNgn0KabhORO522YuO5qGTLNvEJbmUuzCArQgyCa+f3phD
  * An appcast of one item, laid out as Tools/make-appcast.sh writes it, with
  * the build number MAC_BUILDS lists for the version and 1.9.0's signature
  * unless `build` or `signature` says otherwise; null leaves either out.
+ * `channel` is markup written after the short version, as generate_appcast
+ * writes <sparkle:channel>canary</sparkle:channel> for a canary release.
  */
-const appcastOf = (version, url, length, { build = MAC_BUILDS.get(version), signature = SIGNATURE_1_9_0 } = {}) => `<?xml version="1.0" standalone="yes"?>
+const appcastOf = (version, url, length, { build = MAC_BUILDS.get(version), signature = SIGNATURE_1_9_0, channel = "" } = {}) => `<?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>KoegakiMac</title>
         <item>
             <title>${version}</title>${build === null ? "" : `
             <sparkle:version>${build}</sparkle:version>`}
-            <sparkle:shortVersionString>${version}</sparkle:shortVersionString>
+            <sparkle:shortVersionString>${version}</sparkle:shortVersionString>${channel ? `
+            ${channel}` : ""}
             <enclosure url="${url}" length="${length}" type="application/octet-stream"${signature === null ? "" : ` sparkle:edSignature="${signature}"`}/>
         </item>
     </channel>
 </rss>
 `;
+
+/**
+ * The canary channel (Koegaki spec docs/superpowers/specs/2026-10-25-mac-forward-rollback-and-canary.md, Part
+ * B): a Mac release is first offered in the Sparkle channel canary, which only the Macs that opted in take, and
+ * its record says "channel": "canary" between its version and its artifacts until Tools/promote-release.sh gives
+ * it to everyone. The record of `record` as a canary release records it.
+ */
+const canaryRecordOf = (record) => ({ version: record.version, channel: "canary", artifacts: structuredClone(record.artifacts) });
+/** The channel element generate_appcast writes for a canary release. */
+const CANARY_CHANNEL = "<sparkle:channel>canary</sparkle:channel>";
+
+test("a record names a channel only as exactly canary, and only when it holds a disk image", () => {
+  const macOnly = MAC_ONLY_RECORD.version;
+  const canary = canaryRecordOf(MAC_ONLY_RECORD);
+  assert.deepEqual(releaseRecordProblems(canary, macOnly), [], "a canary Mac only record");
+  const both = canaryRecordOf(releaseRecord("1.9.0"));
+  assert.deepEqual(releaseRecordProblems(both, "1.9.0"), [], "a canary record of a release for the Mac and Windows");
+  const refused = [
+    ["everyone", (r) => (r.channel = "everyone"), /the channel "everyone" is not "canary"/],
+    ["Canary", (r) => (r.channel = "Canary"), /the channel "Canary" is not "canary"/],
+    ["canary with white space", (r) => (r.channel = " canary"), /the channel " canary" is not "canary"/],
+    ["an empty channel", (r) => (r.channel = ""), /the channel "" is not "canary"/],
+    ["a channel that is true", (r) => (r.channel = true), /the channel true is not "canary"/],
+    ["a channel that is null", (r) => (r.channel = null), /the channel null is not "canary"/],
+    ["a list of channels", (r) => (r.channel = ["canary"]), /is not "canary"/],
+    ["a key of another name", (r) => { r.channels = r.channel; delete r.channel; }, /the record holds .*"channels"/],
+  ];
+  const missed = refused.filter(([, mutate, expected]) => {
+    const copy = structuredClone(canary);
+    mutate(copy);
+    return !releaseRecordProblems(copy, macOnly).some((p) => expected.test(p));
+  });
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const noDmg = structuredClone(both);
+  delete noDmg.artifacts.dmg;
+  assert.ok(releaseRecordProblems(noDmg, "1.9.0").some((p) => /names a channel but holds no disk image/.test(p)), "a canary record with no disk image");
+});
+
+test("the appcast item and its record agree on the canary channel, and a channel Sparkle cannot read is refused", () => {
+  const macOnly = MAC_ONLY_RECORD.version;
+  const build = MAC_BUILDS.get(macOnly) ?? Math.max(...MAC_BUILDS.values()) + 1;
+  const builds = new Map([...MAC_BUILDS, [macOnly, build]]);
+  const { url, size } = MAC_ONLY_RECORD.artifacts.dmg;
+  const canary = canaryRecordOf(MAC_ONLY_RECORD);
+  const feed = (channel) => appcastOf(macOnly, url, size, { build, channel });
+  const check = (xml, record) => appcastProblems(xml, { archived: () => undefined, record: (v) => (v === macOnly ? record : undefined) }, builds);
+  const refused = [
+    // A promotion half done, either way round.
+    ["a canary record whose item is in no channel", feed(""), canary, /releases\/.*\.json says canary, but the item is not in the canary channel/],
+    ["a record for everyone whose item is in the canary channel", feed(CANARY_CHANNEL), MAC_ONLY_RECORD, /the item is in the canary channel, but releases\/.*\.json names none/],
+    // Sparkle puts an item whose channel it cannot use on the default channel, every Mac's.
+    ["an empty channel", feed("<sparkle:channel></sparkle:channel>"), canary, /its channel "" is not exactly canary/],
+    ["canary in another case", feed("<sparkle:channel>Canary</sparkle:channel>"), canary, /its channel "Canary" is not exactly canary/],
+    ["canary and another word", feed("<sparkle:channel>canary beta</sparkle:channel>"), canary, /its channel "canary beta" is not exactly canary/],
+    ["canary with white space", feed("<sparkle:channel> canary </sparkle:channel>"), canary, /its channel " canary " is not exactly canary/],
+    ["another channel", feed("<sparkle:channel>beta</sparkle:channel>"), canary, /its channel "beta" is not exactly canary/],
+    ["two channels", feed(CANARY_CHANNEL + CANARY_CHANNEL), canary, /it holds 2 channels \(sparkle:channel\), not one/],
+    ["a channel holding markup", feed("<sparkle:channel>can<b>ary</b></sparkle:channel>"), canary, /its channel holds markup/],
+    ["a channel holding a comment", feed("<sparkle:channel>canary<!-- x --></sparkle:channel>"), canary, /its channel holds markup/],
+    ["a channel in another namespace", feed('<x:channel xmlns:x="urn:example:other">canary</x:channel>'), canary, /an element named channel that Sparkle does not read/],
+    ["a channel in no namespace", feed("<channel>canary</channel>"), canary, /an element named channel that Sparkle does not read/],
+    ["a channel as an attribute of the enclosure", feed("").replace("<enclosure ", '<enclosure sparkle:channel="canary" '), canary, /says canary, but the item is not in the canary channel/],
+  ];
+  const missed = refused.filter(([, xml, record, expected]) => !check(xml, record).some((p) => expected.test(p)));
+  assert.deepEqual(missed.map(([name]) => name), [], "these passed the check");
+  const accepted = [
+    ["a canary record and its canary item", feed(CANARY_CHANNEL), canary],
+    ["the channel under another prefix bound to Sparkle's namespace", feed(`<s:channel xmlns:s="${SPARKLE_NS}">canary</s:channel>`), canary],
+    ["a record for everyone and its item in no channel", feed(""), MAC_ONLY_RECORD],
+  ];
+  const wronglyRefused = accepted.map(([name, xml, record]) => [name, check(xml, record)]).filter(([, problems]) => problems.length);
+  assert.deepEqual(wronglyRefused, [], "these were refused");
+  // A disk image on the Blob host (through 1.9.0) was never in a channel.
+  const blobFeed = appcastOf("1.9.0", `https://${BLOB_HOST}/Koegaki-1.9.0.dmg`, releaseRecord("1.9.0").artifacts.dmg.size, { channel: CANARY_CHANNEL });
+  assert.ok(appcastProblems(blobFeed, RELEASE_SOURCES).some((p) => /a disk image on the Blob host is never in a channel/.test(p)), "a Blob item in a channel");
+});
+
+test("the Mac download link never names a canary release", () => {
+  const macOnly = MAC_ONLY_RECORD.version;
+  const build = MAC_BUILDS.get(macOnly) ?? Math.max(...MAC_BUILDS.values()) + 1;
+  const builds = new Map([...MAC_BUILDS, [macOnly, build]]);
+  const { url, size } = MAC_ONLY_RECORD.artifacts.dmg;
+  const canary = canaryRecordOf(MAC_ONLY_RECORD);
+  const sources = { archived: () => undefined, record: (v) => (v === macOnly ? canary : undefined) };
+  const problems = liveAppcastProblems(appcastOf(macOnly, url, size, { build, channel: CANARY_CHANNEL }), url, sources, builds);
+  assert.ok(problems.some((p) => /the Mac download link names .* which is in the canary channel/.test(p)), problems.join("\n"));
+});
 
 test("the appcast offers a GitHub hosted disk image only at its release asset url, with the size its record states", () => {
   // The check holds a listed release to its build exactly, so every release the
@@ -3199,6 +3320,9 @@ function liveAppcastProblems(xml, link, sources, builds = MAC_BUILDS) {
   const offered = enclosures.find((enclosure) => enclosure.url === link);
   if (!offered) {
     problems.push(`the Mac download link ${link} is not the url of a disk image the appcast offers`);
+  } else if (offered.channels || sources.record(offered.version)?.channel) {
+    // A canary release is only the Macs' that opted in; the link moves to it when it is promoted.
+    problems.push(`the Mac download link names ${offered.version}, which is in the canary channel: it moves there when the release is promoted (Tools/promote-release.sh)`);
   } else if (hostOf(link) === "github.com") {
     const record = sources.record(offered.version);
     if (!record) problems.push(`the Mac download link is on GitHub but no releases/${offered.version}.json records ${offered.version}`);
