@@ -175,33 +175,25 @@ function mainText(doc) {
   return pageText(m[0]);
 }
 
-test("the support page is the App Store listing's support URL: the support email, each edition's permissions and purchase route, no price and no link to the pricing section or a checkout", () => {
+test("the support page is the App Store listing's support URL: short, what the app does, the support email, the privacy link, no price and no link to the pricing section or a checkout", () => {
   // The Mac App Store listing names https://koegaki.com/support as its support URL
-  // (Koegaki spec 2026-10-22-mac-app-store-edition, section 18), so it must answer
-  // a store customer, and it names no price and links neither the pricing section
-  // nor a checkout (App Review 3.1.1 and 3.1.3: a store customer buys in the app).
-  // Its logo and its Features and FAQ links still reach the home page, which sells
-  // the website download, as the listing's marketing URL (koegaki.com) itself does:
-  // that is the spec's residual 18.3, the owner's call. The page's exact words are
-  // held by the gate off pin; these checks state what they must keep saying.
+  // (Koegaki spec 2026-10-22-mac-app-store-edition, section 18). It stays short: what
+  // Koegaki does, the support address and the privacy page. It names no price and links
+  // neither the pricing section nor a checkout (App Review 3.1.1 and 3.1.3: a store
+  // customer buys in the app). Its logo and its Features and FAQ links still reach the
+  // home page, which sells the website download, as the listing's marketing URL
+  // (koegaki.com) itself does: that is the spec's residual 18.3, the owner's call. The
+  // page's exact words are held by the gate off pin.
   const doc = html("/support");
   const main = doc.match(/<main\b[\s\S]*?<\/main>/)[0];
   const text = mainText(doc);
-  assert.ok(anchors(main).some((a) => a.href === `mailto:${SITE.contactEmail}`), "no mailto link to the support email in the page");
+  const links = anchors(main);
+  assert.ok(links.some((a) => a.href === `mailto:${SITE.contactEmail}`), "no mailto link to the support email in the page");
   assert.ok(text.includes(SITE.contactEmail), "the support email is not written out");
-  // The app's own words: the paste's list by macOS version (PermissionCopy.paneName), the restart button,
-  // and the License section's Restore Purchases (StoreEdition.swift, LicenseCopy).
-  for (const phrase of [
-    "Microphone",
-    "asks for Accessibility to paste",
-    "Pasting is listed in System Settings under Privacy and Security, Device Control and Data Access (Accessibility before macOS 27)",
-    "When your shortcut is Fn or a single modifier key, it also asks for Input Monitoring",
-    "choose Restart Koegaki",
-    "choose License, then Restore Purchases",
-    "Mac App Store",
-  ]) {
-    assert.ok(text.includes(phrase), `the support page does not say: ${phrase}`);
-  }
+  assert.ok(links.some((a) => a.href === "/privacy"), "the support page does not link the privacy page");
+  assert.match(text, /hold your shortcut, speak, and the words appear where you are typing/, "the support page does not say what Koegaki does");
+  const words = text.trim().split(/\s+/).length;
+  assert.ok(words <= 80, `the support page runs ${words} words; it stays short`);
   assert.doesNotMatch(text, /\$\s?\d/, "the support page names a price");
   // No link anywhere on the page (its nav, its body, its footer) leads to a price or a checkout.
   for (const a of anchors(doc)) {
