@@ -1,11 +1,11 @@
 {
-  "version": "1.15.1",
-  "notes": "Koegaki no longer opens System Settings every time it starts on KDE Plasma 6.3: a shortcut you already set in your desktop is used as it is.",
-  "pub_date": "2026-10-19T21:35:28Z",
+  "version": "1.15.3",
+  "notes": "On Windows, updates now install by themselves even when Koegaki runs into trouble. An update that is waiting installs as soon as Koegaki opens, and if Koegaki ever quits on its own twice within an hour, it looks for a newer version at once, installs it when there is one, and tells you so. Check for updates is also in the tray menu. On Linux, if Koegaki ever quits on its own twice within an hour, it looks for a newer version at once and offers it on Home. Check for updates is also in the tray menu. On Linux, Settings now says what Ctrl V pastes after a dictation: the dictation itself, still the default, or what you had copied before. On Windows and Linux, the first download of the speech model keeps trying through an outage, picks up where it stopped, and has a second source to fall back on. On Windows and Linux, Koegaki never asks you to restart it. When it needs a fresh start, it restarts itself or gives you a button that does.",
+  "pub_date": "2026-10-29T20:46:57Z",
   "platforms": {
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2c3akJtb2RyekdNLytlbGRQMzRjWm5odzJhNXFNRkM5RmM0UW1NeWNjNkhKQkVoNXExMERaZnk3Q2NwNEoyWFFudkRFdkJIZFZac09hWEJLQ3hlVndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDQ1Njc3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjFfYW1kNjQuZGViCktRL2Z1Q1cwZGZxNG9OVmd2ZmVGRzV5Ry9hODNFQjgrNFlPQzJoMW52cU5XdGdEQXNNeFRycUlXdEdDMXBDdzdSdWtNVm9wZ25GU01ZdVcwaUVuMURBPT0K",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.1/Koegaki-1.15.1-amd64.deb"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3RoT1BHTmtiSXRMM0dhZUg1Q2lIakE2cDBXR21hUVVUVlU2MEY1OU5JaTUrdHBIMVhnMFZQSnAxbFlSUkFNWkE1d1VvdmZDVWFRWkNBMFBlQlpEZlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMzA0NDc3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjNfYW1kNjQuZGViCmo2R0l3akxEWVozVnp1bDJBUnFLTWlqalU3Ukw3VER3U3JOSmIzbW9FUHZnNWFkTEtXSlBNYjV2VHg0ZGQzN3hvRWkwMWRHbklkb3VQSll3cTFTZER3PT0K",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.3/Koegaki-1.15.3-amd64.deb"
     }
   }
 }
