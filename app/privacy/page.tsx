@@ -115,6 +115,23 @@ export default function PrivacyPage() {
             </section>
 
             <section>
+              <h2 className="font-display text-lg font-medium tracking-tight">
+                The Mac App Store edition
+              </h2>
+              <p className="mt-2.5 text-sm leading-relaxed text-muted">
+                {SITE.name} from the Mac App Store keeps your audio and transcripts on your Mac in the same
+                way. What it sends over the network differs in three ways. You buy and restore it through
+                Apple, as an in-app purchase, so we never see your Apple Account or your payment details.
+                There is no license key, so the app makes no license check. Its updates come from the Mac App
+                Store, so it never checks koegaki.com for new versions and never downloads an app package.
+                What it does send is the request for the speech and cleanup model files from our model mirror,
+                and the daily question to koegaki.com about a newer model, each carrying nothing but the
+                request itself. It sends no audio, text, identifier, usage data or diagnostics, and its App
+                Store privacy label reads Data Not Collected.
+              </p>
+            </section>
+
+            <section>
               <h2 className="font-display text-lg font-medium tracking-tight">This website</h2>
               <p className="mt-2.5 text-sm leading-relaxed text-muted">
                 koegaki.com uses privacy-friendly, cookieless analytics to count visits. It does

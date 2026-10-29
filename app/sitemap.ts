@@ -4,14 +4,15 @@ import { LANDING_PAGES } from "@/lib/pages";
 import { COMPARISONS } from "@/lib/compare";
 
 /**
- * lastmod for the two pages not driven by a data list: the date their content
+ * lastmod for the pages not driven by a data list: the date their content
  * last changed. Bump the date in the same change that edits the page; the
  * landing and comparison pages carry theirs in lib/pages.ts and lib/compare.ts.
  * Once Linux ships, every page's copy changed that day, so each date is at
  * least LINUX_COPY_DATE (lastModified in lib/site.ts).
  */
 const HOME_LAST_MODIFIED = "2026-10-22";
-const PRIVACY_LAST_MODIFIED = "2026-10-20";
+const PRIVACY_LAST_MODIFIED = "2026-10-29";
+const SUPPORT_LAST_MODIFIED = "2026-10-29";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -31,6 +32,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE.url}/privacy`,
       lastModified: lastModified(PRIVACY_LAST_MODIFIED),
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${SITE.url}/support`,
+      lastModified: lastModified(SUPPORT_LAST_MODIFIED),
       changeFrequency: "yearly",
       priority: 0.3,
     },

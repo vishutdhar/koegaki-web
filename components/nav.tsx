@@ -5,8 +5,10 @@ import { DownloadCta } from "./download-cta";
  * `home` is true on the landing page, where the links are in-page anchors and
  * the markup is unchanged. A secondary page passes false so the same links
  * point back at the home page sections instead of at anchors that do not exist.
+ * `pricing` is false on the support page, the Mac App Store listing's support
+ * URL, which links no price or checkout (App Review 3.1.1 and 3.1.3).
  */
-export function Nav({ home = true }: { home?: boolean }) {
+export function Nav({ home = true, pricing = true }: { home?: boolean; pricing?: boolean }) {
   const to = (hash: string) => (home ? hash : `/${hash}`);
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-canvas/80 backdrop-blur-md">
@@ -20,9 +22,11 @@ export function Nav({ home = true }: { home?: boolean }) {
             <a href={to("#features")} className="transition-colors hover:text-ink">
               Features
             </a>
-            <a href={to("#pricing")} className="transition-colors hover:text-ink">
-              Pricing
-            </a>
+            {pricing && (
+              <a href={to("#pricing")} className="transition-colors hover:text-ink">
+                Pricing
+              </a>
+            )}
             <a href={to("#faq")} className="transition-colors hover:text-ink">
               FAQ
             </a>

@@ -90,6 +90,7 @@ const ROUTES = [
   ...LANDING_PAGES.map((p) => p.path),
   ...COMPARISONS.map((c) => `/vs/${c.slug}`),
   "/privacy",
+  "/support",
 ];
 
 function attr(tag, name) {
@@ -165,6 +166,74 @@ test("the privacy page has its own canonical and its own Open Graph title and de
   assert.notEqual(og(privacy, "title"), og(home, "title"));
   assert.notEqual(og(privacy, "description"), og(home, "description"));
   assert.equal(og(privacy, "description"), one(privacy, "name", "description", "content"));
+});
+
+/** The text of a page's main element: what the page itself says, without the nav and the footer every page shares. */
+function mainText(doc) {
+  const m = doc.match(/<main\b[\s\S]*?<\/main>/);
+  assert.ok(m, "page has no main element");
+  return pageText(m[0]);
+}
+
+test("the support page is the App Store listing's support URL: the support email, each edition's permissions and purchase route, no price and no link to the pricing section or a checkout", () => {
+  // The Mac App Store listing names https://koegaki.com/support as its support URL
+  // (Koegaki spec 2026-10-22-mac-app-store-edition, section 18), so it must answer
+  // a store customer, and it names no price and links neither the pricing section
+  // nor a checkout (App Review 3.1.1 and 3.1.3: a store customer buys in the app).
+  // Its logo and its Features and FAQ links still reach the home page, which sells
+  // the website download, as the listing's marketing URL (koegaki.com) itself does:
+  // that is the spec's residual 18.3, the owner's call. The page's exact words are
+  // held by the gate off pin; these checks state what they must keep saying.
+  const doc = html("/support");
+  const main = doc.match(/<main\b[\s\S]*?<\/main>/)[0];
+  const text = mainText(doc);
+  assert.ok(anchors(main).some((a) => a.href === `mailto:${SITE.contactEmail}`), "no mailto link to the support email in the page");
+  assert.ok(text.includes(SITE.contactEmail), "the support email is not written out");
+  // The app's own words: the paste's list by macOS version (PermissionCopy.paneName), the restart button,
+  // and the License section's Restore Purchases (StoreEdition.swift, LicenseCopy).
+  for (const phrase of [
+    "Microphone",
+    "asks for Accessibility to paste",
+    "Pasting is listed in System Settings under Privacy and Security, Device Control and Data Access (Accessibility before macOS 27)",
+    "When your shortcut is Fn or a single modifier key, it also asks for Input Monitoring",
+    "choose Restart Koegaki",
+    "choose License, then Restore Purchases",
+    "Mac App Store",
+  ]) {
+    assert.ok(text.includes(phrase), `the support page does not say: ${phrase}`);
+  }
+  assert.doesNotMatch(text, /\$\s?\d/, "the support page names a price");
+  // No link anywhere on the page (its nav, its body, its footer) leads to a price or a checkout.
+  for (const a of anchors(doc)) {
+    assert.ok(
+      !a.href.includes("#pricing") && !a.href.includes("/buy") && !a.href.includes("lemonsqueezy") && a.href !== SITE.checkoutUrl,
+      `the support page links ${a.href} (${a.text})`,
+    );
+  }
+  assert.doesNotMatch(text, /[\u2013\u2014]/, "the support page uses a dash as punctuation");
+});
+
+test("the privacy page describes the Mac App Store edition: purchases through Apple, no license or update check, Data Not Collected", () => {
+  const doc = html("/privacy");
+  const blocks = textBlocks(doc).body;
+  const at = blocks.findIndex((b) => b.heading && b.text === "The Mac App Store edition");
+  assert.ok(at >= 0, "the privacy page has no section for the Mac App Store edition");
+  const section = blocks.slice(at + 1, blocks.findIndex((b, i) => i > at && b.heading)).map((b) => b.text).join(" ");
+  // What the store edition sends and what it never sends (Koegaki spec 2026-10-22-mac-app-store-edition,
+  // section 18, the privacy label).
+  for (const phrase of [
+    "through Apple",
+    "never see your Apple Account or your payment details",
+    "no license check",
+    "never checks koegaki.com for new versions",
+    "the request for the speech and cleanup model files from our model mirror",
+    "the daily question to koegaki.com about a newer model",
+    "It sends no audio, text, identifier, usage data or diagnostics",
+    "Data Not Collected",
+  ]) {
+    assert.ok(section.includes(phrase), `the App Store section does not say: ${phrase}`);
+  }
+  assert.doesNotMatch(section, /[\u2013\u2014]/, "the App Store section uses a dash as punctuation");
 });
 
 test("every page carries og:site_name, og:locale en_US and the robots directives", () => {
