@@ -185,12 +185,26 @@ test("the support page is the App Store listing's support URL: the support email
   const text = mainText(doc);
   assert.ok(anchors(main).some((a) => a.href === `mailto:${SITE.contactEmail}`), "no mailto link to the support email in the page");
   assert.ok(text.includes(SITE.contactEmail), "the support email is not written out");
-  for (const phrase of ["Microphone", "Accessibility", "Pasting", "Device Control and Data Access", "Input Monitoring", "Restart Koegaki", "Restore Purchases", "Mac App Store"]) {
-    assert.ok(text.includes(phrase), `the support page does not say ${phrase}`);
+  // The app's own words: the paste's list by macOS version (PermissionCopy.paneName), the restart button,
+  // and the License section's Restore Purchases (StoreEdition.swift, LicenseCopy).
+  for (const phrase of [
+    "Microphone",
+    "asks for Accessibility to paste",
+    "Pasting is listed in System Settings under Privacy and Security, Device Control and Data Access (Accessibility before macOS 27)",
+    "When your shortcut is Fn or a single modifier key, it also asks for Input Monitoring",
+    "choose Restart Koegaki",
+    "choose License, then Restore Purchases",
+    "Mac App Store",
+  ]) {
+    assert.ok(text.includes(phrase), `the support page does not say: ${phrase}`);
   }
   assert.doesNotMatch(text, /\$\s?\d/, "the support page names a price");
-  for (const a of anchors(main)) {
-    assert.ok(!a.href.includes("/buy") && !a.href.includes("lemonsqueezy") && a.href !== SITE.checkoutUrl, `the support page links ${a.href}`);
+  // No link anywhere on the page (its nav, its body, its footer) leads to a price or a checkout.
+  for (const a of anchors(doc)) {
+    assert.ok(
+      !a.href.includes("#pricing") && !a.href.includes("/buy") && !a.href.includes("lemonsqueezy") && a.href !== SITE.checkoutUrl,
+      `the support page links ${a.href} (${a.text})`,
+    );
   }
   assert.doesNotMatch(text, /[\u2013\u2014]/, "the support page uses a dash as punctuation");
 });
@@ -201,7 +215,18 @@ test("the privacy page describes the Mac App Store edition: purchases through Ap
   const at = blocks.findIndex((b) => b.heading && b.text === "The Mac App Store edition");
   assert.ok(at >= 0, "the privacy page has no section for the Mac App Store edition");
   const section = blocks.slice(at + 1, blocks.findIndex((b, i) => i > at && b.heading)).map((b) => b.text).join(" ");
-  for (const phrase of ["through Apple", "never see your Apple Account or your payment details", "no license check", "never checks koegaki.com for new versions", "model mirror", "Data Not Collected"]) {
+  // What the store edition sends and what it never sends (Koegaki spec 2026-10-22-mac-app-store-edition,
+  // section 18, the privacy label).
+  for (const phrase of [
+    "through Apple",
+    "never see your Apple Account or your payment details",
+    "no license check",
+    "never checks koegaki.com for new versions",
+    "the request for the speech and cleanup model files from our model mirror",
+    "the daily question to koegaki.com about a newer model",
+    "It sends no audio, text, identifier, usage data or diagnostics",
+    "Data Not Collected",
+  ]) {
     assert.ok(section.includes(phrase), `the App Store section does not say: ${phrase}`);
   }
   assert.doesNotMatch(section, /[\u2013\u2014]/, "the App Store section uses a dash as punctuation");

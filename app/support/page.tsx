@@ -25,7 +25,7 @@ export default function SupportPage() {
   );
   return (
     <>
-      <Nav home={false} />
+      <Nav home={false} pricing={false} />
       <main className="flex-1">
         <article className="mx-auto w-full max-w-2xl px-6 py-24 sm:py-28">
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-ember">Support</p>
