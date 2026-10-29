@@ -175,11 +175,15 @@ function mainText(doc) {
   return pageText(m[0]);
 }
 
-test("the support page is the App Store listing's support URL: the support email, each edition's permissions and purchase route, and nothing that sells", () => {
+test("the support page is the App Store listing's support URL: the support email, each edition's permissions and purchase route, no price and no link to the pricing section or a checkout", () => {
   // The Mac App Store listing names https://koegaki.com/support as its support URL
   // (Koegaki spec 2026-10-22-mac-app-store-edition, section 18), so it must answer
-  // a store customer, and it carries no price and no route to the website's
-  // checkout (App Review 3.1.1 and 3.1.3: a store customer buys in the app).
+  // a store customer, and it names no price and links neither the pricing section
+  // nor a checkout (App Review 3.1.1 and 3.1.3: a store customer buys in the app).
+  // Its logo and its Features and FAQ links still reach the home page, which sells
+  // the website download, as the listing's marketing URL (koegaki.com) itself does:
+  // that is the spec's residual 18.3, the owner's call. The page's exact words are
+  // held by the gate off pin; these checks state what they must keep saying.
   const doc = html("/support");
   const main = doc.match(/<main\b[\s\S]*?<\/main>/)[0];
   const text = mainText(doc);
