@@ -1,0 +1,19 @@
+{
+  "version": "1.15.3",
+  "artifacts": {
+    "exe": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.3/Koegaki-1.15.3-setup.exe",
+      "size": 14765787,
+      "sha256": "fabce161bb1fb08c50dfa3c97a0254665b0010237ce7bfbb6d3c4a91b539c261",
+      "blake2b512": "19d9ccd47f1725ca1d4b6c72400b6c5f2c94b0b91f0c1e274e872afe98558501e27e594d4f17413eddaf80f3432758dd8eeba1383c21e8385acf3772e1fdcf2b",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2o4V0N6VmFGQjQ1TFUrMFdUNVUxbEhJTW9PUUpnNHdCQ1ErRUNra1RHTkhkRTRJY2lwbG0xeWhOcUdxVUpCTU10WFllZTN5VnpoWS9WVEpUNTk0YmdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMzAxNTIxCWZpbGU6S29lZ2FraV8xLjE1LjNfeDY0LXNldHVwLmV4ZQpaWTJQUHRxSldBd1FUTi83MUZGUDc2RGR4Zk91aU1xMUNjMVJzUnp0bi9hZFR5TUVsM2gzeTMwRUNHbFFSQ3htbittdCtnZG0xNVZJQUR4QXpVTU5Ddz09Cg=="
+    },
+    "deb": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.3/Koegaki-1.15.3-amd64.deb",
+      "size": 31612354,
+      "sha256": "1ed48e7bcf849c9d85dd826bc54981b9adc9df670adadd5ac4bb2f2fdee129c8",
+      "blake2b512": "b6d50382b27501db2b820064b0c8e5f19c575f6d20e1a4648ba293baa5518cbe6a68c90c0ec6304d83b82ee42cb65c190c0b3b01780a2dcdea98f02f1dfc599c",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3RoT1BHTmtiSXRMM0dhZUg1Q2lIakE2cDBXR21hUVVUVlU2MEY1OU5JaTUrdHBIMVhnMFZQSnAxbFlSUkFNWkE1d1VvdmZDVWFRWkNBMFBlQlpEZlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMzA0NDc3CWZpbGU6Y29tLnZpc2h1dGRoYXIuS29lZ2FraV8xLjE1LjNfYW1kNjQuZGViCmo2R0l3akxEWVozVnp1bDJBUnFLTWlqalU3Ukw3VER3U3JOSmIzbW9FUHZnNWFkTEtXSlBNYjV2VHg0ZGQzN3hvRWkwMWRHbklkb3VQSll3cTFTZER3PT0K"
+    }
+  }
+}
