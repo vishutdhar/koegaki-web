@@ -3,6 +3,22 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
+            <title>1.13.10</title>
+            <pubDate>Mon, 02 Nov 2026 19:48:07 -0500</pubDate>
+            <sparkle:channel>canary</sparkle:channel>
+            <sparkle:version>43</sparkle:version>
+            <sparkle:shortVersionString>1.13.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>Koegaki 1.13.10</h2>
+<ul>
+    <li>This release is for the Mac. Windows stays on 1.15.3 and Linux on 1.15.3.</li>
+    <li>On the Mac, Clean on gets its text to you sooner: the cleanup now checks several words at once instead of one at a time.</li>
+    <li>On the Mac, unplugging or switching a microphone while Koegaki is idle can no longer close it.</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.10/Koegaki-1.13.10.dmg" length="32758556" type="application/octet-stream" sparkle:edSignature="x3klGiwSWxZR3QaotxTfcn+mq7xgFB6rgB3obRmywDbY5zM0TXR2yl0CRxex3Vp3Dpg0a0KzaUwX1mO8eG2yBQ=="/>
+        </item>
+        <item>
             <title>1.13.9</title>
             <pubDate>Tue, 27 Oct 2026 00:22:39 -0400</pubDate>
             <sparkle:version>42</sparkle:version>
