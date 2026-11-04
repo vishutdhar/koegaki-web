@@ -4437,6 +4437,64 @@ test(
   },
 );
 
+/** A data script of a prerendered page, one piece of its flight payload: `self.__next_f.push([1,"<piece>"])`. */
+const FLIGHT_DATA_SCRIPT = /<script>self\.__next_f\.push\((\[1,"(?:[^"\\]|\\.)*"\])\)<\/script>/g;
+/** The tag Next puts last in every head while next/font adjusts a fallback font's size. */
+const SIZE_ADJUST_TAG = '<meta name="next-size-adjust" content=""/>';
+
+/**
+ * The digest of one prerendered file, the bytes of `file`, with each value of
+ * `placeholders` ([value, placeholder] pairs) read as its placeholder. An rsc,
+ * body or meta file is read byte for byte. A page (html) is read for its
+ * content, not for the framing one build gives it and the next build of the
+ * same content does not.
+ *
+ * Its flight payload is read whole. Next writes each piece the flight stream
+ * yields as a data script of its own (writeFlightDataInstruction in
+ * next/dist/server/app-render/use-flight-response.js), and the stream cuts its
+ * pieces by length, so a link two characters longer moves every later cut, and
+ * a cut can fall inside a link, where no placeholder reads it. The data scripts
+ * are taken out, their pieces joined in document order (which gives the page's
+ * rsc file exactly), and the payload is read once, apart from the markup. Every
+ * other script stays where it is, the bootstrap push([0]) among them.
+ *
+ * Its size adjust tag is read apart from its place. Next renders the tag last
+ * in the head (app-render.js), and React Flight sends an element as a row of
+ * its own once the row it is writing passes about 3200 characters (deferTask in
+ * react-server-dom-turbopack's server); on the 404 page that element is this
+ * tag. The HTML renderer hoists this tag and the 404 page's own title into the
+ * head in the order it renders them (the title and meta cases of
+ * pushStartInstance in react-dom/server), and when it reaches a row that has
+ * not arrived it goes on with the rest of the page and renders the row once it
+ * comes (renderNode). The rsc is replayed into the renderer while it renders
+ * (createUnclosingStream in app-render-prerender-utils.js), so the 404 page's
+ * tag lands before or after the page's own title by timing alone: eight builds
+ * of main 237cfa3 gave both orders, and twenty with a single static generation
+ * worker gave one. The tag is taken out and its count kept; every other tag is
+ * read where it stands.
+ *
+ * The placeholders are read after both, in the markup and in the payload.
+ */
+function prerenderedDigest(file, bytes, placeholders) {
+  const read = (text) => {
+    for (const [value, placeholder] of placeholders) text = text.replaceAll(value, placeholder);
+    return text;
+  };
+  if (!file.endsWith(".html")) return createHash("sha256").update(Buffer.from(read(bytes.toString("latin1")), "latin1")).digest("hex");
+  // A page that is not UTF-8 throws, and a byte order mark stays in the text.
+  let flight = "";
+  const markup = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes).replace(FLIGHT_DATA_SCRIPT, (_, data) => {
+    flight += JSON.parse(data)[1];
+    return "";
+  });
+  const page = {
+    markup: read(markup.replaceAll(SIZE_ADJUST_TAG, "")),
+    sizeAdjustTags: markup.split(SIZE_ADJUST_TAG).length - 1,
+    flight: read(flight),
+  };
+  return createHash("sha256").update(JSON.stringify(page), "utf8").digest("hex");
+}
+
 /**
  * Digests of every prerendered file of the build (html, rsc, segment rsc,
  * body and meta), with the build id and the two download links read as
@@ -4445,14 +4503,14 @@ test(
  */
 function gateOffDigests() {
   const buildId = readFileSync(new URL("BUILD_ID", BUILD_ROOT), "utf8").trim();
+  const placeholders = [
+    [buildId, "<build id>"],
+    [SITE.downloadUrl, "<Mac download>"],
+    [SITE.windowsDownloadUrl, "<Windows download>"],
+  ];
   const digests = {};
   for (const file of filesUnder(BUILT).filter((name) => /\.(?:html|rsc|body|meta)$/.test(name)).sort()) {
-    const text = readUnder(BUILT, file)
-      .toString("latin1")
-      .replaceAll(buildId, "<build id>")
-      .replaceAll(SITE.downloadUrl, "<Mac download>")
-      .replaceAll(SITE.windowsDownloadUrl, "<Windows download>");
-    digests[file] = createHash("sha256").update(Buffer.from(text, "latin1")).digest("hex");
+    digests[file] = prerenderedDigest(file, readUnder(BUILT, file), placeholders);
   }
   return digests;
 }
@@ -4476,12 +4534,118 @@ test(
     // Since a real release holds a deb it is checked on the gate off build,
     // releases/ with every deb taken out. A deliberate change to today's pages
     // refreshes it with UPDATE_GATE_OFF_PIN=1 npm test, and its diff names every
-    // file it moves.
+    // file it moves. Since main 237cfa3 it holds each page's content as
+    // prerenderedDigest reads it, so a release's link moving the flight
+    // stream's cuts, or a build placing the size adjust tag elsewhere in the
+    // head, leaves it as it is.
     const digests = gateOffDigests();
     if (process.env.UPDATE_GATE_OFF_PIN === "1") writeFileSync(GATE_OFF_PIN, `${JSON.stringify(digests, null, 2)}\n`);
     assert.deepEqual(digests, JSON.parse(readFileSync(GATE_OFF_PIN, "utf8")), "a prerendered file differs from the pin of the site before Linux");
   },
 );
+
+/**
+ * A page as Next prerenders one, for the tests of prerenderedDigest below:
+ * `link` in its markup, and a flight payload holding `buildId`, `link` and
+ * `words`, cut at the offsets `cut` gives for it, each piece written as a data
+ * script of its own the way next/dist/server/app-render/use-flight-response.js
+ * writes them (JSON, with < > & U+2028 and U+2029 escaped). In the head the 404
+ * title stands before the size adjust tag, or after it with `sizeAdjustFirst`,
+ * and the site title after both, or before them with `siteTitleFirst`. The page
+ * starts with a byte order mark with `byteOrderMark`.
+ */
+function prerenderedPage({
+  link,
+  buildId = "build-one",
+  words = "custom words also help Koegaki hear your names, so “post hog” becomes PostHog",
+  cut = () => [],
+  markup = "Download for Mac",
+  sizeAdjust = true,
+  sizeAdjustFirst = false,
+  siteTitleFirst = false,
+  byteOrderMark = false,
+}) {
+  const payload = `0:{"b":"${buildId}","href":"${link}"}\n1:["$","p",null,{"children":"${words} <and> terms"}]\n`;
+  const ends = [...cut(payload), payload.length];
+  const pieces = ends.map((end, i) => payload.slice(i === 0 ? 0 : ends[i - 1], end));
+  const inline = (piece) =>
+    JSON.stringify([1, piece]).replace(/[&<>\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  const tag = sizeAdjust ? '<meta name="next-size-adjust" content=""/>' : "";
+  const notFound = sizeAdjustFirst ? `${tag}<title>404: This page could not be found.</title>` : `<title>404: This page could not be found.</title>${tag}`;
+  const site = "<title>Koegaki · The fastest private dictation</title>";
+  return Buffer.from(
+    (byteOrderMark ? "\uFEFF" : "") +
+      `<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/><meta name="robots" content="noindex"/>` +
+      (siteTitleFirst ? site + notFound : notFound + site) +
+      `</head><body><a href="${link}">${markup}</a><script>(self.__next_f=self.__next_f||[]).push([0])</script>` +
+      pieces.map((piece) => `<script>self.__next_f.push(${inline(piece)})</script>`).join("") +
+      "</body></html>",
+  );
+}
+
+/** The two Mac links of the 1.13.10 promotion, the second two characters longer. */
+const PAGE_LINKS = [
+  "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.9/Koegaki-1.13.9.dmg",
+  "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.10/Koegaki-1.13.10.dmg",
+];
+
+/** prerenderedDigest of prerenderedPage(page), with its build id and link read as placeholders. */
+function pageDigest(page) {
+  const { link, buildId = "build-one" } = page;
+  return prerenderedDigest("page.html", prerenderedPage(page), [
+    [buildId, "<build id>"],
+    [link, "<Mac download>"],
+  ]);
+}
+
+test("a page's pin digest does not move with where the flight stream was cut", () => {
+  const [today, promoted] = PAGE_LINKS;
+  // Today's build cut the payload at "...help Koegaki" | " hear...". The
+  // promotion's link is two characters longer, so its build cut the same
+  // payload two characters earlier in the words, "...help Koega" | "ki hear...".
+  const pinned = pageDigest({ link: today, cut: (p) => [p.indexOf(" hear")] });
+  assert.equal(pageDigest({ link: promoted, buildId: "the-second-build", cut: (p) => [p.indexOf("ki hear")] }), pinned, "the promotion's cut moved the digest");
+  assert.equal(
+    pageDigest({ link: promoted, cut: (p) => [p.indexOf("v1.13.10") + 4, p.indexOf("ki hear")] }),
+    pinned,
+    "a cut inside the link kept it from its placeholder",
+  );
+  assert.equal(pageDigest({ link: today }), pinned, "the payload in one piece reads differently");
+  assert.equal(
+    pageDigest({ link: today, cut: (p) => [p.indexOf("“post") + 1, p.indexOf("<and>") + 1, p.indexOf("<and>") + 3] }),
+    pinned,
+    "a cut beside an escaped character moved the digest",
+  );
+  // A flight chunk that ends inside a character gives an empty data script, the
+  // character going whole into the next one (the decoder holds its first bytes).
+  assert.equal(
+    pageDigest({ link: today, cut: (p) => [p.indexOf("“post"), p.indexOf("“post")] }),
+    pinned,
+    "an empty piece moved the digest",
+  );
+});
+
+test("a page's pin digest does not move with where the size adjust tag landed in the head", () => {
+  const [link] = PAGE_LINKS;
+  const cut = (p) => [p.indexOf(" hear")];
+  assert.equal(pageDigest({ link, cut, sizeAdjustFirst: true }), pageDigest({ link, cut }), "the size adjust tag's place moved the digest");
+});
+
+test("a page's pin digest moves with one byte of its content, and with any other order in its head", () => {
+  const [link] = PAGE_LINKS;
+  const cut = (p) => [p.indexOf(" hear")];
+  const pinned = pageDigest({ link, cut });
+  const changes = [
+    ["one byte of the payload", { words: "custom words also help Koegaki heat your names, so “post hog” becomes PostHog" }],
+    ["one byte of the markup", { markup: "Download for Mav" }],
+    ["two words of the payload swapped", { words: "custom words also help Koegaki hear your names, so “hog post” becomes PostHog" }],
+    ["no size adjust tag", { sizeAdjust: false }],
+    ["the site title before the 404 title", { siteTitleFirst: true }],
+    ["the site title before the 404 title, the size adjust tag first", { siteTitleFirst: true, sizeAdjustFirst: true }],
+    ["a byte order mark", { byteOrderMark: true }],
+  ];
+  for (const [name, change] of changes) assert.notEqual(pageDigest({ link, cut, ...change }), pinned, `${name} left the digest as it was`);
+});
 
 /** The pre-paint platform stamp script of a page. */
 function stampScript(doc) {
