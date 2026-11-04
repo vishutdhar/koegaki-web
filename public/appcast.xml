@@ -5,7 +5,6 @@
         <item>
             <title>1.13.10</title>
             <pubDate>Mon, 02 Nov 2026 19:48:07 -0500</pubDate>
-            <sparkle:channel>canary</sparkle:channel>
             <sparkle:version>43</sparkle:version>
             <sparkle:shortVersionString>1.13.10</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
