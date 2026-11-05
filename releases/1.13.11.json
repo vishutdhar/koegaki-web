@@ -1,0 +1,12 @@
+{
+  "version": "1.13.11",
+  "channel": "canary",
+  "artifacts": {
+    "dmg": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.11/Koegaki-1.13.11.dmg",
+      "size": 32806155,
+      "sha256": "81a21d9f0b231d75946dcff001364545939df60cba81949408f7472ec4b29786",
+      "blake2b512": "4df0aff04a4d637edf37875866c5b063cd1092e8d30a06fd1b939babbc6cc7f30639585219990951a7cb6b90871a163cf4ca2a7f7c8825190fd462c0b6280cf8"
+    }
+  }
+}
