@@ -1,0 +1,12 @@
+{
+  "version": "1.15.4",
+  "artifacts": {
+    "exe": {
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.4/Koegaki-1.15.4-setup.exe",
+      "size": 14773220,
+      "sha256": "7f2ec9e7059e7ed5effbd98cb8fff3b4e7a4e96f3a1ff76e3a202755245e611a",
+      "blake2b512": "dc7ec06e9cc0489f203664a87ebbd1040683737af170b6b433e6b4da2983e27cf0de246451df8502e4b1c598e700855ecaf34a17e4b6998a938e6f4c9fff413b",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3NEclVQNHhTTXNHd29leFZBWW8ram9VdWhXYmZwSHZWZTE5ZWxrZjhzOGd6MjUxWUpHWTJRRHZHdFFOb3I2SXBUbjhhV3dqRXU1aXZTWjI3eWp3S2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0Mjc3ODc2CWZpbGU6S29lZ2FraV8xLjE1LjRfeDY0LXNldHVwLmV4ZQpEUnlTVTJsbURERXBYRVp3Z05oS2FqTWxuaThSMVhnWXhnS21ER3lRbzdITlRNNzhVSEtxeHNvQU9sblhBTU9GcDVVTWhFMm11TmRRcDBNbjhoKzdBUT09Cg=="
+    }
+  }
+}
