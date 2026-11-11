@@ -1,11 +1,11 @@
 {
-  "version": "1.15.4",
-  "notes": "The tray shows its whole message when you rest the pointer on the Koegaki icon, where a longer one used to stop partway through. A message too long for the tray ends at a whole word with an ellipsis, and Settings shows it in full. A tray message that already begins with Koegaki no longer repeats the name in front of it.",
-  "pub_date": "2026-11-10T02:41:51Z",
+  "version": "1.15.5",
+  "notes": "With Tap to start and stop, long speech with no pause is no longer cut in the middle of a word. Koegaki used to split it after 14 seconds wherever that fell, which could change a word or drop one at the split. It now waits for a pause. Speech that runs past 20 seconds with none is split at its quietest moment.",
+  "pub_date": "2026-11-11T20:47:06Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN3NEclVQNHhTTXNHd29leFZBWW8ram9VdWhXYmZwSHZWZTE5ZWxrZjhzOGd6MjUxWUpHWTJRRHZHdFFOb3I2SXBUbjhhV3dqRXU1aXZTWjI3eWp3S2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0Mjc3ODc2CWZpbGU6S29lZ2FraV8xLjE1LjRfeDY0LXNldHVwLmV4ZQpEUnlTVTJsbURERXBYRVp3Z05oS2FqTWxuaThSMVhnWXhnS21ER3lRbzdITlRNNzhVSEtxeHNvQU9sblhBTU9GcDVVTWhFMm11TmRRcDBNbjhoKzdBUT09Cg==",
-      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.4/Koegaki-1.15.4-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTYVJlVGMwMzYyN2s4NGN2KytRM09YOThGckZoTElSbDNqckI2N0pnelZyRG9ZUGF0WUcySTVOMUxaS2Vzc2hFcURtTFlYS3N5WlFselByOGwyM056cWNOdWNpWEtSamc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NDIyNzc4CWZpbGU6S29lZ2FraV8xLjE1LjVfeDY0LXNldHVwLmV4ZQpzOUx3WjdtMSsyQjN5L1dPa0t4UU9ycEZkOGxKYWR3VFl4NXhNaDRrRkkyNnhxU0lhZFE5VS84VHpjazZFM1JRd0NJYkRscGNjUFRxSk4valp1dTNCZz09Cg==",
+      "url": "https://github.com/vishutdhar/koegaki-releases/releases/download/v1.15.5/Koegaki-1.15.5-setup.exe"
     }
   }
 }
