@@ -3,6 +3,23 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
+            <title>1.13.12</title>
+            <pubDate>Sun, 15 Nov 2026 15:41:52 -0500</pubDate>
+            <sparkle:channel>canary</sparkle:channel>
+            <sparkle:version>45</sparkle:version>
+            <sparkle:shortVersionString>1.13.12</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>Koegaki 1.13.12</h2>
+<ul>
+    <li>This release is for the Mac. Windows stays on 1.15.5 and Linux on 1.15.5.</li>
+    <li>On the Mac, when you let go of the shortcut just as you finish your last word, Koegaki now keeps the end of that word instead of cutting it off.</li>
+    <li>On the Mac, Clean is now on by default: once its model is on your Mac, Koegaki takes out ums, stutters and false starts and fixes the punctuation, all on your Mac. Koegaki first checks that your Mac runs it fast enough, and leaves it off on a slower Mac. To get your exact words back, turn Cleanup off in Settings.</li>
+    <li>On the Mac, the About page now links to the Privacy Policy.</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.12/Koegaki-1.13.12.dmg" length="33008209" type="application/octet-stream" sparkle:edSignature="flCKdXF3hFnoxA7uc92S6Vgq2UF2RoGg1XjFBeoXYaedVO7FvnWyqGpoqfAxOpyywRZqWRZpxK//lvyVNrdHBQ=="/>
+        </item>
+        <item>
             <title>1.13.11</title>
             <pubDate>Thu, 05 Nov 2026 02:09:55 -0500</pubDate>
             <sparkle:version>44</sparkle:version>
