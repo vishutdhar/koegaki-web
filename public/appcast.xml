@@ -3,6 +3,22 @@
     <channel>
         <title>KoegakiMac</title>
         <item>
+            <title>1.13.13</title>
+            <pubDate>Wed, 18 Nov 2026 17:55:10 -0500</pubDate>
+            <sparkle:channel>canary</sparkle:channel>
+            <sparkle:version>47</sparkle:version>
+            <sparkle:shortVersionString>1.13.13</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>Koegaki 1.13.13</h2>
+<ul>
+    <li>This release is for the Mac. Windows stays on 1.15.5 and Linux on 1.15.5.</li>
+    <li>On the Mac, Koegaki now keeps listening for a moment after you let go of the shortcut, so a word that ends as you let go is no longer cut short, even when it ends softly.</li>
+    <li>On the Mac, with Clean on, Koegaki now catches far more cases where the cleanup drops a word that matters, such as a closing "too", "also" or "please", and pastes your own words instead.</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/vishutdhar/koegaki-releases/releases/download/v1.13.13/Koegaki-1.13.13.dmg" length="33020202" type="application/octet-stream" sparkle:edSignature="0h87b65V0augmV+7vMFrJXF9v0JZG/vll1Pq7xm1uY9NN2lr+46MIqJxNNnaqIyAcJ+/0EP/J+QSP/+Qc+GtCA=="/>
+        </item>
+        <item>
             <title>1.13.12</title>
             <pubDate>Mon, 16 Nov 2026 09:13:59 -0500</pubDate>
             <sparkle:channel>canary</sparkle:channel>
